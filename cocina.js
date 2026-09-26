@@ -264,3 +264,37 @@ formNuevoPlato.addEventListener('submit', async (e) => {
 
 // Inicialización
 cargarTodo();
+// --- REGISTRAR NUEVO INSUMO BASE ---
+const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
+
+if (formNuevoInsumo) {
+  formNuevoInsumo.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const nombre = document.getElementById('insumo-nombre').value.trim();
+    const unidad = document.getElementById('insumo-unidad').value;
+    const stock = parseFloat(document.getElementById('insumo-stock').value);
+    const minimo = parseFloat(document.getElementById('insumo-minimo').value);
+
+    const btnSubmit = formNuevoInsumo.querySelector('button[type="submit"]');
+    btnSubmit.disabled = true;
+
+    const { error } = await db.from('ingredients').insert([{
+      name: nombre,
+      unit: unidad,
+      current_stock: stock,
+      min_stock: minimo
+    }]);
+
+    btnSubmit.disabled = false;
+
+    if (error) {
+      alert('Error al registrar insumo: ' + error.message);
+      return;
+    }
+
+    alert(`¡Insumo "${nombre}" agregado al inventario!`);
+    formNuevoInsumo.reset();
+    await cargarInsumos(); // Actualiza la tabla y los selectores de recetas automáticamente
+  });
+}
