@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Control y Cocina | Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .grid-cocina {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 15px;
+    }
+    .ticket {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .ticket-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #333;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+    .badge {
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .badge-recibido { background: #3b82f6; color: #fff; }
+    .badge-en_preparacion { background: #f59e0b; color: #000; }
+    .badge-listo { background: #10b981; color: #000; }
+    .ticket-items {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0;
+      font-size: 0.9rem;
+    }
+    .ticket-items li {
+      padding: 3px 0;
+      border-bottom: 1px dashed #2a2a2a;
+    }
+    .ticket-cliente {
+      font-size: 0.8rem;
+      color: #a3a3a3;
+      margin-top: 8px;
+    }
+    .ticket-acciones {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .btn-estado {
+      flex: 1;
+      padding: 6px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    .seccion-admin {
+      background: #1a1a1a;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 30px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    .receta-fila {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .tabla-gestion {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    .tabla-gestion th, .tabla-gestion td {
+      border: 1px solid #2a2a2a;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .tabla-gestion th {
+      background: #222;
+      color: #fbbf24;
+    }
+    .btn-peligro {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    .btn-peligro:hover { background: #b91c1c; }
+    .btn-toggle {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+    .btn-toggle.activo { background: #059669; color: #fff; }
+    .btn-toggle.pausado { background: #4b5563; color: #d1d5db; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <div>
+        <h1>Tropicalia - Centro de Operaciones</h1>
+        <p>Comandas, catálogo en vivo e inventario de insumos</p>
+      </div>
+      <div>
+        <a href="index.html" class="btn-secundario" style="text-decoration:none; margin-right:8px;">👀 Ver Menú Cliente</a>
+        <button onclick="cargarTodo()" class="btn-secundario">🔄 Actualizar</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 1. Monitor de Comandas Activas -->
+    <section>
+      <h2>Comandas en Preparación</h2>
+      <div id="loading" class="alerta">Cargando pedidos...</div>
+      <div id="grid-pedidos" class="grid-cocina"></div>
+    </section>
+
+    <!-- 2. Gestión del Catálogo de Platos -->
+    <section class="seccion-admin">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Gestión del Menú (Platos Activos y Visibilidad)</h2>
+        <span style="font-size:0.8rem; color:#a3a3a3;">Pausar un plato lo oculta de la tienda de inmediato</span>
+      </div>
+      
+      <table class="tabla-gestion">
+        <thead>
+          <tr>
+            <th>Nombre del Plato</th>
+            <th>Categoría</th>
+            <th>Precio</th>
+            <th>Estado en Tienda</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-platos-cuerpo"></tbody>
+      </table>
+
+      <!-- Formulario para Agregar Nuevo Plato -->
+      <h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
+      <form id="form-nuevo-plato">
+        <div class="form-grid">
+          <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
+          <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
+          <input type="text" id="plato-categoria" placeholder="Categoría (ej: Pastichos, Postres)" required />
+          <input type="text" id="plato-desc" placeholder="Descripción breve" required />
+        </div>
+
+        <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
+        <div id="receta-contenedor"></div>
+        <button type="button" onclick="agregarFilaIngrediente()" class="btn-secundario" style="margin-bottom: 15px; font-size: 0.8rem;">
+          + Asociar otro insumo
+        </button>
+
+        <button type="submit" class="btn-primario">Guardar y Publicar Plato</button>
+      </form>
+    </section>
+
+    <!-- 3. Monitor y Reposición de Inventario -->
+    <section class="seccion-admin">
+      <h2>Inventario Actual de Insumos</h2>
+      <table class="tabla-gestion">
+        <thead>
+          <tr>
+            <th>Insumo</th>
+            <th>Stock Actual</th>
+            <th>Unidad</th>
+            <th>Diagnóstico</th>
+            <th>Reponer Stock Rápido</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-insumos-cuerpo"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="cocina.js"></script>
+</body>
+</html>
