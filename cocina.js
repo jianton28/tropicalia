@@ -44,7 +44,8 @@ async function cargarTodo() {
   await Promise.all([
     cargarInsumos(),
     cargarPlatosMenu(),
-    cargarPedidos()
+    cargarPedidos(),
+    cargarDashboardFinanciero()
   ]);
 }
 
@@ -358,3 +359,147 @@ cargarTodo();
 setInterval(() => {
   cargarPedidos();
 }, 30000);
+let ventasChartInstance = null;
+let periodoSeleccionado = 'dia';
+let pedidosHistoricos = [];
+
+// Función para cambiar de filtro temporal
+window.filtrarPeriodo = function(periodo, boton) {
+  periodoSeleccionado = periodo;
+  document.querySelectorAll('.btn-filtro').forEach(btn => btn.classList.remove('activo'));
+  boton.classList.add('activo');
+  procesarMetricasYGrafica();
+};
+
+// Carga las órdenes históricas para el balance financiero
+async function cargarDashboardFinanciero() {
+  const { data: ordenes, error } = await db
+    .from('orders')
+    .select('id, customer_name, customer_phone, total, paid_amount, payment_status, status, created_at')
+    .neq('status', 'anulado')
+    .order('created_at', { ascending: true });
+
+  if (!error && ordenes) {
+    pedidosHistoricos = ordenes;
+    procesarMetricasYGrafica();
+    cargarCuentasPorCobrar();
+  }
+}
+
+// Procesa los montos y agrupa los puntos para la gráfica según el filtro
+function procesarMetricasYGrafica() {
+  const ahora = new Date();
+  let cobrado = 0;
+  let porCobrar = 0;
+  let totalFacturado = 0;
+  let conteoPedidos = 0;
+
+  const gruposGrafica = {};
+
+  pedidosHistoricos.forEach(orden => {
+    const fOrden = new Date(orden.created_at);
+    let entraEnPeriodo = false;
+    let etiquetaEjeX = '';
+
+    if (periodoSeleccionado === 'dia') {
+      entraEnPeriodo = fOrden.toDateString() === ahora.toDateString();
+      etiquetaEjeX = `${fOrden.getHours().toString().padStart(2, '0')}:00`;
+    } else if (periodoSeleccionado === 'mes') {
+      entraEnPeriodo = fOrden.getMonth() === ahora.getMonth() && fOrden.getFullYear() === ahora.getFullYear();
+      etiquetaEjeX = `Día ${fOrden.getDate()}`;
+    } else if (periodoSeleccionado === 'ano') {
+      entraEnPeriodo = fOrden.getFullYear() === ahora.getFullYear();
+      const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      etiquetaEjeX = meses[fOrden.getMonth()];
+    }
+
+    if (entraEnPeriodo) {
+      const tot = parseFloat(orden.total) || 0;
+      const pag = parseFloat(orden.paid_amount) || (orden.payment_status === 'pagado' ? tot : 0);
+      const saldo = Math.max(0, tot - pag);
+
+      cobrado += pag;
+      porCobrar += saldo;
+      totalFacturado += tot;
+      conteoPedidos++;
+
+      gruposGrafica[etiquetaEjeX] = (gruposGrafica[etiquetaEjeX] || 0) + tot;
+    }
+  });
+
+  // Renderizar KPIs en pantalla
+  document.getElementById('kpi-cobrado').textContent = `$${cobrado.toFixed(2)}`;
+  document.getElementById('kpi-por-cobrar').textContent = `$${porCobrar.toFixed(2)}`;
+  document.getElementById('kpi-total').textContent = `$${totalFacturado.toFixed(2)}`;
+  document.getElementById('kpi-pedidos').textContent = conteoPedidos;
+
+  renderizarGrafica(Object.keys(gruposGrafica), Object.values(gruposGrafica));
+}
+
+// Renderiza o actualiza la gráfica con Chart.js
+function renderizarGrafica(etiquetas, datos) {
+  const ctx = document.getElementById('graficaVentas');
+  if (!ctx) return;
+
+  if (ventasChartInstance) {
+    ventasChartInstance.destroy();
+  }
+
+  ventasChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: etiquetas.length ? etiquetas : ['Sin ventas en este período'],
+      datasets: [{
+        label: 'Ventas ($)',
+        data: datos.length ? datos : [0],
+        borderColor: '#fbbf24',
+        backgroundColor: 'rgba(251, 191, 36, 0.15)',
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2,
+        pointBackgroundColor: '#fbbf24',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#888' },
+          grid: { color: '#2a2a2a' }
+        },
+        y: {
+          ticks: { color: '#888', callback: valor => `$${valor}` },
+          grid: { color: '#2a2a2a' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+// Carga la tabla de cuentas por cobrar usando la vista de Supabase
+async function cargarCuentasPorCobrar() {
+  const tablaDeudores = document.getElementById('tabla-deudores-cuerpo');
+  if (!tablaDeudores) return;
+
+  const { data, error } = await db.from('v_cuentas_por_cobrar').select('*');
+
+  if (error || !data || data.length === 0) {
+    tablaDeudores.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">No hay deudas pendientes registradas.</td></tr>';
+    return;
+  }
+
+  tablaDeudores.innerHTML = data.map(item => `
+    <tr>
+      <td><strong>${item.customer_name}</strong></td>
+      <td>${item.customer_phone}</td>
+      <td>${item.pedidos_pendientes} comanda(s)</td>
+      <td style="color:#ef4444; font-weight:bold;">$${parseFloat(item.total_adeudado).toFixed(2)}</td>
+    </tr>
+  `).join('');
+}
