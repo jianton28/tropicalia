@@ -115,75 +115,87 @@ function actualizarCarrito() {
 if (formPedido) {
   formPedido.addEventListener('submit', async (e) => {
     e.preventDefault();
+// Dentro de formPedido.addEventListener('submit', async (e) => { ...
+const nombre = document.getElementById('cliente-nombre').value.trim();
+const telefono = document.getElementById('cliente-telefono').value.trim();
+const direccion = document.getElementById('cliente-direccion').value.trim();
+const metodoPago = document.getElementById('cliente-metodo-pago').value;
+const inputNotas = document.getElementById('cliente-notas');
+const notas = inputNotas ? inputNotas.value.trim() : '';
 
-    const nombre = document.getElementById('cliente-nombre').value.trim();
-    const telefono = document.getElementById('cliente-telefono').value.trim();
-    const direccion = document.getElementById('cliente-direccion').value.trim();
-    const inputNotas = document.getElementById('cliente-notas');
-    const notas = inputNotas ? inputNotas.value.trim() : '';
+const totalPedido = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
 
-    const totalPedido = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+const btnSubmit = formPedido.querySelector('button[type="submit"]');
+btnSubmit.disabled = true;
+btnSubmit.innerText = 'Procesando pedido...';
 
-    const btnSubmit = formPedido.querySelector('button[type="submit"]');
-    btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Procesando pedido...';
+try {
+  // A) Registrar la orden en Supabase con el método de pago
+  const { data: orden, error: ordenError } = await db
+    .from('orders')
+    .insert([{
+      customer_name: nombre,
+      customer_phone: telefono,
+      customer_address: direccion,
+      notes: notas,
+      total: totalPedido,
+      status: 'recibido',
+      payment_status: 'pendiente',
+      payment_method: metodoPago
+    }])
+    .select()
+    .single();
 
-    try {
-      // A) Registrar la orden en Supabase
-      const { data: orden, error: ordenError } = await db
-        .from('orders')
-        .insert([{
-          customer_name: nombre,
-          customer_phone: telefono,
-          customer_address: direccion,
-          notes: notas,
-          total: totalPedido,
-          status: 'recibido',
-          payment_status: 'pendiente'
-        }])
-        .select()
-        .single();
+  if (ordenError) throw ordenError;
 
-      if (ordenError) throw ordenError;
+  // B) Registrar items en order_items
+  const itemsParaGuardar = carrito.map(item => ({
+    order_id: orden.id,
+    product_id: item.id,
+    quantity: item.cantidad,
+    unit_price: item.price
+  }));
 
-      // B) Registrar el desglose de productos
-      const itemsParaGuardar = carrito.map(item => ({
-        order_id: orden.id,
-        product_id: item.id,
-        quantity: item.cantidad,
-        unit_price: item.price
-      }));
+  const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
+  if (itemsError) throw itemsError;
 
-      const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
-      if (itemsError) throw itemsError;
+  // Mapeo legible del método para la comanda de Telegram
+  const nombresMetodos = {
+    pago_movil: 'Pago Móvil',
+    efectivo_bs: 'Efectivo Bs',
+    efectivo_usd: 'Efectivo USD',
+    zelle: 'Zelle',
+    binance: 'Binance (USDT)'
+  };
 
-      // C) Disparar alertas por Telegram (comanda de cocina y control de existencias)
-      const resumenPlatos = carrito.map(i => `• ${i.cantidad}x ${i.name}`).join('\n');
-      const mensajeTelegram = `🚨 *¡NUEVO PEDIDO RECIBIDO!* 🚨\n\n` +
-        `📦 *Orden:* #ORD-${orden.id}\n` +
-        `👤 *Cliente:* ${nombre}\n` +
-        `📞 *Teléfono:* ${telefono}\n` +
-        `📍 *Dirección:* ${direccion}\n` +
-        (notas ? `⚠️ *Notas/Alergias:* ${notas}\n` : '') +
-        `\n🛒 *Platos:*\n${resumenPlatos}\n\n` +
-        `💰 *Total:* $${totalPedido.toFixed(2)}`;
+  // C) Enviar notificación a Telegram
+  const resumenPlatos = carrito.map(i => `• ${i.cantidad}x ${i.name}`).join('\n');
+  const mensajeTelegram = `🚨 *¡NUEVO PEDIDO RECIBIDO!* 🚨\n\n` +
+    `📦 *Orden:* #ORD-${orden.id}\n` +
+    `👤 *Cliente:* ${nombre}\n` +
+    `📞 *Teléfono:* ${telefono}\n` +
+    `📍 *Dirección:* ${direccion}\n` +
+    `💳 *Método de Pago:* ${nombresMetodos[metodoPago] || metodoPago}\n` +
+    (notas ? `⚠️ *Notas/Alergias:* ${notas}\n` : '') +
+    `\n🛒 *Platos:*\n${resumenPlatos}\n\n` +
+    `💰 *Total:* $${totalPedido.toFixed(2)}`;
 
-      await enviarAlertaTelegram(mensajeTelegram);
-      await verificarAlertasStock(carrito);
+  await enviarAlertaTelegram(mensajeTelegram);
+  await verificarAlertasStock(carrito);
 
-      // D) Confirmación visual en pantalla y limpieza
-      alert(`¡Gracias por tu compra! Tu comanda #ORD-${orden.id} ya entró a cocina. Nos comunicaremos al ${telefono} para coordinar la entrega.`);
+  // D) Alerta en navegador y reseteo
+  alert(`¡Gracias por tu compra! Tu comanda #ORD-${orden.id} ya entró a cocina. Coordinaremos la entrega al ${telefono}.`);
 
-      carrito = [];
-      actualizarCarrito();
-      formPedido.reset();
+  carrito = [];
+  actualizarCarrito();
+  formPedido.reset();
 
-    } catch (error) {
-      alert('Hubo un error al procesar el pedido: ' + error.message);
-    } finally {
-      btnSubmit.disabled = false;
-      btnSubmit.innerText = 'Confirmar y Enviar Pedido';
-    }
+} catch (error) {
+  alert('Hubo un error al procesar el pedido: ' + error.message);
+} finally {
+  btnSubmit.disabled = false;
+  btnSubmit.innerText = 'Confirmar y Enviar Pedido';
+}
   });
 }
 
