@@ -18,19 +18,6 @@ const carritoItems = document.getElementById('carrito-items');
 const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
 const formPedido = document.getElementById('form-pedido');
-const notas = document.getElementById('cliente-notas').value.trim();
-const { data: orden, error: ordenError } = await db
-  .from('orders')
-  .insert([{
-    customer_name: nombre,
-    customer_phone: telefono,
-    customer_address: direccion,
-    notes: notas, // Campo guardado en la orden
-    total: totalPedido,
-    status: 'recibido'
-  }])
-  .select()
-  .single();
 
 // 1. Cargar productos desde Supabase
 async function obtenerMenu() {
@@ -45,16 +32,16 @@ async function obtenerMenu() {
     productos = data || [];
     renderizarCatalogo();
   } catch (err) {
-    loading.innerText = 'Error al cargar los productos: ' + err.message;
+    if (loading) loading.innerText = 'Error al cargar los productos: ' + err.message;
   }
 }
 
 // 2. Renderizar platos en pantalla
 function renderizarCatalogo() {
-  loading.style.display = 'none';
+  if (loading) loading.style.display = 'none';
 
-  if (productos.length === 0) {
-    gridProductos.innerHTML = '<p class="alerta">No hay productos disponibles.</p>';
+  if (!productos || productos.length === 0) {
+    gridProductos.innerHTML = '<p class="alerta">No hay productos disponibles en este momento.</p>';
     return;
   }
 
@@ -98,107 +85,114 @@ function actualizarCarrito() {
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalPrecio = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
 
-  cartCount.innerText = totalItems;
-  carritoTotalPrecio.innerText = `$${totalPrecio.toFixed(2)}`;
+  if (cartCount) cartCount.innerText = totalItems;
+  if (carritoTotalPrecio) carritoTotalPrecio.innerText = `$${totalPrecio.toFixed(2)}`;
 
   if (carrito.length === 0) {
-    carritoVacio.style.display = 'block';
-    carritoItems.innerHTML = '';
-    formPedido.style.display = 'none';
+    if (carritoVacio) carritoVacio.style.display = 'block';
+    if (carritoItems) carritoItems.innerHTML = '';
+    if (formPedido) formPedido.style.display = 'none';
     return;
   }
 
-  carritoVacio.style.display = 'none';
-  formPedido.style.display = 'flex';
+  if (carritoVacio) carritoVacio.style.display = 'none';
+  if (formPedido) formPedido.style.display = 'flex';
 
-  carritoItems.innerHTML = carrito.map(item => `
-    <div class="item-carrito">
-      <div>
-        <div><strong>${item.name}</strong></div>
-        <small>${item.cantidad} x $${parseFloat(item.price).toFixed(2)}</small>
+  if (carritoItems) {
+    carritoItems.innerHTML = carrito.map(item => `
+      <div class="item-carrito">
+        <div>
+          <div><strong>${item.name}</strong></div>
+          <small>${item.cantidad} x $${parseFloat(item.price).toFixed(2)}</small>
+        </div>
+        <button class="btn-secundario" style="padding: 2px 6px;" onclick="eliminarDelCarrito(${item.id})">✕</button>
       </div>
-      <button class="btn-secundario" style="padding: 2px 6px;" onclick="eliminarDelCarrito(${item.id})">✕</button>
-    </div>
-  `).join('');
+    `).join('');
+  }
 }
 
 // 4. Enviar Pedido a Supabase y notificar
-formPedido.addEventListener('submit', async (e) => {
-  e.preventDefault();
+if (formPedido) {
+  formPedido.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-  const nombre = document.getElementById('cliente-nombre').value.trim();
-  const telefono = document.getElementById('cliente-telefono').value.trim();
-  const direccion = document.getElementById('cliente-direccion').value.trim();
-  const total = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+    const nombre = document.getElementById('cliente-nombre').value.trim();
+    const telefono = document.getElementById('cliente-telefono').value.trim();
+    const direccion = document.getElementById('cliente-direccion').value.trim();
+    const inputNotas = document.getElementById('cliente-notas');
+    const notas = inputNotas ? inputNotas.value.trim() : '';
 
-  const btnSubmit = formPedido.querySelector('button[type="submit"]');
-  btnSubmit.disabled = true;
-  btnSubmit.innerText = 'Enviando pedido...';
+    const totalPedido = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
 
-  try {
-    // A) Insertar el pedido en la tabla 'orders'
-    const { data: orden, error: ordenError } = await db
-      .from('orders')
-      .insert([{
-        customer_name: nombre,
-        customer_phone: telefono,
-        customer_address: direccion,
-        total: total,
-        status: 'recibido'
-      }])
-      .select()
-      .single();
+    const btnSubmit = formPedido.querySelector('button[type="submit"]');
+    btnSubmit.disabled = true;
+    btnSubmit.innerText = 'Enviando pedido...';
 
-    if (ordenError) throw ordenError;
+    try {
+      // A) Insertar el pedido en la tabla 'orders'
+      const { data: orden, error: ordenError } = await db
+        .from('orders')
+        .insert([{
+          customer_name: nombre,
+          customer_phone: telefono,
+          customer_address: direccion,
+          notes: notas,
+          total: totalPedido,
+          status: 'recibido',
+          payment_status: 'pendiente'
+        }])
+        .select()
+        .single();
 
-    // B) Insertar el desglose de productos en 'order_items'
-    const itemsParaGuardar = carrito.map(item => ({
-      order_id: orden.id,
-      product_id: item.id,
-      quantity: item.cantidad,
-      unit_price: item.price
-    }));
+      if (ordenError) throw ordenError;
 
-    const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
-    if (itemsError) throw itemsError;
+      // B) Insertar el desglose de productos en 'order_items'
+      const itemsParaGuardar = carrito.map(item => ({
+        order_id: orden.id,
+        product_id: item.id,
+        quantity: item.cantidad,
+        unit_price: item.price
+      }));
 
-    // C) Notificación instantánea vía WhatsApp para la cocina/productor
-let mensajeWhatsApp = `*¡Nuevo Pedido en Tropicalia!* 🥑%0A`;
-mensajeWhatsApp += `*Orden:* %23ORD-${orden.id}%0A`;
-mensajeWhatsApp += `*Cliente:* ${nombre}%0A`;
-mensajeWhatsApp += `*Teléfono:* ${telefono}%0A`;
-mensajeWhatsApp += `*Dirección:* ${direccion}%0A`;
+      const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
+      if (itemsError) throw itemsError;
 
-if (notas) {
-  mensajeWhatsApp += `*Notas/Alergias:* ⚠️ ${notas}%0A`;
+      // C) Generar mensaje formateado para WhatsApp
+      let mensajeWhatsApp = `*¡Nuevo Pedido en Tropicalia!* 🥑%0A`;
+      mensajeWhatsApp += `*Orden:* %23ORD-${orden.id}%0A`;
+      mensajeWhatsApp += `*Cliente:* ${nombre}%0A`;
+      mensajeWhatsApp += `*Teléfono:* ${telefono}%0A`;
+      mensajeWhatsApp += `*Dirección:* ${direccion}%0A`;
+
+      if (notas) {
+        mensajeWhatsApp += `*Notas/Alergias:* ⚠️ ${notas}%0A`;
+      }
+
+      mensajeWhatsApp += `%0A*Detalle del pedido:*%0A`;
+      carrito.forEach(item => {
+        mensajeWhatsApp += `• ${item.cantidad}x ${item.name} ($${(item.price * item.cantidad).toFixed(2)})%0A`;
+      });
+
+      mensajeWhatsApp += `%0A*Total a pagar:* $${totalPedido.toFixed(2)}`;
+
+      alert(`¡Pedido #ORD-${orden.id} recibido con éxito! Te contactaremos a la brevedad.`);
+
+      // Limpiar formulario y carrito
+      carrito = [];
+      actualizarCarrito();
+      formPedido.reset();
+
+      // Abrir WhatsApp (reemplaza '58XXXXXXXXXX' con el número del negocio)
+      window.open(`https://wa.me/58XXXXXXXXXX?text=${mensajeWhatsApp}`, '_blank');
+
+    } catch (error) {
+      alert('Hubo un error al procesar el pedido: ' + error.message);
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = 'Confirmar y Enviar Pedido';
+    }
+  });
 }
 
-mensajeWhatsApp += `%0A*Detalle del pedido:*%0A`;
-carrito.forEach(item => {
-  mensajeWhatsApp += `• ${item.cantidad}x ${item.name} ($${(item.price * item.cantidad).toFixed(2)})%0A`;
-});
-
-mensajeWhatsApp += `%0A*Total a pagar:* $${totalPedido.toFixed(2)}`;
-
-    alert(`¡Pedido #ORD-${orden.id} recibido con éxito! Te contactaremos a la brevedad.`);
-    
-    // Limpiar carrito
-    carrito = [];
-    actualizarCarrito();
-    formPedido.reset();
-    document.getElementById('cliente-notas').value = '';
-
-    // Redirige o abre el chat de WhatsApp con el ticket pre-armado
-    // (Reemplaza '58XXXXXXXXXX' por el número del productor/cocina)
-    window.open(`https://wa.me/58XXXXXXXXXX?text=${mensaje}`, '_blank');
-
-  } catch (error) {
-    alert('Hubo un error al procesar el pedido: ' + error.message);
-  } finally {
-    btnSubmit.disabled = false;
-    btnSubmit.innerText = 'Confirmar y Enviar Pedido';
-  }
-});
-
-// Inicializar
+// Iniciar carga del catálogo
 obtenerMenu();
