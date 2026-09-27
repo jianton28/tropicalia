@@ -204,7 +204,7 @@ obtenerMenu();
 
 // Configuración de Notificaciones Telegram
 const TELEGRAM_BOT_TOKEN = '8981870317:AAF9-cgDiAlmh5bMxmI40bT3CZObaIcy-wg';
-const TELEGRAM_CHAT_ID = '589760626';
+const TELEGRAM_CHAT_ID = '5180877818';
 
 async function enviarAlertaTelegram(mensaje) {
   try {
