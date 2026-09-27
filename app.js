@@ -155,6 +155,18 @@ if (formPedido) {
       }));
 
       const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
+      // Generar y enviar notificación a Telegram
+      let resumenPlatos = carrito.map(i => `• ${i.cantidad}x ${i.name}`).join('\n');
+      let mensajeTelegram = `🚨 *¡NUEVO PEDIDO RECIBIDO!* 🚨\n\n` +
+        `📦 *Orden:* #ORD-${orden.id}\n` +
+        `👤 *Cliente:* ${nombre}\n` +
+        `📞 *Teléfono:* ${telefono}\n` +
+        `📍 *Dirección:* ${direccion}\n` +
+        (notas ? `⚠️ *Notas/Alergias:* ${notas}\n` : '') +
+        `\n🛒 *Platos:*\n${resumenPlatos}\n\n` +
+        `💰 *Total:* $${totalPedido.toFixed(2)}`;
+
+      await enviarAlertaTelegram(mensajeTelegram);
       if (itemsError) throw itemsError;
 
       // C) Generar mensaje formateado para WhatsApp
@@ -196,3 +208,24 @@ if (formPedido) {
 
 // Iniciar carga del catálogo
 obtenerMenu();
+
+// Configuración de Notificaciones Telegram
+const TELEGRAM_BOT_TOKEN = '8981870317:AAF9-cgDiAlmh5bMxmI40bT3CZObaIcy-wg';
+const TELEGRAM_CHAT_ID = '589760626';
+
+async function enviarAlertaTelegram(mensaje) {
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: mensaje,
+        parse_mode: 'Markdown'
+      })
+    });
+  } catch (error) {
+    console.error('Error al notificar por Telegram:', error);
+  }
+}
