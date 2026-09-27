@@ -111,7 +111,7 @@ function actualizarCarrito() {
   }
 }
 
-// 4. Enviar Pedido a Supabase y notificar
+// 4. Enviar Pedido a Supabase y notificar exclusivamente por Telegram
 if (formPedido) {
   formPedido.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -126,10 +126,10 @@ if (formPedido) {
 
     const btnSubmit = formPedido.querySelector('button[type="submit"]');
     btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Enviando pedido...';
+    btnSubmit.innerText = 'Procesando pedido...';
 
     try {
-      // A) Insertar el pedido en la tabla 'orders'
+      // A) Registrar la orden en Supabase
       const { data: orden, error: ordenError } = await db
         .from('orders')
         .insert([{
@@ -146,7 +146,7 @@ if (formPedido) {
 
       if (ordenError) throw ordenError;
 
-      // B) Insertar el desglose de productos en 'order_items'
+      // B) Registrar el desglose de productos
       const itemsParaGuardar = carrito.map(item => ({
         order_id: orden.id,
         product_id: item.id,
@@ -155,9 +155,11 @@ if (formPedido) {
       }));
 
       const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
-      // Generar y enviar notificación a Telegram
-      let resumenPlatos = carrito.map(i => `• ${i.cantidad}x ${i.name}`).join('\n');
-      let mensajeTelegram = `🚨 *¡NUEVO PEDIDO RECIBIDO!* 🚨\n\n` +
+      if (itemsError) throw itemsError;
+
+      // C) Disparar alertas por Telegram (comanda de cocina y control de existencias)
+      const resumenPlatos = carrito.map(i => `• ${i.cantidad}x ${i.name}`).join('\n');
+      const mensajeTelegram = `🚨 *¡NUEVO PEDIDO RECIBIDO!* 🚨\n\n` +
         `📦 *Orden:* #ORD-${orden.id}\n` +
         `👤 *Cliente:* ${nombre}\n` +
         `📞 *Teléfono:* ${telefono}\n` +
@@ -167,35 +169,14 @@ if (formPedido) {
         `💰 *Total:* $${totalPedido.toFixed(2)}`;
 
       await enviarAlertaTelegram(mensajeTelegram);
-      if (itemsError) throw itemsError;
+      await verificarAlertasStock(carrito);
 
-      // C) Generar mensaje formateado para WhatsApp
-      let mensajeWhatsApp = `*¡Nuevo Pedido en Tropicalia!* 🥑%0A`;
-      mensajeWhatsApp += `*Orden:* %23ORD-${orden.id}%0A`;
-      mensajeWhatsApp += `*Cliente:* ${nombre}%0A`;
-      mensajeWhatsApp += `*Teléfono:* ${telefono}%0A`;
-      mensajeWhatsApp += `*Dirección:* ${direccion}%0A`;
+      // D) Confirmación visual en pantalla y limpieza
+      alert(`¡Gracias por tu compra! Tu comanda #ORD-${orden.id} ya entró a cocina. Nos comunicaremos al ${telefono} para coordinar la entrega.`);
 
-      if (notas) {
-        mensajeWhatsApp += `*Notas/Alergias:* ⚠️ ${notas}%0A`;
-      }
-
-      mensajeWhatsApp += `%0A*Detalle del pedido:*%0A`;
-      carrito.forEach(item => {
-        mensajeWhatsApp += `• ${item.cantidad}x ${item.name} ($${(item.price * item.cantidad).toFixed(2)})%0A`;
-      });
-
-      mensajeWhatsApp += `%0A*Total a pagar:* $${totalPedido.toFixed(2)}`;
-
-      alert(`¡Pedido #ORD-${orden.id} recibido con éxito! Te contactaremos a la brevedad.`);
-
-      // Limpiar formulario y carrito
       carrito = [];
       actualizarCarrito();
       formPedido.reset();
-
-      // Abrir WhatsApp (reemplaza '58XXXXXXXXXX' con el número del negocio)
-      window.open(`https://wa.me/58XXXXXXXXXX?text=${mensajeWhatsApp}`, '_blank');
 
     } catch (error) {
       alert('Hubo un error al procesar el pedido: ' + error.message);
@@ -227,5 +208,49 @@ async function enviarAlertaTelegram(mensaje) {
     });
   } catch (error) {
     console.error('Error al notificar por Telegram:', error);
+  }
+}
+async function verificarAlertasStock(itemsComprados) {
+  try {
+    // Obtener los IDs de los productos pedidos
+    const productIds = itemsComprados.map(item => item.id);
+
+    // Consultar qué insumos y empaques usan estos platos
+    const { data: recetas, error: errorRecetas } = await db
+      .from('product_ingredients')
+      .select('ingredient_id, ingredients(id, name, current_stock, min_stock, unit)')
+      .in('product_id', productIds);
+
+    if (errorRecetas || !recetas) return;
+
+    // Filtrar insumos únicos que hayan caído al mínimo o menos
+    const insumosCriticos = [];
+    const idsProcesados = new Set();
+
+    recetas.forEach(r => {
+      const ing = r.ingredients;
+      if (ing && !idsProcesados.has(ing.id)) {
+        idsProcesados.add(ing.id);
+        if (parseFloat(ing.current_stock) <= parseFloat(ing.min_stock)) {
+          insumosCriticos.push(ing);
+        }
+      }
+    });
+
+    // Si hay insumos o empaques agotándose, enviar alerta por Telegram
+    if (insumosCriticos.length > 0) {
+      let listaAvisos = insumosCriticos.map(i => 
+        `⚠️ *${i.name}*: Quedan *${i.current_stock} ${i.unit}* (Mínimo: ${i.min_stock})`
+      ).join('\n');
+
+      let avisoTelegram = `🚨 *¡ALERTA DE INVENTARIO / STOCK BAJO!* 🚨\n\n` +
+        `Los siguientes insumos o empaques necesitan reposición urgente:\n\n` +
+        listaAvisos + `\n\n` +
+        `_Favor revisar el panel de reposición en cocina._`;
+
+      await enviarAlertaTelegram(avisoTelegram);
+    }
+  } catch (error) {
+    console.error('Error al evaluar alertas de stock:', error);
   }
 }
