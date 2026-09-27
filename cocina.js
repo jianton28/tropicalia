@@ -59,10 +59,14 @@ async function cargarPedidos() {
             <li><strong>${item.quantity}x</strong>${item.products ? item.products.name : 'Plato retirado'}</li>
           `).join('')}
         </ul>
-        <div class="ticket-cliente">
+<div class="ticket-cliente">
           <p><strong>Cliente:</strong> ${orden.customer_name}</p>
           <p><strong>Tlf:</strong> ${orden.customer_phone}</p>
-          <p><strong>Ubicación:</strong> ${orden.customer_address}</p>
+          <p><strong>Ubicación:</strong> ${orden.customer_address}</p>${orden.notes ? `
+            <p style="color: #f59e0b; margin-top: 6px; background: #2a2210; padding: 6px; border-radius: 4px; border: 1px solid #78350f;">
+              ⚠️ <strong>Nota:</strong> ${orden.notes}
+            </p>
+          ` : ''}
         </div>
       </div>
       <div class="ticket-acciones">
