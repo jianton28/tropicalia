@@ -6,6 +6,7 @@
   <title>Panel de Control y Cocina | Tropicalia</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .grid-cocina {
       display: grid;
@@ -152,6 +153,56 @@
     .tiempo-optimo { color: #10b981; }
     .tiempo-demorado { color: #f59e0b; }
     .tiempo-critico { color: #ef4444; }
+    /* Dashboard y Métricas */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .kpi-card span { font-size: 0.8rem; color: #a3a3a3; text-transform: uppercase; }
+    .kpi-card strong { font-size: 1.4rem; color: #fbbf24; }
+    .kpi-card.deuda strong { color: #ef4444; }
+    .kpi-card.exito strong { color: #10b981; }
+
+    .periodo-filtros {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .btn-filtro {
+      background: #262626;
+      border: 1px solid #404040;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .btn-filtro.activo {
+      background: #fbbf24;
+      color: #000;
+      border-color: #fbbf24;
+    }
+
+    .grafica-contenedor {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+      height: 280px;
+    }
   </style>
 </head>
 <body>
@@ -246,6 +297,56 @@
           </tr>
         </thead>
         <tbody id="tabla-insumos-cuerpo"></tbody>
+      </table>
+    </section>
+    <!-- Dashboard Financiero y Métricas -->
+    <section class="seccion-admin" style="margin-top: 0; margin-bottom: 30px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <h2>Resumen Financiero y Ventas</h2>
+        <div class="periodo-filtros">
+          <button class="btn-filtro activo" onclick="filtrarPeriodo('dia', this)">Hoy</button>
+          <button class="btn-filtro" onclick="filtrarPeriodo('mes', this)">Este Mes</button>
+          <button class="btn-filtro" onclick="filtrarPeriodo('ano', this)">Este Año</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card exito">
+          <span>Ingresos Cobrados</span>
+          <strong id="kpi-cobrado">$0.00</strong>
+        </div>
+        <div class="kpi-card deuda">
+          <span>Por Cobrar (Pendiente)</span>
+          <strong id="kpi-por-cobrar">$0.00</strong>
+        </div>
+        <div class="kpi-card">
+          <span>Total Facturado</span>
+          <strong id="kpi-total">$0.00</strong>
+        </div>
+        <div class="kpi-card">
+          <span>Pedidos Despachados</span>
+          <strong id="kpi-pedidos">0</strong>
+        </div>
+      </div>
+
+      <div class="grafica-contenedor">
+        <canvas id="graficaVentas"></canvas>
+      </div>
+
+      <!-- Tabla de Clientes con Deuda -->
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: #a3a3a3;">Cuentas por Cobrar Pendientes</h3>
+      <table class="tabla-stock">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Teléfono</th>
+            <th>Pedidos Deudores</th>
+            <th>Monto Adeudado</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-deudores-cuerpo">
+          <tr><td colspan="4" style="text-align:center; color:#888;">No hay deudas pendientes registradas.</td></tr>
+        </tbody>
       </table>
     </section>
   </main>
