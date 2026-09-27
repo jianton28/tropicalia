@@ -40,15 +40,23 @@
         <strong id="carrito-total-precio">$0.00</strong>
       </div>
 
-  <form id="form-pedido" class="formulario-pedido" style="display: none;">
-        <h3>Datos de Entrega</h3>
-        <input type="text" id="cliente-nombre" placeholder="Tu nombre" required />
-        <input type="tel" id="cliente-telefono" placeholder="Número de WhatsApp" required />
-        <textarea id="cliente-direccion" placeholder="Dirección de entrega" rows="2" required></textarea>
-        <!-- Campo nuevo para alergias o notas -->
-        <textarea id="cliente-notas" placeholder="Observaciones o alergias (ej: sin cubiertos, alérgico a nueces, salsa aparte)" rows="2"></textarea>
-        <button type="submit" class="btn-primario">Confirmar y Enviar Pedido</button>
-      </form>
+<form id="form-pedido" style="display: none; flex-direction: column; gap: 10px; margin-top: 15px;">
+  <input type="text" id="cliente-nombre" placeholder="Tu Nombre completo" required>
+  <input type="tel" id="cliente-telefono" placeholder="Número de Teléfono" required>
+  <textarea id="cliente-direccion" placeholder="Dirección exacta de entrega" rows="2" required></textarea>
+  <textarea id="cliente-notas" placeholder="Notas adicionales / Alergias (opcional)" rows="2"></textarea>
+  
+  <label for="cliente-metodo-pago" style="font-size: 0.85rem; color: #a3a3a3; margin-top: 4px;">Método de Pago:</label>
+  <select id="cliente-metodo-pago" required style="padding: 8px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
+    <option value="pago_movil">Pago Móvil</option>
+    <option value="efectivo_bs">Efectivo Bolívares</option>
+    <option value="efectivo_usd">Efectivo Dólares</option>
+    <option value="zelle">Zelle</option>
+    <option value="binance">Binance (USDT)</option>
+  </select>
+
+  <button type="submit" class="btn-primario" style="margin-top: 10px;">Confirmar y Enviar Pedido</button>
+</form>
     </aside>
   </main>
 
