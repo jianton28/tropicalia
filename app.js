@@ -18,6 +18,19 @@ const carritoItems = document.getElementById('carrito-items');
 const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
 const formPedido = document.getElementById('form-pedido');
+const notas = document.getElementById('cliente-notas').value.trim();
+const { data: orden, error: ordenError } = await db
+  .from('orders')
+  .insert([{
+    customer_name: nombre,
+    customer_phone: telefono,
+    customer_address: direccion,
+    notes: notas, // Campo guardado en la orden
+    total: totalPedido,
+    status: 'recibido'
+  }])
+  .select()
+  .single();
 
 // 1. Cargar productos desde Supabase
 async function obtenerMenu() {
@@ -150,15 +163,22 @@ formPedido.addEventListener('submit', async (e) => {
     if (itemsError) throw itemsError;
 
     // C) Notificación instantánea vía WhatsApp para la cocina/productor
-    let mensaje = `*¡Nuevo Pedido #ORD-${orden.id}!*%0A`;
-    mensaje += `*Cliente:* ${nombre}%0A`;
-    mensaje += `*Teléfono:* ${telefono}%0A`;
-    mensaje += `*Dirección:* ${direccion}%0A%0A`;
-    mensaje += `*Platos:*%0A`;
-    carrito.forEach(p => {
-      mensaje += `- ${p.cantidad}x ${p.name} ($${p.price})%0A`;
-    });
-    mensaje += `%0A*Total a cobrar:* $${total.toFixed(2)}`;
+let mensajeWhatsApp = `*¡Nuevo Pedido en Tropicalia!* 🥑%0A`;
+mensajeWhatsApp += `*Orden:* %23ORD-${orden.id}%0A`;
+mensajeWhatsApp += `*Cliente:* ${nombre}%0A`;
+mensajeWhatsApp += `*Teléfono:* ${telefono}%0A`;
+mensajeWhatsApp += `*Dirección:* ${direccion}%0A`;
+
+if (notas) {
+  mensajeWhatsApp += `*Notas/Alergias:* ⚠️ ${notas}%0A`;
+}
+
+mensajeWhatsApp += `%0A*Detalle del pedido:*%0A`;
+carrito.forEach(item => {
+  mensajeWhatsApp += `• ${item.cantidad}x ${item.name} ($${(item.price * item.cantidad).toFixed(2)})%0A`;
+});
+
+mensajeWhatsApp += `%0A*Total a pagar:* $${totalPedido.toFixed(2)}`;
 
     alert(`¡Pedido #ORD-${orden.id} recibido con éxito! Te contactaremos a la brevedad.`);
     
@@ -166,6 +186,7 @@ formPedido.addEventListener('submit', async (e) => {
     carrito = [];
     actualizarCarrito();
     formPedido.reset();
+    document.getElementById('cliente-notas').value = '';
 
     // Redirige o abre el chat de WhatsApp con el ticket pre-armado
     // (Reemplaza '58XXXXXXXXXX' por el número del productor/cocina)
