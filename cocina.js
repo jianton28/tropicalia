@@ -28,10 +28,20 @@ async function cargarPedidos() {
 
   const { data: pedidos, error } = await db
     .from('orders')
-    .select(`
-      id, customer_name, customer_phone, customer_address, status, total, created_at,
-      order_items ( quantity, products ( name ) )
-    `)
+   .select(`
+  id,
+  customer_name,
+  customer_phone,
+  customer_address,
+  notes,
+  status,
+  total,
+  created_at,
+  order_items (
+    quantity,
+    products ( name )
+  )
+`)
     .in('status', ['recibido', 'en_preparacion', 'listo'])
     .order('created_at', { ascending: true });
 
