@@ -122,6 +122,36 @@
     }
     .btn-toggle.activo { background: #059669; color: #fff; }
     .btn-toggle.pausado { background: #4b5563; color: #d1d5db; }
+    /* Estados de alerta por demora */
+    .ticket.alerta-optimo {
+      border-left: 5px solid #10b981;
+    }
+    .ticket.alerta-demorado {
+      border-left: 5px solid #f59e0b;
+    }
+    .ticket.alerta-critico {
+      border-left: 5px solid #ef4444;
+      animation: pulsoCritico 1.5s infinite alternate;
+    }
+
+    @keyframes pulsoCritico {
+      0% { box-shadow: 0 0 0px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+    }
+
+    .tiempo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #262626;
+    }
+    .tiempo-optimo { color: #10b981; }
+    .tiempo-demorado { color: #f59e0b; }
+    .tiempo-critico { color: #ef4444; }
   </style>
 </head>
 <body>
