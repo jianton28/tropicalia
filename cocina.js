@@ -8,11 +8,37 @@ const gridPedidos = document.getElementById('grid-pedidos');
 const loading = document.getElementById('loading');
 const recetaContenedor = document.getElementById('receta-contenedor');
 const formNuevoPlato = document.getElementById('form-nuevo-plato');
+const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
 const tablaInsumosCuerpo = document.getElementById('tabla-insumos-cuerpo');
 const tablaPlatosCuerpo = document.getElementById('tabla-platos-cuerpo');
 
 let insumosDisponibles = [];
 let listaPlatos = [];
+
+// --- CÁLCULO DE CRONÓMETRO Y ESTADOS DE DEMORA ---
+function calcularTiempoEspera(fechaISO) {
+  const minutos = Math.floor((new Date() - new Date(fechaISO)) / 60000);
+
+  if (minutos < 15) {
+    return {
+      texto: `⏱️ ${minutos} min`,
+      claseCard: 'alerta-optimo',
+      claseTiempo: 'tiempo-optimo'
+    };
+  } else if (minutos <= 25) {
+    return {
+      texto: `⏳ ${minutos} min`,
+      claseCard: 'alerta-demorado',
+      claseTiempo: 'tiempo-demorado'
+    };
+  } else {
+    return {
+      texto: `🚨 ${minutos} min (Retrasado)`,
+      claseCard: 'alerta-critico',
+      claseTiempo: 'tiempo-critico'
+    };
+  }
+}
 
 async function cargarTodo() {
   await Promise.all([
@@ -22,30 +48,30 @@ async function cargarTodo() {
   ]);
 }
 
-// --- SECCIÓN 1: COMANDAS ---
+// --- SECCIÓN 1: COMANDAS CON CRONÓMETRO ---
 async function cargarPedidos() {
-  loading.style.display = 'block';
+  if (loading) loading.style.display = 'block';
 
   const { data: pedidos, error } = await db
     .from('orders')
-   .select(`
-  id,
-  customer_name,
-  customer_phone,
-  customer_address,
-  notes,
-  status,
-  total,
-  created_at,
-  order_items (
-    quantity,
-    products ( name )
-  )
-`)
+    .select(`
+      id,
+      customer_name,
+      customer_phone,
+      customer_address,
+      notes,
+      status,
+      total,
+      created_at,
+      order_items (
+        quantity,
+        products ( name )
+      )
+    `)
     .in('status', ['recibido', 'en_preparacion', 'listo'])
     .order('created_at', { ascending: true });
 
-  loading.style.display = 'none';
+  if (loading) loading.style.display = 'none';
 
   if (error) {
     gridPedidos.innerHTML = `<p class="alerta">Error: ${error.message}</p>`;
@@ -57,44 +83,57 @@ async function cargarPedidos() {
     return;
   }
 
-  gridPedidos.innerHTML = pedidos.map(orden => `
-    <div class="ticket">
-      <div>
-        <div class="ticket-header">
-          <strong>#ORD-${orden.id}</strong>
-          <span class="badge badge-${orden.status}">${orden.status.replace('_', ' ')}</span>
+  gridPedidos.innerHTML = pedidos.map(orden => {
+    const alertaTiempo = calcularTiempoEspera(orden.created_at);
+
+    return `
+      <div class="ticket ${alertaTiempo.claseCard}">
+        <div>
+          <div class="ticket-header">
+            <div>
+              <strong>#ORD-${orden.id}</strong>
+              <span class="tiempo-badge ${alertaTiempo.claseTiempo}">${alertaTiempo.texto}</span>
+            </div>
+            <span class="badge badge-${orden.status}">${orden.status.replace('_', ' ')}</span>
+          </div>
+
+          <ul class="ticket-items">
+            ${orden.order_items.map(item => `
+              <li><strong>${item.quantity}x</strong>${item.products ? item.products.name : 'Plato retirado'}</li>
+            `).join('')}
+          </ul>
+
+          <div class="ticket-cliente">
+            <p><strong>Cliente:</strong> ${orden.customer_name}</p>
+            <p><strong>Tlf:</strong> ${orden.customer_phone}</p>
+            <p><strong>Ubicación:</strong> ${orden.customer_address}</p>
+            ${orden.notes ? `
+              <p style="color: #f59e0b; margin-top: 6px; background: #2a2210; padding: 6px; border-radius: 4px; border: 1px solid #78350f;">
+                ⚠️ <strong>Nota:</strong> ${orden.notes}
+              </p>
+            ` : ''}
+          </div>
         </div>
-        <ul class="ticket-items">
-          ${orden.order_items.map(item => `
-            <li><strong>${item.quantity}x</strong>${item.products ? item.products.name : 'Plato retirado'}</li>
-          `).join('')}
-        </ul>
-<div class="ticket-cliente">
-          <p><strong>Cliente:</strong> ${orden.customer_name}</p>
-          <p><strong>Tlf:</strong> ${orden.customer_phone}</p>
-          <p><strong>Ubicación:</strong> ${orden.customer_address}</p>${orden.notes ? `
-            <p style="color: #f59e0b; margin-top: 6px; background: #2a2210; padding: 6px; border-radius: 4px; border: 1px solid #78350f;">
-              ⚠️ <strong>Nota:</strong> ${orden.notes}
-            </p>
-          ` : ''}
+
+        <div class="ticket-acciones">
+          ${orden.status === 'recibido' ? `
+            <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado(${orden.id}, 'en_preparacion')">
+              Comenzar Cocina
+            </button>` : ''}
+
+          ${orden.status === 'en_preparacion' ? `
+            <button class="btn-estado" style="background:#10b981; color:#000;" onclick="cambiarEstado(${orden.id}, 'listo')">
+              Marcar Listo
+            </button>` : ''}
+
+          ${orden.status === 'listo' ? `
+            <button class="btn-estado" style="background:#6366f1; color:#fff;" onclick="cambiarEstado(${orden.id}, 'entregado')">
+              Despachado
+            </button>` : ''}
         </div>
       </div>
-      <div class="ticket-acciones">
-        ${orden.status === 'recibido' ? `
-          <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado(${orden.id}, 'en_preparacion')">
-            Comenzar Cocina
-          </button>` : ''}
-        ${orden.status === 'en_preparacion' ? `
-          <button class="btn-estado" style="background:#10b981; color:#000;" onclick="cambiarEstado(${orden.id}, 'listo')">
-            Marcar Listo
-          </button>` : ''}
-        ${orden.status === 'listo' ? `
-          <button class="btn-estado" style="background:#6366f1; color:#fff;" onclick="cambiarEstado(${orden.id}, 'entregado')">
-            Despachado
-          </button>` : ''}
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 window.cambiarEstado = async function(id, nuevoEstado) {
@@ -102,7 +141,7 @@ window.cambiarEstado = async function(id, nuevoEstado) {
   if (!error) cargarPedidos();
 };
 
-// --- SECCIÓN 2: GESTIÓN DE PLATOS (ACTIVAR / PAUSAR / ELIMINAR) ---
+// --- SECCIÓN 2: GESTIÓN DE PLATOS ---
 async function cargarPlatosMenu() {
   const { data, error } = await db.from('products').select('*').order('name');
   if (!error && data) {
@@ -112,6 +151,7 @@ async function cargarPlatosMenu() {
 }
 
 function renderizarTablaPlatos() {
+  if (!tablaPlatosCuerpo) return;
   tablaPlatosCuerpo.innerHTML = listaPlatos.map(p => `
     <tr>
       <td><strong>${p.name}</strong><br><small style="color:#888;">${p.description || ''}</small></td>
@@ -160,13 +200,14 @@ async function cargarInsumos() {
   if (!error && data) {
     insumosDisponibles = data;
     renderizarTablaInsumos();
-    if (recetaContenedor.children.length === 0) {
+    if (recetaContenedor && recetaContenedor.children.length === 0) {
       agregarFilaIngrediente();
     }
   }
 }
 
 function renderizarTablaInsumos() {
+  if (!tablaInsumosCuerpo) return;
   tablaInsumosCuerpo.innerHTML = insumosDisponibles.map(insumo => {
     const bajoStock = parseFloat(insumo.current_stock) <= parseFloat(insumo.min_stock);
     return `
@@ -205,6 +246,7 @@ window.sumarStock = async function(id, nombre, unidad) {
 
 // --- FILAS DINÁMICAS DE RECETAS ---
 window.agregarFilaIngrediente = function() {
+  if (!recetaContenedor) return;
   const div = document.createElement('div');
   div.className = 'receta-fila';
 
@@ -224,63 +266,61 @@ window.agregarFilaIngrediente = function() {
 };
 
 // --- CREAR PLATO ---
-formNuevoPlato.addEventListener('submit', async (e) => {
-  e.preventDefault();
+if (formNuevoPlato) {
+  formNuevoPlato.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-  const nombre = document.getElementById('plato-nombre').value.trim();
-  const precio = parseFloat(document.getElementById('plato-precio').value);
-  const categoria = document.getElementById('plato-categoria').value.trim();
-  const descripcion = document.getElementById('plato-desc').value.trim();
+    const nombre = document.getElementById('plato-nombre').value.trim();
+    const precio = parseFloat(document.getElementById('plato-precio').value);
+    const categoria = document.getElementById('plato-categoria').value.trim();
+    const descripcion = document.getElementById('plato-desc').value.trim();
 
-  const { data: nuevoProducto, error: prodError } = await db
-    .from('products')
-    .insert([{
-      name: nombre,
-      price: precio,
-      category: categoria,
-      description: descripcion,
-      is_active: true
-    }])
-    .select()
-    .single();
+    const { data: nuevoProducto, error: prodError } = await db
+      .from('products')
+      .insert([{
+        name: nombre,
+        price: precio,
+        category: categoria,
+        description: descripcion,
+        is_active: true
+      }])
+      .select()
+      .single();
 
-  if (prodError) {
-    alert('Error al crear plato: ' + prodError.message);
-    return;
-  }
-
-  const filas = recetaContenedor.querySelectorAll('.receta-fila');
-  const ingredientesRelacion = [];
-
-  filas.forEach(fila => {
-    const ingredienteId = fila.querySelector('.ingrediente-select').value;
-    const cantidad = parseFloat(fila.querySelector('.ingrediente-cantidad').value);
-
-    if (ingredienteId && !isNaN(cantidad)) {
-      ingredientesRelacion.push({
-        product_id: nuevoProducto.id,
-        ingredient_id: ingredienteId,
-        quantity_required: cantidad
-      });
+    if (prodError) {
+      alert('Error al crear plato: ' + prodError.message);
+      return;
     }
+
+    const filas = recetaContenedor.querySelectorAll('.receta-fila');
+    const ingredientesRelacion = [];
+
+    filas.forEach(fila => {
+      const ingredienteId = fila.querySelector('.ingrediente-select').value;
+      const cantidad = parseFloat(fila.querySelector('.ingrediente-cantidad').value);
+
+      if (ingredienteId && !isNaN(cantidad)) {
+        ingredientesRelacion.push({
+          product_id: nuevoProducto.id,
+          ingredient_id: ingredienteId,
+          quantity_required: cantidad
+        });
+      }
+    });
+
+    if (ingredientesRelacion.length > 0) {
+      await db.from('product_ingredients').insert(ingredientesRelacion);
+    }
+
+    alert(`¡Plato "${nombre}" agregado al menú con éxito!`);
+    formNuevoPlato.reset();
+    recetaContenedor.innerHTML = '';
+    agregarFilaIngrediente();
+    cargarPlatosMenu();
   });
+}
 
-  if (ingredientesRelacion.length > 0) {
-    await db.from('product_ingredients').insert(ingredientesRelacion);
-  }
-
-  alert(`¡Plato "${nombre}" agregado al menú con éxito!`);
-  formNuevoPlato.reset();
-  recetaContenedor.innerHTML = '';
-  agregarFilaIngrediente();
-  cargarPlatosMenu();
-});
-
-// Inicialización
-cargarTodo();
 // --- REGISTRAR NUEVO INSUMO BASE ---
-const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
-
 if (formNuevoInsumo) {
   formNuevoInsumo.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -309,6 +349,12 @@ if (formNuevoInsumo) {
 
     alert(`¡Insumo "${nombre}" agregado al inventario!`);
     formNuevoInsumo.reset();
-    await cargarInsumos(); // Actualiza la tabla y los selectores de recetas automáticamente
+    await cargarInsumos();
   });
 }
+
+// Inicialización y refresco automático cada 30 segundos
+cargarTodo();
+setInterval(() => {
+  cargarPedidos();
+}, 30000);
