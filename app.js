@@ -15,6 +15,35 @@ const carritoItems = document.getElementById('carrito-items');
 const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
 const formPedido = document.getElementById('form-pedido');
+// Variable global para almacenar el enlace de mapas
+let ubicacionMapsUrl = null;
+
+// Función para solicitar coordenadas del cliente
+window.obtenerUbicacionGPS = function() {
+  const textoBtn = document.getElementById('texto-ubicacion');
+  
+  if (!navigator.geolocation) {
+    alert('Tu navegador no soporta geolocalización. Ingresa la dirección por escrito.');
+    return;
+  }
+
+  textoBtn.innerText = 'Obteniendo GPS...';
+
+  navigator.geolocation.getCurrentPosition(
+    (posicion) => {
+      const lat = posicion.coords.latitude;
+      const lng = posicion.coords.longitude;
+      ubicacionMapsUrl = `https://maps.google.com/?q=${lat},${lng}`;
+      textoBtn.innerText = '📍 Ubicación fijada ✓';
+    },
+    (error) => {
+      console.warn('Error al obtener ubicación:', error.message);
+      textoBtn.innerText = 'Entregar en...';
+      alert('No se pudo obtener la ubicación exacta. Por favor escribe tu dirección en el formulario.');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+};
 
 async function obtenerMenu() {
   try {
@@ -127,20 +156,21 @@ if (formPedido) {
 
     try {
       // 1. Guardar orden en Supabase (el trigger envía el mensaje a Telegram automáticamente)
-      const { data: orden, error: ordenError } = await db
-        .from('orders')
-        .insert([{
-          customer_name: nombre,
-          customer_phone: telefono,
-          customer_address: direccion,
-          notes: notas,
-          total: totalPedido,
-          status: 'recibido',
-          payment_status: 'pendiente',
-          payment_method: metodoPago
-        }])
-        .select()
-        .single();
+    const { data: orden, error: ordenError } = await db
+  .from('orders')
+  .insert([{
+    customer_name: nombre,
+    customer_phone: telefono,
+    customer_address: direccion,
+    map_url: ubicacionMapsUrl, // Se guarda el link aquí
+    notes: notas,
+    total: totalPedido,
+    status: 'recibido',
+    payment_status: 'pendiente',
+    payment_method: metodoPago
+  }])
+  .select()
+  .single();
 
       if (ordenError) throw ordenError;
 
