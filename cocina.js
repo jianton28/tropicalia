@@ -554,3 +554,26 @@ async function guardarNuevoPlato(e) {
   document.getElementById('contenedor-receta').innerHTML = '';
   cargarMenu();
 }
+document.getElementById('form-nuevo-insumo')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nombre = document.getElementById('insumo-nombre').value.trim();
+  const unidad = document.getElementById('insumo-unidad').value;
+  const stock = parseFloat(document.getElementById('insumo-stock').value);
+  const min = parseFloat(document.getElementById('insumo-min').value) || 0;
+
+  const { error } = await db.from('ingredients').insert([{
+    business_id: currentBusinessId,
+    name: nombre,
+    unit: unidad,
+    current_stock: stock,
+    min_stock: min
+  }]);
+
+  if (error) {
+    alert('Error al registrar insumo: ' + error.message);
+    return;
+  }
+
+  e.target.reset();
+  await cargarInsumos();
+});
