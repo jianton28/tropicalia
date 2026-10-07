@@ -272,19 +272,18 @@
         <h2>Inventario Actual de Insumos</h2>
         <h3 style="font-size: 1rem; margin-top: 10px; margin-bottom: 8px; color: #f59e0b;">+ Registrar Nuevo Insumo Base</h3>
         <form id="form-nuevo-insumo" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-          <input type="text" id="insumo-nombre" placeholder="Nombre (ej: Queso Parmesano)" style="flex: 2; min-width: 180px;" required />
-          <select id="insumo-unidad" style="flex: 1; min-width: 120px; background: #262626; color: #fff; border: 1px solid #404040; border-radius: 6px; padding: 8px;" required>
-            <option value="" disabled selected>Unidad de medida</option>
-            <option value="gramos">gramos (g)</option>
-            <option value="kilogramos">kilogramos (kg)</option>
-            <option value="unidades">unidades</option>
-            <option value="mililitros">mililitros (ml)</option>
-            <option value="litros">litros (L)</option>
-          </select>
-          <input type="number" id="insumo-stock" step="any" placeholder="Stock inicial" style="flex: 1; min-width: 100px;" required />
-          <input type="number" id="insumo-minimo" step="any" placeholder="Alerta stock mín." style="flex: 1; min-width: 100px;" required />
-          <button type="submit" class="btn-primario" style="width: auto; padding: 8px 16px;">Guardar Insumo</button>
-        </form>
+  <input type="text" id="insumo-nombre" placeholder="Nombre (ej: Queso Parmesano)" required style="flex: 2; min-width: 180px;" />
+  <select id="insumo-unidad" required style="flex: 1; min-width: 120px; background: #262626; color: #fff;">
+    <option value="" disabled selected>Unidad de medida</option>
+    <option value="gramos">Gramos (g)</option>
+    <option value="kilogramos">Kilogramos (kg)</option>
+    <option value="litros">Litros (L)</option>
+    <option value="unidades">Unidades</option>
+  </select>
+  <input type="number" id="insumo-stock" step="0.01" placeholder="Stock inicial" required style="flex: 1; min-width: 100px;" />
+  <input type="number" id="insumo-min" step="0.01" placeholder="Alerta stock mín." required style="flex: 1; min-width: 100px;" />
+  <button type="submit" class="btn-primario">Guardar Insumo</button>
+</form>
 
         <!-- 3. Monitor y Reposición de Inventario -->
         <table class="tabla-gestion">
