@@ -466,3 +466,91 @@ function suscribirTiempoReal() {
     await inicializarSesion(user);
   }
 })();
+let listaInsumosDisponibles = [];
+
+// 1. Al cargar insumos del negocio, guardamos la lista en memoria
+async function cargarInsumos() {
+  const { data, error } = await db
+    .from('ingredients')
+    .select('*')
+    .eq('business_id', currentBusinessId);
+
+  if (error) return console.error(error);
+  listaInsumosDisponibles = data || [];
+  renderizarTablaInsumos(listaInsumosDisponibles);
+}
+
+// 2. Evento para añadir una fila dinámica de receta
+document.getElementById('btn-agregar-insumo-receta').addEventListener('click', () => {
+  if (listaInsumosDisponibles.length === 0) {
+    alert('Primero debes registrar insumos en el inventario inferior.');
+    return;
+  }
+
+  const contenedor = document.getElementById('contenedor-receta');
+  const fila = document.createElement('div');
+  fila.className = 'fila-receta';
+  fila.style = 'display: flex; gap: 8px; align-items: center;';
+
+  let opciones = listaInsumosDisponibles.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+
+  fila.innerHTML = `
+    <select class="receta-insumo-id" style="flex: 2; padding: 6px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px;">
+      ${opciones}
+    </select>
+    <input type="number" step="0.01" min="0.01" class="receta-cantidad" placeholder="Cant. por ración" required style="flex: 1; padding: 6px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px;" />
+    <button type="button" onclick="this.parentElement.remove()" style="background: #991b1b; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;">✕</button>
+  `;
+  contenedor.appendChild(fila);
+});
+
+// 3. Al guardar el nuevo plato, insertar también en product_ingredients
+async function guardarNuevoPlato(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('plato-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('plato-precio').value);
+  const descripcion = document.getElementById('plato-desc').value.trim();
+
+  // Guardar plato
+  const { data: plato, error: errPlato } = await db
+    .from('products')
+    .insert([{
+      business_id: currentBusinessId,
+      name: nombre,
+      price: precio,
+      description: descripcion,
+      is_available: true
+    }])
+    .select()
+    .single();
+
+  if (errPlato) {
+    alert('Error al crear plato: ' + errPlato.message);
+    return;
+  }
+
+  // Guardar relaciones de receta
+  const filasReceta = document.querySelectorAll('.fila-receta');
+  const asociaciones = [];
+
+  filasReceta.forEach(f => {
+    const ingredient_id = f.querySelector('.receta-insumo-id').value;
+    const quantity_required = parseFloat(f.querySelector('.receta-cantidad').value);
+    if (ingredient_id && quantity_required > 0) {
+      asociaciones.push({
+        product_id: plato.id,
+        ingredient_id: ingredient_id,
+        quantity_required: quantity_required
+      });
+    }
+  });
+
+  if (asociaciones.length > 0) {
+    const { error: errReceta } = await db.from('product_ingredients').insert(asociaciones);
+    if (errReceta) console.error('Error al asociar ingredientes:', errReceta);
+  }
+
+  alert('¡Plato y receta guardados con éxito!');
+  document.getElementById('contenedor-receta').innerHTML = '';
+  cargarMenu();
+}
