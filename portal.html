@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bienvenido a Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .portal-container {
+      max-width: 850px;
+      margin: 60px auto;
+      padding: 20px;
+      text-align: center;
+    }
+    .portal-hero h1 {
+      font-size: 2.4rem;
+      margin-bottom: 8px;
+      color: #fbbf24;
+    }
+    .portal-hero p {
+      color: #a3a3a3;
+      font-size: 1.1rem;
+      margin-bottom: 40px;
+    }
+    .portal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .portal-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 30px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: left;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .portal-card:hover {
+      transform: translateY(-4px);
+      border-color: #fbbf24;
+    }
+    .portal-card h3 {
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .portal-card p {
+      color: #a3a3a3;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .portal-card .btn-grupo {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container portal-container">
+    <div class="portal-hero">
+      <h1>Tropicalia</h1>
+      <p>Plataforma gastronómica multinegocio</p>
+    </div>
+
+    <div class="portal-grid">
+      <!-- Tarjeta Clientes -->
+      <div class="portal-card">
+        <div>
+          <h3>🍔 Quiero pedir comida</h3>
+          <p>Explora el catálogo de restaurantes disponibles, revisa sus menús en vivo y envía tu pedido directo por delivery.</p>
+        </div>
+        <div class="portal-grupo">
+          <a href="index.html" class="btn-primario" style="text-decoration: none; text-align: center; display: block;">
+            Entrar a la Tienda
+          </a>
+        </div>
+      </div>
+
+      <!-- Tarjeta Restaurantes -->
+      <div class="portal-card">
+        <div>
+          <h3>👨‍🍳 Soy un Restaurante</h3>
+          <p>Gestiona tus comandas en tiempo real, actualiza inventario y precios, o da de alta tu nuevo local comercial.</p>
+        </div>
+        <div class="portal-card btn-grupo" style="padding: 0; background: transparent; border: none;">
+          <a href="cocina.html" class="btn-primario" style="text-decoration: none; text-align: center; display: block;">
+            Acceder al Panel de Cocina
+          </a>
+          <a href="registro.html" class="btn-secundario" style="text-decoration: none; text-align: center; display: block; border-color: #404040;">
+            Registrar mi Restaurante
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

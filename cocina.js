@@ -4,6 +4,23 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+let negocioId = null;
+let insumosDisponibles = [];
+let listaPlatos = [];
+let ventasChartInstance = null;
+let periodoSeleccionado = 'dia';
+let pedidosHistoricos = [];
+
+// Elementos DOM
+const vistaLogin = document.getElementById('vista-login');
+const vistaPanel = document.getElementById('vista-panel');
+const formLogin = document.getElementById('form-login');
+const loginEmail = document.getElementById('login-email');
+const loginPassword = document.getElementById('login-password');
+const loginError = document.getElementById('login-error');
+const btnLogin = document.getElementById('btn-login');
+const panelNombreNegocio = document.getElementById('panel-nombre-negocio');
+
 const gridPedidos = document.getElementById('grid-pedidos');
 const loading = document.getElementById('loading');
 const recetaContenedor = document.getElementById('receta-contenedor');
@@ -12,35 +29,82 @@ const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
 const tablaInsumosCuerpo = document.getElementById('tabla-insumos-cuerpo');
 const tablaPlatosCuerpo = document.getElementById('tabla-platos-cuerpo');
 
-let insumosDisponibles = [];
-let listaPlatos = [];
+// --- AUTENTICACIÓN ---
+if (formLogin) {
+  formLogin.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    loginError.style.display = 'none';
+    btnLogin.disabled = true;
+    btnLogin.innerText = 'Verificando...';
 
-// --- CÁLCULO DE CRONÓMETRO Y ESTADOS DE DEMORA ---
+    try {
+      const { data, error } = await db.auth.signInWithPassword({
+        email: loginEmail.value.trim(),
+        password: loginPassword.value.trim()
+      });
+
+      if (error) throw error;
+      await inicializarSesion(data.user);
+    } catch (err) {
+      loginError.innerText = 'Acceso denegado: ' + err.message;
+      loginError.style.display = 'block';
+    } finally {
+      btnLogin.disabled = false;
+      btnLogin.innerText = 'Ingresar al Panel';
+    }
+  });
+}
+
+async function inicializarSesion(user) {
+  try {
+    const { data: perfil, error: errPerfil } = await db
+      .from('kitchen_profiles')
+      .select('business_id, businesses(name)')
+      .eq('id', user.id)
+      .single();
+
+    if (errPerfil || !perfil) {
+      throw new Error('Este usuario no tiene un restaurante vinculado.');
+    }
+
+    negocioId = perfil.business_id;
+    panelNombreNegocio.innerText = `${perfil.businesses.name} - Operaciones`;
+
+    vistaLogin.style.display = 'none';
+    vistaPanel.style.display = 'block';
+
+    await cargarTodo();
+    suscribirTiempoReal();
+  } catch (err) {
+    loginError.innerText = err.message;
+    loginError.style.display = 'block';
+    await db.auth.signOut();
+  }
+}
+
+window.cerrarSesion = async function() {
+  await db.auth.signOut();
+  negocioId = null;
+  vistaPanel.style.display = 'none';
+  vistaLogin.style.display = 'block';
+  formLogin.reset();
+};
+
+// --- CÁLCULO DE CRONÓMETRO ---
 function calcularTiempoEspera(fechaISO) {
   const minutos = Math.floor((new Date() - new Date(fechaISO)) / 60000);
 
   if (minutos < 15) {
-    return {
-      texto: `⏱️ ${minutos} min`,
-      claseCard: 'alerta-optimo',
-      claseTiempo: 'tiempo-optimo'
-    };
+    return { texto: `⏱️ ${minutos} min`, claseCard: 'alerta-optimo', claseTiempo: 'tiempo-optimo' };
   } else if (minutos <= 25) {
-    return {
-      texto: `⏳ ${minutos} min`,
-      claseCard: 'alerta-demorado',
-      claseTiempo: 'tiempo-demorado'
-    };
+    return { texto: `⏳ ${minutos} min`, claseCard: 'alerta-demorado', claseTiempo: 'tiempo-demorado' };
   } else {
-    return {
-      texto: `🚨 ${minutos} min (Retrasado)`,
-      claseCard: 'alerta-critico',
-      claseTiempo: 'tiempo-critico'
-    };
+    return { texto: `🚨 ${minutos} min (Retrasado)`, claseCard: 'alerta-critico', claseTiempo: 'tiempo-critico' };
   }
 }
 
 async function cargarTodo() {
+  if (!negocioId) return;
   await Promise.all([
     cargarInsumos(),
     cargarPlatosMenu(),
@@ -49,27 +113,15 @@ async function cargarTodo() {
   ]);
 }
 
-// --- SECCIÓN 1: COMANDAS CON CRONÓMETRO ---
+// --- COMANDAS ---
 async function cargarPedidos() {
   if (loading) loading.style.display = 'block';
 
   const { data: pedidos, error } = await db
     .from('orders')
-    .select(`
-      id,
-      customer_name,
-      customer_phone,
-      customer_address,
-      notes,
-      status,
-      total,
-      created_at,
-      order_items (
-        quantity,
-        products ( name )
-      )
-    `)
-    .in('status', ['recibido', 'en_preparacion', 'listo'])
+    .select('*')
+    .eq('business_id', negocioId)
+    .in('status', ['pending', 'cooking', 'on_the_way'])
     .order('created_at', { ascending: true });
 
   if (loading) loading.style.display = 'none';
@@ -86,49 +138,44 @@ async function cargarPedidos() {
 
   gridPedidos.innerHTML = pedidos.map(orden => {
     const alertaTiempo = calcularTiempoEspera(orden.created_at);
+    const items = Array.isArray(orden.items) ? orden.items : [];
 
     return `
       <div class="ticket ${alertaTiempo.claseCard}">
         <div>
           <div class="ticket-header">
             <div>
-              <strong>#ORD-${orden.id}</strong>
+              <strong>#ORD-${orden.id.slice(0, 8)}</strong>
               <span class="tiempo-badge ${alertaTiempo.claseTiempo}">${alertaTiempo.texto}</span>
             </div>
-            <span class="badge badge-${orden.status}">${orden.status.replace('_', ' ')}</span>
+            <span class="badge badge-${orden.status}">${orden.status}</span>
           </div>
 
           <ul class="ticket-items">
-            ${orden.order_items.map(item => `
-              <li><strong>${item.quantity}x</strong>${item.products ? item.products.name : 'Plato retirado'}</li>
-            `).join('')}
+            ${items.map(item => `<li><strong>${item.quantity}x</strong> ${item.name} ($${item.subtotal})</li>`).join('')}
           </ul>
 
           <div class="ticket-cliente">
             <p><strong>Cliente:</strong> ${orden.customer_name}</p>
             <p><strong>Tlf:</strong> ${orden.customer_phone}</p>
-            <p><strong>Ubicación:</strong> ${orden.customer_address}</p>
-            ${orden.notes ? `
-              <p style="color: #f59e0b; margin-top: 6px; background: #2a2210; padding: 6px; border-radius: 4px; border: 1px solid #78350f;">
-                ⚠️ <strong>Nota:</strong> ${orden.notes}
-              </p>
-            ` : ''}
+            <p><strong>Dirección:</strong> ${orden.delivery_address || 'No indicada'}</p>
+            ${orden.map_url ? `<p><a href="${orden.map_url}" target="_blank" style="color: #fbbf24;">📍 Ver Mapa GPS</a></p>` : ''}
           </div>
         </div>
 
         <div class="ticket-acciones">
-          ${orden.status === 'recibido' ? `
-            <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado(${orden.id}, 'en_preparacion')">
+          ${orden.status === 'pending' ? `
+            <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado('${orden.id}', 'cooking')">
               Comenzar Cocina
             </button>` : ''}
 
-          ${orden.status === 'en_preparacion' ? `
-            <button class="btn-estado" style="background:#10b981; color:#000;" onclick="cambiarEstado(${orden.id}, 'listo')">
-              Marcar Listo
+          ${orden.status === 'cooking' ? `
+            <button class="btn-estado" style="background:#10b981; color:#000;" onclick="cambiarEstado('${orden.id}', 'on_the_way')">
+              Listo / En Camino
             </button>` : ''}
 
-          ${orden.status === 'listo' ? `
-            <button class="btn-estado" style="background:#6366f1; color:#fff;" onclick="cambiarEstado(${orden.id}, 'entregado')">
+          ${orden.status === 'on_the_way' ? `
+            <button class="btn-estado" style="background:#6366f1; color:#fff;" onclick="cambiarEstado('${orden.id}', 'delivered')">
               Despachado
             </button>` : ''}
         </div>
@@ -142,9 +189,14 @@ window.cambiarEstado = async function(id, nuevoEstado) {
   if (!error) cargarPedidos();
 };
 
-// --- SECCIÓN 2: GESTIÓN DE PLATOS ---
+// --- CATÁLOGO DE PLATOS ---
 async function cargarPlatosMenu() {
-  const { data, error } = await db.from('products').select('*').order('name');
+  const { data, error } = await db
+    .from('products')
+    .select('*')
+    .eq('business_id', negocioId)
+    .order('name');
+
   if (!error && data) {
     listaPlatos = data;
     renderizarTablaPlatos();
@@ -156,15 +208,14 @@ function renderizarTablaPlatos() {
   tablaPlatosCuerpo.innerHTML = listaPlatos.map(p => `
     <tr>
       <td><strong>${p.name}</strong><br><small style="color:#888;">${p.description || ''}</small></td>
-      <td>${p.category}</td>
       <td style="color:#fbbf24; font-weight:bold;">$${parseFloat(p.price).toFixed(2)}</td>
       <td>
-        <button class="btn-toggle ${p.is_active ? 'activo' : 'pausado'}" onclick="toggleVisibilidadPlato(${p.id}, ${p.is_active})">
-          ${p.is_active ? '● Activo en web' : '○ Pausado (Oculto)'}
+        <button class="btn-toggle ${p.is_available ? 'activo' : 'pausado'}" onclick="toggleVisibilidadPlato('${p.id}', ${p.is_available})">
+          ${p.is_available ? '● Activo en web' : '○ Pausado (Oculto)'}
         </button>
       </td>
       <td>
-        <button class="btn-peligro" onclick="eliminarPlato(${p.id}, '${p.name}')">Eliminar</button>
+        <button class="btn-peligro" onclick="eliminarPlato('${p.id}', '${p.name}')">Eliminar</button>
       </td>
     </tr>
   `).join('');
@@ -173,7 +224,7 @@ function renderizarTablaPlatos() {
 window.toggleVisibilidadPlato = async function(id, estadoActual) {
   const { error } = await db
     .from('products')
-    .update({ is_active: !estadoActual })
+    .update({ is_available: !estadoActual })
     .eq('id', id);
 
   if (error) {
@@ -184,26 +235,27 @@ window.toggleVisibilidadPlato = async function(id, estadoActual) {
 };
 
 window.eliminarPlato = async function(id, nombre) {
-  const confirmar = confirm(`¿Estás seguro de eliminar "${nombre}" del menú?`);
-  if (!confirmar) return;
+  if (!confirm(`¿Eliminar "${nombre}" del menú?`)) return;
 
   const { error } = await db.from('products').delete().eq('id', id);
   if (error) {
-    alert('No se pudo eliminar el plato: ' + error.message);
+    alert('No se pudo eliminar: ' + error.message);
   } else {
     cargarPlatosMenu();
   }
 };
 
-// --- SECCIÓN 3: INVENTARIO Y REPOSICIÓN ---
+// --- GESTIÓN DE INSUMOS ---
 async function cargarInsumos() {
-  const { data, error } = await db.from('ingredients').select('*').order('name');
+  const { data, error } = await db
+    .from('ingredients')
+    .select('*')
+    .eq('business_id', negocioId)
+    .order('name');
+
   if (!error && data) {
     insumosDisponibles = data;
     renderizarTablaInsumos();
-    if (recetaContenedor && recetaContenedor.children.length === 0) {
-      agregarFilaIngrediente();
-    }
   }
 }
 
@@ -220,7 +272,7 @@ function renderizarTablaInsumos() {
         <td>${insumo.unit}</td>
         <td>${bajoStock ? '⚠️ Reponer stock' : '✅ Suficiente'}</td>
         <td>
-          <button class="btn-secundario" style="padding: 4px 8px; font-size:0.75rem;" onclick="sumarStock(${insumo.id}, '${insumo.name}', '${insumo.unit}')">
+          <button class="btn-secundario" style="padding: 4px 8px; font-size:0.75rem;" onclick="sumarStock('${insumo.id}', '${insumo.name}', '${insumo.unit}')">
             + Añadir Existencias
           </button>
         </td>
@@ -230,7 +282,7 @@ function renderizarTablaInsumos() {
 }
 
 window.sumarStock = async function(id, nombre, unidad) {
-  const cantidadStr = prompt(`¿Cuánta cantidad de "${nombre}" (${unidad}) compraste para sumar al stock?`);
+  const cantidadStr = prompt(`¿Cuánta cantidad de "${nombre}" (${unidad}) compraste para sumar?`);
   const cantidad = parseFloat(cantidadStr);
   if (isNaN(cantidad) || cantidad <= 0) return;
 
@@ -238,32 +290,7 @@ window.sumarStock = async function(id, nombre, unidad) {
   const nuevoTotal = parseFloat(actual.current_stock) + cantidad;
 
   const { error } = await db.from('ingredients').update({ current_stock: nuevoTotal }).eq('id', id);
-  if (error) {
-    alert('Error al reponer stock: ' + error.message);
-  } else {
-    cargarInsumos();
-  }
-};
-
-// --- FILAS DINÁMICAS DE RECETAS ---
-window.agregarFilaIngrediente = function() {
-  if (!recetaContenedor) return;
-  const div = document.createElement('div');
-  div.className = 'receta-fila';
-
-  const selectOpciones = insumosDisponibles.map(i => 
-    `<option value="${i.id}">${i.name} (${i.unit})</option>`
-  ).join('');
-
-  div.innerHTML = `
-    <select class="ingrediente-select" style="flex: 2; padding: 8px; background: #262626; color: #fff; border: 1px solid #404040; border-radius: 6px;">
-      ${selectOpciones}
-    </select>
-    <input type="number" step="any" placeholder="Cantidad usada" class="ingrediente-cantidad" style="flex: 1;" required />
-    <button type="button" class="btn-secundario" onclick="this.parentElement.remove()" style="padding: 6px 10px;">✕</button>
-  `;
-
-  recetaContenedor.appendChild(div);
+  if (!error) cargarInsumos();
 };
 
 // --- CREAR PLATO ---
@@ -273,55 +300,30 @@ if (formNuevoPlato) {
 
     const nombre = document.getElementById('plato-nombre').value.trim();
     const precio = parseFloat(document.getElementById('plato-precio').value);
-    const categoria = document.getElementById('plato-categoria').value.trim();
     const descripcion = document.getElementById('plato-desc').value.trim();
 
-    const { data: nuevoProducto, error: prodError } = await db
+    const { error } = await db
       .from('products')
       .insert([{
+        business_id: negocioId,
         name: nombre,
         price: precio,
-        category: categoria,
         description: descripcion,
-        is_active: true
-      }])
-      .select()
-      .single();
+        is_available: true
+      }]);
 
-    if (prodError) {
-      alert('Error al crear plato: ' + prodError.message);
+    if (error) {
+      alert('Error al crear plato: ' + error.message);
       return;
     }
 
-    const filas = recetaContenedor.querySelectorAll('.receta-fila');
-    const ingredientesRelacion = [];
-
-    filas.forEach(fila => {
-      const ingredienteId = fila.querySelector('.ingrediente-select').value;
-      const cantidad = parseFloat(fila.querySelector('.ingrediente-cantidad').value);
-
-      if (ingredienteId && !isNaN(cantidad)) {
-        ingredientesRelacion.push({
-          product_id: nuevoProducto.id,
-          ingredient_id: ingredienteId,
-          quantity_required: cantidad
-        });
-      }
-    });
-
-    if (ingredientesRelacion.length > 0) {
-      await db.from('product_ingredients').insert(ingredientesRelacion);
-    }
-
-    alert(`¡Plato "${nombre}" agregado al menú con éxito!`);
+    alert(`¡Plato "${nombre}" agregado con éxito!`);
     formNuevoPlato.reset();
-    recetaContenedor.innerHTML = '';
-    agregarFilaIngrediente();
     cargarPlatosMenu();
   });
 }
 
-// --- REGISTRAR NUEVO INSUMO BASE ---
+// --- REGISTRAR INSUMO ---
 if (formNuevoInsumo) {
   formNuevoInsumo.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -331,39 +333,25 @@ if (formNuevoInsumo) {
     const stock = parseFloat(document.getElementById('insumo-stock').value);
     const minimo = parseFloat(document.getElementById('insumo-minimo').value);
 
-    const btnSubmit = formNuevoInsumo.querySelector('button[type="submit"]');
-    btnSubmit.disabled = true;
-
     const { error } = await db.from('ingredients').insert([{
+      business_id: negocioId,
       name: nombre,
       unit: unidad,
       current_stock: stock,
       min_stock: minimo
     }]);
 
-    btnSubmit.disabled = false;
-
     if (error) {
       alert('Error al registrar insumo: ' + error.message);
       return;
     }
 
-    alert(`¡Insumo "${nombre}" agregado al inventario!`);
     formNuevoInsumo.reset();
     await cargarInsumos();
   });
 }
 
-// Inicialización y refresco automático cada 30 segundos
-cargarTodo();
-setInterval(() => {
-  cargarPedidos();
-}, 30000);
-let ventasChartInstance = null;
-let periodoSeleccionado = 'dia';
-let pedidosHistoricos = [];
-
-// Función para cambiar de filtro temporal
+// --- DASHBOARD FINANCIERO ---
 window.filtrarPeriodo = function(periodo, boton) {
   periodoSeleccionado = periodo;
   document.querySelectorAll('.btn-filtro').forEach(btn => btn.classList.remove('activo'));
@@ -371,29 +359,24 @@ window.filtrarPeriodo = function(periodo, boton) {
   procesarMetricasYGrafica();
 };
 
-// Carga las órdenes históricas para el balance financiero
 async function cargarDashboardFinanciero() {
   const { data: ordenes, error } = await db
     .from('orders')
-    .select('id, customer_name, customer_phone, total, paid_amount, payment_status, status, created_at')
-    .neq('status', 'anulado')
+    .select('id, total, status, created_at')
+    .eq('business_id', negocioId)
+    .neq('status', 'cancelled')
     .order('created_at', { ascending: true });
 
   if (!error && ordenes) {
     pedidosHistoricos = ordenes;
     procesarMetricasYGrafica();
-    cargarCuentasPorCobrar();
   }
 }
 
-// Procesa los montos y agrupa los puntos para la gráfica según el filtro
 function procesarMetricasYGrafica() {
   const ahora = new Date();
-  let cobrado = 0;
-  let porCobrar = 0;
   let totalFacturado = 0;
   let conteoPedidos = 0;
-
   const gruposGrafica = {};
 
   pedidosHistoricos.forEach(orden => {
@@ -415,35 +398,25 @@ function procesarMetricasYGrafica() {
 
     if (entraEnPeriodo) {
       const tot = parseFloat(orden.total) || 0;
-      const pag = parseFloat(orden.paid_amount) || (orden.payment_status === 'pagado' ? tot : 0);
-      const saldo = Math.max(0, tot - pag);
-
-      cobrado += pag;
-      porCobrar += saldo;
       totalFacturado += tot;
       conteoPedidos++;
-
       gruposGrafica[etiquetaEjeX] = (gruposGrafica[etiquetaEjeX] || 0) + tot;
     }
   });
 
-  // Renderizar KPIs en pantalla
-  document.getElementById('kpi-cobrado').textContent = `$${cobrado.toFixed(2)}`;
-  document.getElementById('kpi-por-cobrar').textContent = `$${porCobrar.toFixed(2)}`;
-  document.getElementById('kpi-total').textContent = `$${totalFacturado.toFixed(2)}`;
-  document.getElementById('kpi-pedidos').textContent = conteoPedidos;
+  const kpiTotal = document.getElementById('kpi-total');
+  const kpiPedidos = document.getElementById('kpi-pedidos');
+  if (kpiTotal) kpiTotal.textContent = `$${totalFacturado.toFixed(2)}`;
+  if (kpiPedidos) kpiPedidos.textContent = conteoPedidos;
 
   renderizarGrafica(Object.keys(gruposGrafica), Object.values(gruposGrafica));
 }
 
-// Renderiza o actualiza la gráfica con Chart.js
 function renderizarGrafica(etiquetas, datos) {
   const ctx = document.getElementById('graficaVentas');
   if (!ctx) return;
 
-  if (ventasChartInstance) {
-    ventasChartInstance.destroy();
-  }
+  if (ventasChartInstance) ventasChartInstance.destroy();
 
   ventasChartInstance = new Chart(ctx, {
     type: 'line',
@@ -457,49 +430,39 @@ function renderizarGrafica(etiquetas, datos) {
         fill: true,
         tension: 0.35,
         borderWidth: 2,
-        pointBackgroundColor: '#fbbf24',
-        pointRadius: 4
+        pointBackgroundColor: '#fbbf24'
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          ticks: { color: '#888' },
-          grid: { color: '#2a2a2a' }
-        },
-        y: {
-          ticks: { color: '#888', callback: valor => `$${valor}` },
-          grid: { color: '#2a2a2a' },
-          beginAtZero: true
-        }
+        x: { ticks: { color: '#888' }, grid: { color: '#2a2a2a' } },
+        y: { ticks: { color: '#888', callback: v => `$${v}` }, grid: { color: '#2a2a2a' }, beginAtZero: true }
       }
     }
   });
 }
 
-// Carga la tabla de cuentas por cobrar usando la vista de Supabase
-async function cargarCuentasPorCobrar() {
-  const tablaDeudores = document.getElementById('tabla-deudores-cuerpo');
-  if (!tablaDeudores) return;
-
-  const { data, error } = await db.from('v_cuentas_por_cobrar').select('*');
-
-  if (error || !data || data.length === 0) {
-    tablaDeudores.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">No hay deudas pendientes registradas.</td></tr>';
-    return;
-  }
-
-  tablaDeudores.innerHTML = data.map(item => `
-    <tr>
-      <td><strong>${item.customer_name}</strong></td>
-      <td>${item.customer_phone}</td>
-      <td>${item.pedidos_pendientes} comanda(s)</td>
-      <td style="color:#ef4444; font-weight:bold;">$${parseFloat(item.total_adeudado).toFixed(2)}</td>
-    </tr>
-  `).join('');
+function suscribirTiempoReal() {
+  db.channel('cocina-realtime')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'orders',
+      filter: `business_id=eq.${negocioId}`
+    }, () => {
+      cargarPedidos();
+      cargarDashboardFinanciero();
+    })
+    .subscribe();
 }
+
+// Comprobación inicial de sesión
+(async () => {
+  const { data: { user } } = await db.auth.getUser();
+  if (user) {
+    await inicializarSesion(user);
+  }
+})();

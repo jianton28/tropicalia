@@ -37,9 +37,9 @@
       font-weight: bold;
       text-transform: uppercase;
     }
-    .badge-recibido { background: #3b82f6; color: #fff; }
-    .badge-en_preparacion { background: #f59e0b; color: #000; }
-    .badge-listo { background: #10b981; color: #000; }
+    .badge-pending { background: #3b82f6; color: #fff; }
+    .badge-cooking { background: #f59e0b; color: #000; }
+    .badge-on_the_way { background: #10b981; color: #000; }
     .ticket-items {
       list-style: none;
       padding: 0;
@@ -123,23 +123,16 @@
     }
     .btn-toggle.activo { background: #059669; color: #fff; }
     .btn-toggle.pausado { background: #4b5563; color: #d1d5db; }
-    /* Estados de alerta por demora */
-    .ticket.alerta-optimo {
-      border-left: 5px solid #10b981;
-    }
-    .ticket.alerta-demorado {
-      border-left: 5px solid #f59e0b;
-    }
+    .ticket.alerta-optimo { border-left: 5px solid #10b981; }
+    .ticket.alerta-demorado { border-left: 5px solid #f59e0b; }
     .ticket.alerta-critico {
       border-left: 5px solid #ef4444;
       animation: pulsoCritico 1.5s infinite alternate;
     }
-
     @keyframes pulsoCritico {
       0% { box-shadow: 0 0 0px rgba(239, 68, 68, 0); }
       100% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
     }
-
     .tiempo-badge {
       display: inline-flex;
       align-items: center;
@@ -153,7 +146,6 @@
     .tiempo-optimo { color: #10b981; }
     .tiempo-demorado { color: #f59e0b; }
     .tiempo-critico { color: #ef4444; }
-    /* Dashboard y Métricas */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -171,9 +163,7 @@
     }
     .kpi-card span { font-size: 0.8rem; color: #a3a3a3; text-transform: uppercase; }
     .kpi-card strong { font-size: 1.4rem; color: #fbbf24; }
-    .kpi-card.deuda strong { color: #ef4444; }
     .kpi-card.exito strong { color: #10b981; }
-
     .periodo-filtros {
       display: flex;
       gap: 8px;
@@ -194,7 +184,6 @@
       color: #000;
       border-color: #fbbf24;
     }
-
     .grafica-contenedor {
       background: #1e1e1e;
       border: 1px solid #333;
@@ -206,150 +195,142 @@
   </style>
 </head>
 <body>
-  <header>
-    <div class="container header-content">
-      <div>
-        <h1>Tropicalia - Centro de Operaciones</h1>
-        <p>Comandas, catálogo en vivo e inventario de insumos</p>
-      </div>
-      <div>
-        <a href="index.html" class="btn-secundario" style="text-decoration:none; margin-right:8px;">👀 Ver Menú Cliente</a>
-        <button onclick="cargarTodo()" class="btn-secundario">🔄 Actualizar</button>
-      </div>
-    </div>
-  </header>
+  <!-- PANTALLA DE ACCESO (LOGIN) -->
+  <div id="vista-login" class="container" style="max-width: 400px; margin-top: 80px;">
+    <h2>Acceso al Centro de Operaciones</h2>
+    <p style="color: #a3a3a3; margin-bottom: 20px;">Ingresa las credenciales del restaurante</p>
+    <form id="form-login" style="display: flex; flex-direction: column; gap: 12px;">
+      <input type="email" id="login-email" placeholder="Correo del negocio" required />
+      <input type="password" id="login-password" placeholder="Contraseña" required />
+      <button type="submit" class="btn-primario" id="btn-login">Ingresar al Panel</button>
+      <div id="login-error" class="alerta" style="display: none; background: #7f1d1d; border-color: #991b1b;"></div>
+    </form>
+  </div>
 
-  <main class="container">
-    <!-- 1. Monitor de Comandas Activas -->
-    <section>
-      <h2>Comandas en Preparación</h2>
-      <div id="loading" class="alerta">Cargando pedidos...</div>
-      <div id="grid-pedidos" class="grid-cocina"></div>
-    </section>
-
-    <!-- 2. Gestión del Catálogo de Platos -->
-    <section class="seccion-admin">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>Gestión del Menú (Platos Activos y Visibilidad)</h2>
-        <span style="font-size:0.8rem; color:#a3a3a3;">Pausar un plato lo oculta de la tienda de inmediato</span>
-      </div>
-      
-      <table class="tabla-gestion">
-        <thead>
-          <tr>
-            <th>Nombre del Plato</th>
-            <th>Categoría</th>
-            <th>Precio</th>
-            <th>Estado en Tienda</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="tabla-platos-cuerpo"></tbody>
-      </table>
-
-      <!-- Formulario para Agregar Nuevo Plato -->
-      <h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
-      <form id="form-nuevo-plato">
-        <div class="form-grid">
-          <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
-          <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
-          <input type="text" id="plato-categoria" placeholder="Categoría (ej: Pastichos, Postres)" required />
-          <input type="text" id="plato-desc" placeholder="Descripción breve" required />
+  <!-- PANEL DE OPERACIONES (OCULTO HASTA INICIAR SESIÓN) -->
+  <div id="vista-panel" style="display: none;">
+    <header>
+      <div class="container header-content">
+        <div>
+          <h1 id="panel-nombre-negocio">Centro de Operaciones</h1>
+          <p>Comandas, catálogo en vivo e inventario de insumos</p>
         </div>
-
-        <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
-        <div id="receta-contenedor"></div>
-        <button type="button" onclick="agregarFilaIngrediente()" class="btn-secundario" style="margin-bottom: 15px; font-size: 0.8rem;">
-          + Asociar otro insumo
-        </button>
-
-        <button type="submit" class="btn-primario">Guardar y Publicar Plato</button>
-      </form>
-    </section>
-<!-- Formulario para Registrar Nuevo Insumo -->
-<h3 style="font-size: 1rem; margin-top: 15px; margin-bottom: 8px; color: #f59e0b;">+ Registrar Nuevo Insumo Base</h3>
-<form id="form-nuevo-insumo" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-  <input type="text" id="insumo-nombre" placeholder="Nombre (ej: Queso Parmesano)" style="flex: 2; min-width: 180px;" required />
-  <select id="insumo-unidad" style="flex: 1; min-width: 120px; background: #262626; color: #fff; border: 1px solid #404040; border-radius: 6px; padding: 8px;" required>
-    <option value="" disabled selected>Unidad de medida</option>
-    <option value="gramos">gramos (g)</option>
-    <option value="kilogramos">kilogramos (kg)</option>
-    <option value="unidades">unidades</option>
-    <option value="mililitros">mililitros (ml)</option>
-    <option value="litros">litros (L)</option>
-  </select>
-  <input type="number" id="insumo-stock" step="any" placeholder="Stock inicial" style="flex: 1; min-width: 100px;" required />
-  <input type="number" id="insumo-minimo" step="any" placeholder="Alerta stock mín." style="flex: 1; min-width: 100px;" required />
-  <button type="submit" class="btn-primario" style="width: auto; padding: 8px 16px;">Guardar Insumo</button>
-</form>
-
-    <!-- 3. Monitor y Reposición de Inventario -->
-    <section class="seccion-admin">
-      <h2>Inventario Actual de Insumos</h2>
-      <table class="tabla-gestion">
-        <thead>
-          <tr>
-            <th>Insumo</th>
-            <th>Stock Actual</th>
-            <th>Unidad</th>
-            <th>Diagnóstico</th>
-            <th>Reponer Stock Rápido</th>
-          </tr>
-        </thead>
-        <tbody id="tabla-insumos-cuerpo"></tbody>
-      </table>
-    </section>
-    <!-- Dashboard Financiero y Métricas -->
-    <section class="seccion-admin" style="margin-top: 0; margin-bottom: 30px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-        <h2>Resumen Financiero y Ventas</h2>
-        <div class="periodo-filtros">
-          <button class="btn-filtro activo" onclick="filtrarPeriodo('dia', this)">Hoy</button>
-          <button class="btn-filtro" onclick="filtrarPeriodo('mes', this)">Este Mes</button>
-          <button class="btn-filtro" onclick="filtrarPeriodo('ano', this)">Este Año</button>
+        <div>
+          <a href="index.html" class="btn-secundario" style="text-decoration:none; margin-right:8px;">👀 Ver Menú Cliente</a>
+          <button onclick="cargarTodo()" class="btn-secundario">🔄 Actualizar</button>
+          <button onclick="cerrarSesion()" class="btn-secundario" style="margin-left: 8px;">Cerrar Sesión</button>
         </div>
       </div>
+    </header>
 
-      <div class="kpi-grid">
-        <div class="kpi-card exito">
-          <span>Ingresos Cobrados</span>
-          <strong id="kpi-cobrado">$0.00</strong>
-        </div>
-        <div class="kpi-card deuda">
-          <span>Por Cobrar (Pendiente)</span>
-          <strong id="kpi-por-cobrar">$0.00</strong>
-        </div>
-        <div class="kpi-card">
-          <span>Total Facturado</span>
-          <strong id="kpi-total">$0.00</strong>
-        </div>
-        <div class="kpi-card">
-          <span>Pedidos Despachados</span>
-          <strong id="kpi-pedidos">0</strong>
-        </div>
-      </div>
+    <main class="container">
+      <!-- 1. Monitor de Comandas Activas -->
+      <section>
+        <h2>Comandas en Preparación</h2>
+        <div id="loading" class="alerta">Cargando pedidos...</div>
+        <div id="grid-pedidos" class="grid-cocina"></div>
+      </section>
 
-      <div class="grafica-contenedor">
-        <canvas id="graficaVentas"></canvas>
-      </div>
+      <!-- 2. Gestión del Catálogo de Platos -->
+      <section class="seccion-admin">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h2>Gestión del Menú (Platos Activos y Visibilidad)</h2>
+          <span style="font-size:0.8rem; color:#a3a3a3;">Pausar un plato lo oculta de la tienda de inmediato</span>
+        </div>
+        
+        <table class="tabla-gestion">
+          <thead>
+            <tr>
+              <th>Nombre del Plato</th>
+              <th>Precio</th>
+              <th>Estado en Tienda</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-platos-cuerpo"></tbody>
+        </table>
 
-      <!-- Tabla de Clientes con Deuda -->
-      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: #a3a3a3;">Cuentas por Cobrar Pendientes</h3>
-      <table class="tabla-stock">
-        <thead>
-          <tr>
-            <th>Cliente</th>
-            <th>Teléfono</th>
-            <th>Pedidos Deudores</th>
-            <th>Monto Adeudado</th>
-          </tr>
-        </thead>
-        <tbody id="tabla-deudores-cuerpo">
-          <tr><td colspan="4" style="text-align:center; color:#888;">No hay deudas pendientes registradas.</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+        <!-- Formulario para Agregar Nuevo Plato -->
+        <h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
+        <form id="form-nuevo-plato">
+          <div class="form-grid">
+            <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
+            <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
+            <input type="text" id="plato-desc" placeholder="Descripción breve" required />
+          </div>
+
+          <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
+          <div id="receta-contenedor"></div>
+          <button type="button" onclick="agregarFilaIngrediente()" class="btn-secundario" style="margin-bottom: 15px; font-size: 0.8rem;">
+            + Asociar otro insumo
+          </button>
+
+          <button type="submit" class="btn-primario">Guardar y Publicar Plato</button>
+        </form>
+      </section>
+
+      <!-- Formulario para Registrar Nuevo Insumo -->
+      <section class="seccion-admin">
+        <h2>Inventario Actual de Insumos</h2>
+        <h3 style="font-size: 1rem; margin-top: 10px; margin-bottom: 8px; color: #f59e0b;">+ Registrar Nuevo Insumo Base</h3>
+        <form id="form-nuevo-insumo" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+          <input type="text" id="insumo-nombre" placeholder="Nombre (ej: Queso Parmesano)" style="flex: 2; min-width: 180px;" required />
+          <select id="insumo-unidad" style="flex: 1; min-width: 120px; background: #262626; color: #fff; border: 1px solid #404040; border-radius: 6px; padding: 8px;" required>
+            <option value="" disabled selected>Unidad de medida</option>
+            <option value="gramos">gramos (g)</option>
+            <option value="kilogramos">kilogramos (kg)</option>
+            <option value="unidades">unidades</option>
+            <option value="mililitros">mililitros (ml)</option>
+            <option value="litros">litros (L)</option>
+          </select>
+          <input type="number" id="insumo-stock" step="any" placeholder="Stock inicial" style="flex: 1; min-width: 100px;" required />
+          <input type="number" id="insumo-minimo" step="any" placeholder="Alerta stock mín." style="flex: 1; min-width: 100px;" required />
+          <button type="submit" class="btn-primario" style="width: auto; padding: 8px 16px;">Guardar Insumo</button>
+        </form>
+
+        <!-- 3. Monitor y Reposición de Inventario -->
+        <table class="tabla-gestion">
+          <thead>
+            <tr>
+              <th>Insumo</th>
+              <th>Stock Actual</th>
+              <th>Unidad</th>
+              <th>Diagnóstico</th>
+              <th>Reponer Stock Rápido</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-insumos-cuerpo"></tbody>
+        </table>
+      </section>
+
+      <!-- Dashboard Financiero y Métricas -->
+      <section class="seccion-admin" style="margin-top: 30px; margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <h2>Resumen Financiero y Ventas</h2>
+          <div class="periodo-filtros">
+            <button class="btn-filtro activo" onclick="filtrarPeriodo('dia', this)">Hoy</button>
+            <button class="btn-filtro" onclick="filtrarPeriodo('mes', this)">Este Mes</button>
+            <button class="btn-filtro" onclick="filtrarPeriodo('ano', this)">Este Año</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card exito">
+            <span>Total Facturado</span>
+            <strong id="kpi-total">$0.00</strong>
+          </div>
+          <div class="kpi-card">
+            <span>Pedidos Recibidos</span>
+            <strong id="kpi-pedidos">0</strong>
+          </div>
+        </div>
+
+        <div class="grafica-contenedor">
+          <canvas id="graficaVentas"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script src="cocina.js"></script>
 </body>

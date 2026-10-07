@@ -5,25 +5,34 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Variables de estado
+let negocios = [];
 let productos = [];
 let carrito = [];
+let negocioActivo = null;
+let ubicacionMapsUrl = null;
 
+// Elementos del DOM
+const vistaRestaurantes = document.getElementById('vista-restaurantes');
+const vistaMenu = document.getElementById('vista-menu');
+const panelCarrito = document.getElementById('panel-carrito');
+const gridRestaurantes = document.getElementById('grid-restaurantes');
+const loadingRestaurantes = document.getElementById('loading-restaurantes');
+const tituloRestaurante = document.getElementById('titulo-restaurante');
 const gridProductos = document.getElementById('grid-productos');
-const loading = document.getElementById('loading');
+const loadingMenu = document.getElementById('loading-menu');
 const cartCount = document.getElementById('cart-count');
 const carritoItems = document.getElementById('carrito-items');
 const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
 const formPedido = document.getElementById('form-pedido');
-// Variable global para almacenar el enlace de mapas
-let ubicacionMapsUrl = null;
 
-// Función para solicitar coordenadas del cliente
+// Geolocalización
 window.obtenerUbicacionGPS = function() {
   const textoBtn = document.getElementById('texto-ubicacion');
   
   if (!navigator.geolocation) {
-    alert('Tu navegador no soporta geolocalización. Ingresa la dirección por escrito.');
+    alert('Tu dispositivo no soporta geolocalización.');
     return;
   }
 
@@ -39,33 +48,86 @@ window.obtenerUbicacionGPS = function() {
     (error) => {
       console.warn('Error al obtener ubicación:', error.message);
       textoBtn.innerText = 'Entregar en...';
-      alert('No se pudo obtener la ubicación exacta. Por favor escribe tu dirección en el formulario.');
+      alert('No se pudo obtener la ubicación exacta. Escribe tu dirección en el formulario.');
     },
     { enableHighAccuracy: true, timeout: 8000 }
   );
 };
 
-async function obtenerMenu() {
+// 1. OBTENER Y RENDERIZAR RESTAURANTES
+async function obtenerRestaurantes() {
   try {
     const { data, error } = await db
-      .from('products')
+      .from('businesses')
       .select('*')
       .eq('is_active', true);
 
     if (error) throw error;
 
-    productos = data || [];
-    renderizarCatalogo();
+    negocios = data || [];
+    renderizarRestaurantes();
   } catch (err) {
-    if (loading) loading.innerText = 'Error al cargar los productos: ' + err.message;
+    if (loadingRestaurantes) loadingRestaurantes.innerText = 'Error al cargar locales: ' + err.message;
   }
 }
 
-function renderizarCatalogo() {
-  if (loading) loading.style.display = 'none';
+function renderizarRestaurantes() {
+  if (loadingRestaurantes) loadingRestaurantes.style.display = 'none';
+
+  if (!negocios || negocios.length === 0) {
+    gridRestaurantes.innerHTML = '<p class="alerta">No hay restaurantes disponibles en este momento.</p>';
+    return;
+  }
+
+  gridRestaurantes.innerHTML = negocios.map(b => `
+    <div class="card">
+      <div>
+        <h3>${b.name}</h3>
+        <p>Contacto: ${b.phone || 'Disponible'}</p>
+      </div>
+      <div class="card-footer">
+        <button class="btn-primario" onclick="seleccionarRestaurante('${b.id}')">
+          Ver Menú →
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// 2. SELECCIONAR RESTAURANTE Y CARGAR SU MENÚ
+window.seleccionarRestaurante = async function(businessId) {
+  negocioActivo = negocios.find(b => b.id === businessId);
+  if (!negocioActivo) return;
+
+  // Cambiar vistas
+  vistaRestaurantes.style.display = 'none';
+  vistaMenu.style.display = 'block';
+  panelCarrito.style.display = 'block';
+  tituloRestaurante.innerText = negocioActivo.name;
+  if (loadingMenu) loadingMenu.style.display = 'block';
+  gridProductos.innerHTML = '';
+
+  try {
+    const { data, error } = await db
+      .from('products')
+      .select('*')
+      .eq('business_id', businessId)
+      .eq('is_available', true);
+
+    if (error) throw error;
+
+    productos = data || [];
+    renderizarMenu();
+  } catch (err) {
+    if (loadingMenu) loadingMenu.innerText = 'Error al cargar productos: ' + err.message;
+  }
+};
+
+function renderizarMenu() {
+  if (loadingMenu) loadingMenu.style.display = 'none';
 
   if (!productos || productos.length === 0) {
-    gridProductos.innerHTML = '<p class="alerta">No hay productos disponibles en este momento.</p>';
+    gridProductos.innerHTML = '<p class="alerta">Este restaurante aún no tiene platos disponibles.</p>';
     return;
   }
 
@@ -77,7 +139,7 @@ function renderizarCatalogo() {
       </div>
       <div class="card-footer">
         <span class="precio">$${parseFloat(item.price).toFixed(2)}</span>
-        <button class="btn-primario" style="width: auto;" onclick="agregarAlCarrito(${item.id})">
+        <button class="btn-primario" style="width: auto;" onclick="agregarAlCarrito('${item.id}')">
           + Agregar
         </button>
       </div>
@@ -85,6 +147,21 @@ function renderizarCatalogo() {
   `).join('');
 }
 
+window.volverARestaurantes = function() {
+  if (carrito.length > 0) {
+    const confirmar = confirm('Si cambias de restaurante, se vaciará el carrito actual. ¿Deseas continuar?');
+    if (!confirmar) return;
+    carrito = [];
+    actualizarCarrito();
+  }
+
+  negocioActivo = null;
+  vistaMenu.style.display = 'none';
+  panelCarrito.style.display = 'none';
+  vistaRestaurantes.style.display = 'block';
+};
+
+// 3. CARRITO DE COMPRAS
 window.agregarAlCarrito = function(id) {
   const item = productos.find(p => p.id === id);
   if (!item) return;
@@ -128,18 +205,24 @@ function actualizarCarrito() {
           <div><strong>${item.name}</strong></div>
           <small>${item.cantidad} x $${parseFloat(item.price).toFixed(2)}</small>
         </div>
-        <button class="btn-secundario" style="padding: 2px 6px;" onclick="eliminarDelCarrito(${item.id})">✕</button>
+        <button class="btn-secundario" style="padding: 2px 6px;" onclick="eliminarDelCarrito('${item.id}')">✕</button>
       </div>
     `).join('');
   }
 }
 
+// 4. ENVÍO DE PEDIDO MULTINEGOCIO
 if (formPedido) {
   formPedido.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const btnSubmit = formPedido.querySelector('button[type="submit"]');
     if (btnSubmit.disabled) return;
+
+    if (!negocioActivo) {
+      alert('Error: No hay ningún restaurante seleccionado.');
+      return;
+    }
 
     const nombre = document.getElementById('cliente-nombre').value.trim();
     const telefono = document.getElementById('cliente-telefono').value.trim();
@@ -150,42 +233,36 @@ if (formPedido) {
 
     const totalPedido = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
 
-    // Bloqueo y estado de carga inmediato
+    const itemsPedido = carrito.map(item => ({
+      product_id: item.id,
+      name: item.name,
+      quantity: item.cantidad,
+      price: item.price,
+      subtotal: item.price * item.cantidad
+    }));
+
     btnSubmit.disabled = true;
     btnSubmit.innerText = 'Procesando pedido...';
 
     try {
-      // 1. Guardar orden en Supabase (el trigger envía el mensaje a Telegram automáticamente)
-    const { data: orden, error: ordenError } = await db
-  .from('orders')
-  .insert([{
-    customer_name: nombre,
-    customer_phone: telefono,
-    customer_address: direccion,
-    map_url: ubicacionMapsUrl, // Se guarda el link aquí
-    notes: notas,
-    total: totalPedido,
-    status: 'recibido',
-    payment_status: 'pendiente',
-    payment_method: metodoPago
-  }])
-  .select()
-  .single();
+      const { data: orden, error: ordenError } = await db
+        .from('orders')
+        .insert([{
+          business_id: negocioActivo.id,
+          customer_name: nombre,
+          customer_phone: telefono,
+          delivery_address: direccion,
+          map_url: ubicacionMapsUrl,
+          items: itemsPedido,
+          total: totalPedido,
+          status: 'pending'
+        }])
+        .select()
+        .single();
 
       if (ordenError) throw ordenError;
 
-      // 2. Guardar renglones de la comanda
-      const itemsParaGuardar = carrito.map(item => ({
-        order_id: orden.id,
-        product_id: item.id,
-        quantity: item.cantidad,
-        unit_price: item.price
-      }));
-
-      const { error: itemsError } = await db.from('order_items').insert(itemsParaGuardar);
-      if (itemsError) throw itemsError;
-
-      alert(`¡Gracias por tu compra! Tu comanda #ORD-${orden.id} ya entró a cocina. Coordinaremos la entrega al ${telefono}.`);
+      alert(`¡Gracias por tu compra! Tu pedido para ${negocioActivo.name} fue registrado con éxito.`);
 
       carrito = [];
       actualizarCarrito();
@@ -200,4 +277,5 @@ if (formPedido) {
   });
 }
 
-obtenerMenu();
+// Arranque inicial
+obtenerRestaurantes();

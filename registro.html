@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registro de Restaurante - Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container" style="max-width: 480px; margin-top: 50px; margin-bottom: 50px;">
+    <h2>Registra tu Restaurante</h2>
+    <p style="color: #a3a3a3; margin-bottom: 20px;">Súmate a Tropicalia y gestiona tus pedidos en línea</p>
+    <form id="form-registro" style="display: flex; flex-direction: column; gap: 12px;">
+      <input type="text" id="reg-nombre" placeholder="Nombre comercial del restaurante" required />
+      <input type="text" id="reg-slug" placeholder="Identificador corto (ej: mi-pizzeria)" required />
+      <input type="tel" id="reg-telefono" placeholder="Teléfono de contacto / WhatsApp" required />
+      <hr style="border: 0; border-top: 1px solid #333; margin: 8px 0;">
+      <p style="color: #f59e0b; font-size: 0.85rem; margin: 0;">Credenciales de acceso para tu cocina:</p>
+      <input type="email" id="reg-email" placeholder="Correo electrónico del negocio" required />
+      <input type="password" id="reg-password" placeholder="Contraseña de acceso" minlength="6" required />
+      <button type="submit" class="btn-primario" id="btn-registrar">Crear Restaurante</button>
+      <div id="reg-mensaje" class="alerta" style="display: none;"></div>
+    </form>
+  </div>
+
+  <script src="registro.js"></script>
+</body>
+</html>
