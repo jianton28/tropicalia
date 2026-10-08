@@ -279,3 +279,72 @@ if (formPedido) {
 
 // Arranque inicial
 obtenerRestaurantes();
+// Variable global de tasa
+let tasaActualBCV = 0;
+
+// Cargar tasa BCV y pintar en header
+async function inicializarTasa() {
+  const CACHE_KEY = 'tropicalia_tasa_bcv';
+  const TIEMPO_CACHE = 6 * 60 * 60 * 1000;
+  const textoTasa = document.getElementById('texto-tasa');
+
+  const cache = localStorage.getItem(CACHE_KEY);
+  if (cache) {
+    const { tasa, timestamp } = JSON.parse(cache);
+    if (Date.now() - timestamp < TIEMPO_CACHE) {
+      tasaActualBCV = tasa;
+      if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasa.toFixed(2)}`;
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+    if (!res.ok) throw new Error('Error API');
+    const data = await res.json();
+    tasaActualBCV = data.promedio;
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasa: tasaActualBCV, timestamp: Date.now() }));
+    if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasaActualBCV.toFixed(2)}`;
+  } catch {
+    if (textoTasa) textoTasa.textContent = `BCV: No disponible`;
+  }
+}
+
+// Filtro instantáneo de restaurantes por buscador y categorías
+function configurarFiltrosRestaurantes() {
+  const inputBusqueda = document.getElementById('input-busqueda');
+  const chips = document.querySelectorAll('.chip-categoria');
+
+  function filtrar() {
+    const query = inputBusqueda.value.toLowerCase().trim();
+    const chipActivo = document.querySelector('.chip-categoria.active')?.dataset.categoria || 'todos';
+    const cards = document.querySelectorAll('#grid-restaurantes .producto-card');
+
+    cards.forEach(card => {
+      const nombre = (card.querySelector('h3')?.textContent || '').toLowerCase();
+      const descripcion = (card.querySelector('p')?.textContent || '').toLowerCase();
+      const coincideTexto = nombre.includes(query) || descripcion.includes(query);
+      const coincideCat = chipActivo === 'todos' || nombre.includes(chipActivo) || descripcion.includes(chipActivo);
+
+      card.style.display = (coincideTexto && coincideCat) ? '' : 'none';
+    });
+  }
+
+  if (inputBusqueda) {
+    inputBusqueda.addEventListener('input', filtrar);
+  }
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      filtrar();
+    });
+  });
+}
+
+// Llamar al inicio
+document.addEventListener('DOMContentLoaded', () => {
+  inicializarTasa();
+  configurarFiltrosRestaurantes();
+});

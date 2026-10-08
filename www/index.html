@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tropicalia Kitchen</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Conexión a Supabase directa desde CDN, sin instalar nada -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <div>
+        <h1>Tropicalia Kitchen</h1>
+        <p>Catálogo y pedidos en línea</p>
+      </div>
+      <button id="btn-ver-carrito" class="btn-secundario">
+        🛒 Carrito (<span id="cart-count">0</span>)
+      </button>
+    </div>
+  </header>
+<button id="btn-ubicacion" type="button" class="btn-entregar-en" onclick="obtenerUbicacionGPS()">
+  📍 <span id="texto-ubicacion">Entregar en...</span>
+</button>
+  <main class="container main-layout">
+    <!-- Catálogo de productos -->
+    <section class="catalogo-seccion">
+      <h2>Menú Disponible</h2>
+      <div id="loading" class="alerta">Cargando menú desde la base de datos...</div>
+      <div id="grid-productos" class="grid-productos"></div>
+    </section>
+
+    <!-- Panel lateral del Carrito -->
+    <aside class="carrito-seccion">
+      <h2>Tu Pedido</h2>
+      <div id="carrito-vacio" class="alerta">El carrito está vacío</div>
+      <div id="carrito-items" class="carrito-items"></div>
+      
+      <div class="carrito-total">
+        <span>Total:</span>
+        <strong id="carrito-total-precio">$0.00</strong>
+      </div>
+
+<form id="form-pedido" style="display: none; flex-direction: column; gap: 10px; margin-top: 15px;">
+  <input type="text" id="cliente-nombre" placeholder="Tu Nombre completo" required>
+  <input type="tel" id="cliente-telefono" placeholder="Número de Teléfono" required>
+  <textarea id="cliente-direccion" placeholder="Dirección exacta de entrega" rows="2" required></textarea>
+  <textarea id="cliente-notas" placeholder="Notas adicionales / Alergias (opcional)" rows="2"></textarea>
+  
+  <label for="cliente-metodo-pago" style="font-size: 0.85rem; color: #a3a3a3; margin-top: 4px;">Método de Pago:</label>
+  <select id="cliente-metodo-pago" required style="padding: 8px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
+    <option value="pago_movil">Pago Móvil</option>
+    <option value="efectivo_bs">Efectivo Bolívares</option>
+    <option value="efectivo_usd">Efectivo Dólares</option>
+    <option value="zelle">Zelle</option>
+    <option value="binance">Binance (USDT)</option>
+  </select>
+
+  <button type="submit" class="btn-primario" style="margin-top: 10px;">Confirmar y Enviar Pedido</button>
+</form>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

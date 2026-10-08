@@ -8,32 +8,70 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
- <header>
-  <div class="container header-content">
-    <div>
-      <h1 id="header-titulo">Tropicalia</h1>
+  <!-- HEADER REDISEÑADO -->
+  <header class="header-principal">
+    <div class="container">
+      <div class="header-top">
+        <div class="brand-box">
+          <h1 id="header-titulo">Tropicalia</h1>
+          <!-- Tasa del Día BCV -->
+          <div id="badge-tasa" class="tasa-badge" title="Tasa Oficial BCV">
+            <span class="tasa-icon">💵</span>
+            <span id="texto-tasa">Tasa BCV: Cargando...</span>
+          </div>
+        </div>
+        
+        <div class="header-actions">
+          <a href="cocina.html" class="btn-secundario btn-compacto">
+            👨‍🍳 <span>Cocina</span>
+          </a>
+          <button id="btn-ver-carrito" class="btn-secundario btn-compacto">
+            🛒 (<span id="cart-count">0</span>)
+          </button>
+        </div>
+      </div>
+      
       <p id="header-subtitulo">Elige un restaurante y haz tu pedido</p>
     </div>
-    <div style="display: flex; gap: 8px; align-items: center;">
-      <a href="cocina.html" class="btn-secundario" style="text-decoration: none; font-size: 0.85rem; padding: 8px 12px;">
-        👨‍🍳 Soy Restaurante
-      </a>
-      <button id="btn-ver-carrito" class="btn-secundario">
-        🛒 Carrito (<span id="cart-count">0</span>)
-      </button>
-    </div>
-  </div>
-</header>
-
-  <!-- Botón de GPS -->
-  <button id="btn-ubicacion" type="button" class="btn-entregar-en" onclick="obtenerUbicacionGPS()">
-    📍 <span id="texto-ubicacion">Entregar en...</span>
-  </button>
+  </header>
 
   <main class="container main-layout">
+    <!-- BARRA DE LOCALIZACIÓN -->
+    <div class="ubicacion-wrapper">
+      <button id="btn-ubicacion" type="button" class="btn-entregar-en" onclick="obtenerUbicacionGPS()">
+        📍 <span id="texto-ubicacion">Entregar en...</span>
+      </button>
+    </div>
+
     <!-- VISTA 1: Catálogo de Restaurantes -->
     <section id="vista-restaurantes" class="catalogo-seccion" style="width: 100%;">
-      <h2>Restaurantes Disponibles</h2>
+      
+      <!-- BUSCADOR DE RESTAURANTES -->
+      <div class="buscador-container">
+        <span class="buscador-icon">🔍</span>
+        <input 
+          type="search" 
+          id="input-busqueda" 
+          placeholder="¿Qué quieres pedir hoy? (ej. Hamburguesas, Sushi...)" 
+          autocomplete="off"
+        />
+      </div>
+
+      <!-- FILTRO DE CATEGORÍAS (CAROUSEL CHIPS) -->
+      <div class="categorias-scroll" id="contenedor-categorias">
+        <button class="chip-categoria active" data-categoria="todos">🔥 Todos</button>
+        <button class="chip-categoria" data-categoria="hamburguesas">🍔 Hamburguesas</button>
+        <button class="chip-categoria" data-categoria="pizza">🍕 Pizza</button>
+        <button class="chip-categoria" data-categoria="postres">🧁 Postres</button>
+        <button class="chip-categoria" data-categoria="sushi">🍱 Sushi</button>
+        <button class="chip-categoria" data-categoria="pollo">🍗 Pollo</button>
+        <button class="chip-categoria" data-categoria="italiana">🍝 Italiana</button>
+      </div>
+
+      <div class="seccion-titulo-box">
+        <h2>Restaurantes Disponibles</h2>
+      </div>
+
       <div id="loading-restaurantes" class="alerta">Cargando restaurantes...</div>
       <div id="grid-restaurantes" class="grid-productos"></div>
     </section>
@@ -56,7 +94,10 @@
       
       <div class="carrito-total">
         <span>Total:</span>
-        <strong id="carrito-total-precio">$0.00</strong>
+        <div style="text-align: right;">
+          <strong id="carrito-total-precio">$0.00</strong>
+          <div id="carrito-total-bs" style="font-size: 0.85rem; color: #a3a3a3;">Bs. 0.00</div>
+        </div>
       </div>
 
       <form id="form-pedido" style="display: none; flex-direction: column; gap: 10px; margin-top: 15px;">
