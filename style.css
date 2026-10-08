@@ -177,3 +177,56 @@ input, textarea {
   color: #737373;
   font-size: 0.9rem;
 }
+/* ==========================================================================
+   CORRECCIÓN BUSCADOR Y CATEGORÍAS MÓVIL
+   ========================================================================== */
+.buscador-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  margin: 15px 0 10px 0;
+}
+
+.buscador-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 1rem;
+}
+
+#input-busqueda {
+  width: 100% !important;
+  box-sizing: border-box;
+  padding: 12px 14px 12px 38px !important;
+  border-radius: 8px;
+  background: #1f1f1f;
+  border: 1px solid #333;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+/* Carrusel horizontal deslizante para los chips */
+.categorias-scroll {
+  display: flex !important;
+  flex-wrap: nowrap !important; /* Evita que caigan abajo */
+  overflow-x: auto !important; /* Permite deslizar con el dedo */
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
+  padding: 4px 0 12px 0;
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.categorias-scroll::-webkit-scrollbar {
+  display: none; /* Oculta la barra de scroll */
+}
+
+.chip-categoria {
+  flex-shrink: 0; /* Impide que se encojan o deformen */
+  white-space: nowrap;
+  padding: 8px 14px;
+}
