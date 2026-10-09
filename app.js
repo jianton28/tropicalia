@@ -252,9 +252,13 @@ function renderizarMenu() {
   gridProductos.innerHTML = productos.map(item => {
     const precioUsd = parseFloat(item.price);
     const precioBs = tasaActualBCV > 0 ? (precioUsd * tasaActualBCV).toFixed(2) : null;
+    const imagenHtml = item.image_url 
+      ? `<img src="${item.image_url}" alt="${item.name}" style="width: 100%; height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;" />` 
+      : '';
 
     return `
       <div class="card">
+        ${imagenHtml}
         <div>
           <h3>${item.name}</h3>
           <p>${item.description || ''}</p>

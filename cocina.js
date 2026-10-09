@@ -507,56 +507,97 @@ if (btnAgregarInsumoReceta) {
 }
 
 // --- CREAR PLATO CON SU RECETA ---
+// --- CREAR PLATO CON SU FOTO Y RECETA ---
 if (formNuevoPlato) {
   formNuevoPlato.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const btnSubmit = document.getElementById('btn-submit-plato') || formNuevoPlato.querySelector('button[type="submit"]');
+    const inputFoto = document.getElementById('plato-foto');
+    const archivoFoto = inputFoto?.files[0];
+
+    if (!archivoFoto) {
+      alert('Debes subir una foto para el plato obligatoriamente.');
+      return;
+    }
 
     const nombre = document.getElementById('plato-nombre').value.trim();
     const precio = parseFloat(document.getElementById('plato-precio').value);
     const descripcion = document.getElementById('plato-desc').value.trim();
 
-    const { data: plato, error: errPlato } = await db
-      .from('products')
-      .insert([{
-        business_id: negocioId,
-        name: nombre,
-        price: precio,
-        description: descripcion,
-        is_available: true
-      }])
-      .select()
-      .single();
+    btnSubmit.disabled = true;
+    btnSubmit.innerText = 'Subiendo foto y guardando...';
 
-    if (errPlato) {
-      alert('Error al crear plato: ' + errPlato.message);
-      return;
-    }
+    try {
+      // 1. Subir la imagen al bucket 'platos'
+      const extension = archivoFoto.name.split('.').pop();
+      const nombreArchivo = `${negocioId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
 
-    const filasReceta = document.querySelectorAll('#contenedor-receta .fila-receta');
-    const asociaciones = [];
-
-    filasReceta.forEach(f => {
-      const ingredient_id = f.querySelector('.receta-insumo-id')?.value;
-      const quantity_required = parseFloat(f.querySelector('.receta-cantidad')?.value);
-      if (ingredient_id && quantity_required > 0) {
-        asociaciones.push({
-          product_id: plato.id,
-          ingredient_id: ingredient_id,
-          quantity_required: quantity_required
+      const { data: uploadData, error: uploadError } = await db.storage
+        .from('platos')
+        .upload(nombreArchivo, archivoFoto, {
+          cacheControl: '3600',
+          upsert: false
         });
+
+      if (uploadError) throw new Error('Error al subir la imagen: ' + uploadError.message);
+
+      // 2. Obtener URL pública de la imagen
+      const { data: urlData } = db.storage
+        .from('platos')
+        .getPublicUrl(nombreArchivo);
+
+      const imageUrl = urlData.publicUrl;
+
+      // 3. Insertar plato en la tabla 'products' con su imagen
+      const { data: plato, error: errPlato } = await db
+        .from('products')
+        .insert([{
+          business_id: negocioId,
+          name: nombre,
+          price: precio,
+          description: descripcion,
+          image_url: imageUrl,
+          is_available: true
+        }])
+        .select()
+        .single();
+
+      if (errPlato) throw errPlato;
+
+      // 4. Asociar insumos de la receta
+      const filasReceta = document.querySelectorAll('#contenedor-receta .fila-receta');
+      const asociaciones = [];
+
+      filasReceta.forEach(f => {
+        const ingredient_id = f.querySelector('.receta-insumo-id')?.value;
+        const quantity_required = parseFloat(f.querySelector('.receta-cantidad')?.value);
+        if (ingredient_id && quantity_required > 0) {
+          asociaciones.push({
+            product_id: plato.id,
+            ingredient_id: ingredient_id,
+            quantity_required: quantity_required
+          });
+        }
+      });
+
+      if (asociaciones.length > 0) {
+        const { error: errReceta } = await db.from('product_ingredients').insert(asociaciones);
+        if (errReceta) console.error('Error al asociar ingredientes:', errReceta);
       }
-    });
 
-    if (asociaciones.length > 0) {
-      const { error: errReceta } = await db.from('product_ingredients').insert(asociaciones);
-      if (errReceta) console.error('Error al asociar ingredientes:', errReceta);
+      alert(`¡Plato "${nombre}" con foto publicado con éxito!`);
+      formNuevoPlato.reset();
+      const contenedor = document.getElementById('contenedor-receta');
+      if (contenedor) contenedor.innerHTML = '';
+      cargarPlatosMenu();
+
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = 'Guardar y Publicar Plato';
     }
-
-    alert(`¡Plato "${nombre}" y su receta guardados con éxito!`);
-    formNuevoPlato.reset();
-    const contenedor = document.getElementById('contenedor-receta');
-    if (contenedor) contenedor.innerHTML = '';
-    cargarPlatosMenu();
   });
 }
 

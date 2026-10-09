@@ -273,21 +273,29 @@
           <tbody id="tabla-platos-cuerpo"></tbody>
         </table>
 
-        <!-- Formulario para Agregar Nuevo Plato -->
-        <h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
-        <form id="form-nuevo-plato">
-          <div class="form-grid">
-            <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
-            <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
-            <input type="text" id="plato-desc" placeholder="Descripción breve" required />
-          </div>
+       <!-- Formulario para Agregar Nuevo Plato -->
+<h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
+<form id="form-nuevo-plato">
+  <div class="form-grid">
+    <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
+    <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
+    <input type="text" id="plato-desc" placeholder="Descripción breve" required />
+  </div>
 
-          <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
-          <div id="contenedor-receta" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
-          <button type="button" id="btn-agregar-insumo-receta" class="btn-secundario" style="margin-top: 8px;">+ Asociar otro insumo</button>
+  <!-- Campo Obligatorio para Foto del Plato -->
+  <div style="margin-bottom: 15px;">
+    <label style="display: block; font-size: 0.85rem; color: #fbbf24; margin-bottom: 6px; font-weight: bold;">
+      📸 Foto del plato (Obligatoria):
+    </label>
+    <input type="file" id="plato-foto" accept="image/*" required style="background: #262626; color: #fff; padding: 8px; border-radius: 6px; border: 1px solid #444; width: 100%; box-sizing: border-box;" />
+  </div>
 
-          <button type="submit" class="btn-primario" style="margin-top: 14px;">Guardar y Publicar Plato</button>
-        </form>
+  <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
+  <div id="contenedor-receta" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+  <button type="button" id="btn-agregar-insumo-receta" class="btn-secundario" style="margin-top: 8px;">+ Asociar otro insumo</button>
+
+  <button type="submit" class="btn-primario" id="btn-submit-plato" style="margin-top: 14px;">Guardar y Publicar Plato</button>
+</form>
       </section>
 
       <!-- Formulario para Registrar Nuevo Insumo -->
