@@ -11,6 +11,7 @@ let productos = [];
 let carrito = [];
 let negocioActivo = null;
 let ubicacionMapsUrl = null;
+let tasaActualBCV = 0;
 
 // Elementos del DOM
 const vistaRestaurantes = document.getElementById('vista-restaurantes');
@@ -54,7 +55,41 @@ window.obtenerUbicacionGPS = function() {
   );
 };
 
-// 1. OBTENER Y RENDERIZAR RESTAURANTES
+// =========================================================================
+// MOTOR DE TASA BCV
+// =========================================================================
+async function inicializarTasa() {
+  const CACHE_KEY = 'tropicalia_tasa_bcv';
+  const TIEMPO_CACHE = 6 * 60 * 60 * 1000;
+  const textoTasa = document.getElementById('texto-tasa');
+
+  const cache = localStorage.getItem(CACHE_KEY);
+  if (cache) {
+    const { tasa, timestamp } = JSON.parse(cache);
+    if (Date.now() - timestamp < TIEMPO_CACHE) {
+      tasaActualBCV = tasa;
+      if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasa.toFixed(2)}`;
+      actualizarCarrito();
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+    if (!res.ok) throw new Error('Error API');
+    const data = await res.json();
+    tasaActualBCV = data.promedio;
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasa: tasaActualBCV, timestamp: Date.now() }));
+    if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasaActualBCV.toFixed(2)}`;
+    actualizarCarrito();
+  } catch {
+    if (textoTasa) textoTasa.textContent = `BCV: No disponible`;
+  }
+}
+
+// =========================================================================
+// 1. OBTENER Y RENDERIZAR RESTAURANTES (CON FILTRADO EN VIVO)
+// =========================================================================
 async function obtenerRestaurantes() {
   try {
     const { data, error } = await db
@@ -80,7 +115,7 @@ function renderizarRestaurantes() {
   }
 
   gridRestaurantes.innerHTML = negocios.map(b => `
-    <div class="card">
+    <div class="card" data-nombre="${(b.name || '').toLowerCase()}" data-categoria="${(b.category || '').toLowerCase()}">
       <div>
         <h3>${b.name}</h3>
         <p>Contacto: ${b.phone || 'Disponible'}</p>
@@ -92,14 +127,77 @@ function renderizarRestaurantes() {
       </div>
     </div>
   `).join('');
+
+  // Re-aplicar el filtro activo apenas se monten las tarjetas
+  ejecutarFiltroRestaurantes();
 }
 
-// 2. SELECCIONAR RESTAURANTE Y CARGAR SU MENÚ
+// Diccionario de equivalencias para que los chips encuentren negocios
+const MAPA_CATEGORIAS = {
+  hamburguesas: ['hamburguesa', 'burger'],
+  pizza: ['pizza', 'pizzer'],
+  postres: ['postre', 'dulce', 'cheesecake', 'chocofresa', 'gastronomia', 'gastronomía'],
+  sushi: ['sushi', 'roll'],
+  pollo: ['pollo', 'chicken', 'crispy'],
+  italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer']
+};
+
+function ejecutarFiltroRestaurantes() {
+  const inputBusqueda = document.getElementById('input-busqueda');
+  const chipActivo = document.querySelector('.chip-categoria.active')?.dataset.categoria || 'todos';
+
+  const normalizar = (txt) => (txt || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  const query = normalizar(inputBusqueda ? inputBusqueda.value : '');
+  const categoria = normalizar(chipActivo);
+
+  const cards = gridRestaurantes.querySelectorAll('.card');
+
+  cards.forEach(card => {
+    const textoCard = normalizar(card.textContent);
+
+    // 1. Coincidencia por texto escrito
+    const coincideTexto = !query || textoCard.includes(query);
+
+    // 2. Coincidencia por chips
+    let coincideCat = (categoria === 'todos');
+    if (!coincideCat) {
+      const palabrasClave = MAPA_CATEGORIAS[categoria] || [categoria];
+      coincideCat = palabrasClave.some(palabra => textoCard.includes(normalizar(palabra)));
+    }
+
+    if (coincideTexto && coincideCat) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+
+function configurarEventosFiltro() {
+  const inputBusqueda = document.getElementById('input-busqueda');
+  const chips = document.querySelectorAll('.chip-categoria');
+
+  if (inputBusqueda) {
+    inputBusqueda.addEventListener('input', ejecutarFiltroRestaurantes);
+  }
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      ejecutarFiltroRestaurantes();
+    });
+  });
+}
+
+// =========================================================================
+// 2. SELECCIONAR RESTAURANTE Y MENÚ
+// =========================================================================
 window.seleccionarRestaurante = async function(businessId) {
   negocioActivo = negocios.find(b => b.id === businessId);
   if (!negocioActivo) return;
 
-  // Cambiar vistas
   vistaRestaurantes.style.display = 'none';
   vistaMenu.style.display = 'block';
   panelCarrito.style.display = 'block';
@@ -131,20 +229,28 @@ function renderizarMenu() {
     return;
   }
 
-  gridProductos.innerHTML = productos.map(item => `
-    <div class="card">
-      <div>
-        <h3>${item.name}</h3>
-        <p>${item.description || ''}</p>
+  gridProductos.innerHTML = productos.map(item => {
+    const precioUsd = parseFloat(item.price);
+    const precioBs = tasaActualBCV > 0 ? (precioUsd * tasaActualBCV).toFixed(2) : null;
+
+    return `
+      <div class="card">
+        <div>
+          <h3>${item.name}</h3>
+          <p>${item.description || ''}</p>
+        </div>
+        <div class="card-footer">
+          <div>
+            <span class="precio">$${precioUsd.toFixed(2)}</span>
+            ${precioBs ? `<br><small style="color: #888;">Bs. ${precioBs}</small>` : ''}
+          </div>
+          <button class="btn-primario" style="width: auto;" onclick="agregarAlCarrito('${item.id}')">
+            + Agregar
+          </button>
+        </div>
       </div>
-      <div class="card-footer">
-        <span class="precio">$${parseFloat(item.price).toFixed(2)}</span>
-        <button class="btn-primario" style="width: auto;" onclick="agregarAlCarrito('${item.id}')">
-          + Agregar
-        </button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 window.volverARestaurantes = function() {
@@ -161,7 +267,9 @@ window.volverARestaurantes = function() {
   vistaRestaurantes.style.display = 'block';
 };
 
+// =========================================================================
 // 3. CARRITO DE COMPRAS
+// =========================================================================
 window.agregarAlCarrito = function(id) {
   const item = productos.find(p => p.id === id);
   if (!item) return;
@@ -184,9 +292,13 @@ window.eliminarDelCarrito = function(id) {
 function actualizarCarrito() {
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalPrecio = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+  const totalBs = tasaActualBCV > 0 ? (totalPrecio * tasaActualBCV).toFixed(2) : '0.00';
 
   if (cartCount) cartCount.innerText = totalItems;
   if (carritoTotalPrecio) carritoTotalPrecio.innerText = `$${totalPrecio.toFixed(2)}`;
+
+  const totalBsElement = document.getElementById('carrito-total-bs');
+  if (totalBsElement) totalBsElement.innerText = `Bs. ${totalBs}`;
 
   if (carrito.length === 0) {
     if (carritoVacio) carritoVacio.style.display = 'block';
@@ -211,7 +323,9 @@ function actualizarCarrito() {
   }
 }
 
+// =========================================================================
 // 4. ENVÍO DE PEDIDO MULTINEGOCIO
+// =========================================================================
 if (formPedido) {
   formPedido.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -277,74 +391,11 @@ if (formPedido) {
   });
 }
 
-// Arranque inicial
-obtenerRestaurantes();
-// Variable global de tasa
-let tasaActualBCV = 0;
-
-// Cargar tasa BCV y pintar en header
-async function inicializarTasa() {
-  const CACHE_KEY = 'tropicalia_tasa_bcv';
-  const TIEMPO_CACHE = 6 * 60 * 60 * 1000;
-  const textoTasa = document.getElementById('texto-tasa');
-
-  const cache = localStorage.getItem(CACHE_KEY);
-  if (cache) {
-    const { tasa, timestamp } = JSON.parse(cache);
-    if (Date.now() - timestamp < TIEMPO_CACHE) {
-      tasaActualBCV = tasa;
-      if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasa.toFixed(2)}`;
-      return;
-    }
-  }
-
-  try {
-    const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-    if (!res.ok) throw new Error('Error API');
-    const data = await res.json();
-    tasaActualBCV = data.promedio;
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ tasa: tasaActualBCV, timestamp: Date.now() }));
-    if (textoTasa) textoTasa.textContent = `BCV: Bs. ${tasaActualBCV.toFixed(2)}`;
-  } catch {
-    if (textoTasa) textoTasa.textContent = `BCV: No disponible`;
-  }
-}
-
-// Filtro instantáneo de restaurantes por buscador y categorías
-function configurarFiltrosRestaurantes() {
-  const inputBusqueda = document.getElementById('input-busqueda');
-  const chips = document.querySelectorAll('.chip-categoria');
-
-  function filtrar() {
-    const query = inputBusqueda.value.toLowerCase().trim();
-    const chipActivo = document.querySelector('.chip-categoria.active')?.dataset.categoria || 'todos';
-    const cards = document.querySelectorAll('#grid-restaurantes .producto-card');
-
-    cards.forEach(card => {
-      const nombre = (card.querySelector('h3')?.textContent || '').toLowerCase();
-      const descripcion = (card.querySelector('p')?.textContent || '').toLowerCase();
-      const coincideTexto = nombre.includes(query) || descripcion.includes(query);
-      const coincideCat = chipActivo === 'todos' || nombre.includes(chipActivo) || descripcion.includes(chipActivo);
-
-      card.style.display = (coincideTexto && coincideCat) ? '' : 'none';
-    });
-  }
-
-  if (inputBusqueda) {
-    inputBusqueda.addEventListener('input', filtrar);
-  }
-
-  chips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      filtrar();
-    });
-  });
-}
-
-// Llamar al inicio
+// =========================================================================
+// INICIALIZACIÓN
+// =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   inicializarTasa();
-  configurarFiltrosRestaurantes();
+  configurarEventosFiltro();
+  obtenerRestaurantes();
 });
