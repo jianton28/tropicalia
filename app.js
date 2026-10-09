@@ -28,6 +28,16 @@ const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
 const formPedido = document.getElementById('form-pedido');
 
+// Diccionario de equivalencias para filtros por chips
+const MAPA_CATEGORIAS = {
+  hamburguesas: ['hamburguesa', 'burger'],
+  pizza: ['pizza', 'pizzer'],
+  postres: ['postre', 'dulce', 'cheesecake', 'chocofresa', 'gastronomia', 'gastronomía'],
+  sushi: ['sushi', 'roll'],
+  pollo: ['pollo', 'chicken', 'crispy'],
+  italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer']
+};
+
 // Geolocalización
 window.obtenerUbicacionGPS = function() {
   const textoBtn = document.getElementById('texto-ubicacion');
@@ -88,62 +98,62 @@ async function inicializarTasa() {
 }
 
 // =========================================================================
-// 1. OBTENER Y RENDERIZAR RESTAURANTES (CON FILTRADO EN VIVO)
+// 1. OBTENER Y RENDERIZAR RESTAURANTES (CON SOPORTE ABIERTO / CERRADO)
 // =========================================================================
 async function obtenerRestaurantes() {
   try {
     const { data, error } = await db
       .from('businesses')
       .select('*')
-      .eq('is_active', true);
+      .order('is_active', { ascending: false }) // Prioriza abiertos arriba
+      .order('name');
 
     if (error) throw error;
 
     negocios = data || [];
-    renderizarRestaurantes();
+    ejecutarFiltroRestaurantes();
   } catch (err) {
     if (loadingRestaurantes) loadingRestaurantes.innerText = 'Error al cargar locales: ' + err.message;
   }
 }
 
-function renderizarRestaurantes() {
+function generarCardHTML(b) {
+  const abierto = b.is_active;
+
+  return `
+    <div class="card" style="${!abierto ? 'opacity: 0.6; filter: grayscale(40%);' : ''}">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+        <div>
+          <h3 style="margin: 0 0 4px 0;">${b.name}</h3>
+          <p style="margin: 0; font-size: 0.85rem; color: #a3a3a3;">Contacto: ${b.phone || 'Disponible'}</p>
+        </div>
+        <span class="badge ${abierto ? 'badge-on_the_way' : 'badge-critico'}" style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; ${!abierto ? 'background: #dc2626; color: #fff;' : 'background: #10b981; color: #000;'}">
+          ${abierto ? 'Abierto' : 'Cerrado'}
+        </span>
+      </div>
+      <div class="card-footer" style="margin-top: 14px;">
+        ${abierto ? `
+          <button class="btn-primario" onclick="seleccionarRestaurante('${b.id}')">
+            Ver Menú →
+          </button>
+        ` : `
+          <button class="btn-secundario" disabled style="width: 100%; cursor: not-allowed; opacity: 0.7;">
+            No recibe pedidos
+          </button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function ejecutarFiltroRestaurantes() {
   if (loadingRestaurantes) loadingRestaurantes.style.display = 'none';
 
   if (!negocios || negocios.length === 0) {
-    gridRestaurantes.innerHTML = '<p class="alerta">No hay restaurantes disponibles en este momento.</p>';
+    gridRestaurantes.innerHTML = '<p class="alerta">No hay restaurantes registrados en este momento.</p>';
     return;
   }
 
-  gridRestaurantes.innerHTML = negocios.map(b => `
-    <div class="card" data-nombre="${(b.name || '').toLowerCase()}" data-categoria="${(b.category || '').toLowerCase()}">
-      <div>
-        <h3>${b.name}</h3>
-        <p>Contacto: ${b.phone || 'Disponible'}</p>
-      </div>
-      <div class="card-footer">
-        <button class="btn-primario" onclick="seleccionarRestaurante('${b.id}')">
-          Ver Menú →
-        </button>
-      </div>
-    </div>
-  `).join('');
-
-  // Re-aplicar el filtro activo apenas se monten las tarjetas
-  ejecutarFiltroRestaurantes();
-}
-
-// Diccionario de equivalencias para que los chips encuentren negocios
-const MAPA_CATEGORIAS = {
-  hamburguesas: ['hamburguesa', 'burger'],
-  pizza: ['pizza', 'pizzer'],
-  postres: ['postre', 'dulce', 'cheesecake', 'chocofresa', 'gastronomia', 'gastronomía'],
-  sushi: ['sushi', 'roll'],
-  pollo: ['pollo', 'chicken', 'crispy'],
-  italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer']
-};
-
-// Filtro robusto basado en datos
-function ejecutarFiltroRestaurantes() {
   const inputBusqueda = document.getElementById('input-busqueda');
   const chipActivo = document.querySelector('.chip-categoria.active')?.dataset.categoria || 'todos';
 
@@ -152,16 +162,14 @@ function ejecutarFiltroRestaurantes() {
   const query = normalizar(inputBusqueda ? inputBusqueda.value : '');
   const categoria = normalizar(chipActivo);
 
-  const negociosFiltrados = negocios.filter(b => {
+  const filtrados = negocios.filter(b => {
     const nombre = normalizar(b.name);
     const desc = normalizar(b.description || '');
     const catLocal = normalizar(b.category || '');
     const textoCompleto = `${nombre} ${desc} ${catLocal}`;
 
-    // Coincidencia con buscador
     const coincideTexto = !query || textoCompleto.includes(query);
 
-    // Coincidencia con categoría
     let coincideCat = (categoria === 'todos');
     if (!coincideCat) {
       const palabrasClave = MAPA_CATEGORIAS[categoria] || [categoria];
@@ -171,23 +179,10 @@ function ejecutarFiltroRestaurantes() {
     return coincideTexto && coincideCat;
   });
 
-  // Renderizar únicamente los que coinciden
-  if (!negociosFiltrados.length) {
-    gridRestaurantes.innerHTML = '<p class="alerta">No se encontraron locales que coincidan con tu búsqueda.</p>';
+  if (filtrados.length === 0) {
+    gridRestaurantes.innerHTML = '<p class="alerta">No se encontraron restaurantes que coincidan con la búsqueda.</p>';
   } else {
-    gridRestaurantes.innerHTML = negociosFiltrados.map(b => `
-      <div class="card">
-        <div>
-          <h3>${b.name}</h3>
-          <p>Contacto: ${b.phone || 'Disponible'}</p>
-        </div>
-        <div class="card-footer">
-          <button class="btn-primario" onclick="seleccionarRestaurante('${b.id}')">
-            Ver Menú →
-          </button>
-        </div>
-      </div>
-    `).join('');
+    gridRestaurantes.innerHTML = filtrados.map(generarCardHTML).join('');
   }
 }
 
@@ -208,12 +203,20 @@ function configurarEventosFiltro() {
   });
 }
 
+function suscribirNegociosRealtime() {
+  db.channel('public:businesses')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'businesses' }, () => {
+      obtenerRestaurantes();
+    })
+    .subscribe();
+}
+
 // =========================================================================
-// 2. SELECCIONAR RESTAURANTE Y MENÚ
+// 2. SELECCIONAR RESTAURANTE Y CARGAR SU MENÚ
 // =========================================================================
 window.seleccionarRestaurante = async function(businessId) {
   negocioActivo = negocios.find(b => b.id === businessId);
-  if (!negocioActivo) return;
+  if (!negocioActivo || !negocioActivo.is_active) return;
 
   vistaRestaurantes.style.display = 'none';
   vistaMenu.style.display = 'block';
@@ -415,4 +418,5 @@ document.addEventListener('DOMContentLoaded', () => {
   inicializarTasa();
   configurarEventosFiltro();
   obtenerRestaurantes();
+  suscribirNegociosRealtime();
 });
