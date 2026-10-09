@@ -142,6 +142,7 @@ const MAPA_CATEGORIAS = {
   italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer']
 };
 
+// Filtro robusto basado en datos
 function ejecutarFiltroRestaurantes() {
   const inputBusqueda = document.getElementById('input-busqueda');
   const chipActivo = document.querySelector('.chip-categoria.active')?.dataset.categoria || 'todos';
@@ -151,27 +152,43 @@ function ejecutarFiltroRestaurantes() {
   const query = normalizar(inputBusqueda ? inputBusqueda.value : '');
   const categoria = normalizar(chipActivo);
 
-  const cards = gridRestaurantes.querySelectorAll('.card');
+  const negociosFiltrados = negocios.filter(b => {
+    const nombre = normalizar(b.name);
+    const desc = normalizar(b.description || '');
+    const catLocal = normalizar(b.category || '');
+    const textoCompleto = `${nombre} ${desc} ${catLocal}`;
 
-  cards.forEach(card => {
-    const textoCard = normalizar(card.textContent);
+    // Coincidencia con buscador
+    const coincideTexto = !query || textoCompleto.includes(query);
 
-    // 1. Coincidencia por texto escrito
-    const coincideTexto = !query || textoCard.includes(query);
-
-    // 2. Coincidencia por chips
+    // Coincidencia con categoría
     let coincideCat = (categoria === 'todos');
     if (!coincideCat) {
       const palabrasClave = MAPA_CATEGORIAS[categoria] || [categoria];
-      coincideCat = palabrasClave.some(palabra => textoCard.includes(normalizar(palabra)));
+      coincideCat = palabrasClave.some(p => textoCompleto.includes(normalizar(p)));
     }
 
-    if (coincideTexto && coincideCat) {
-      card.style.display = '';
-    } else {
-      card.style.display = 'none';
-    }
+    return coincideTexto && coincideCat;
   });
+
+  // Renderizar únicamente los que coinciden
+  if (!negociosFiltrados.length) {
+    gridRestaurantes.innerHTML = '<p class="alerta">No se encontraron locales que coincidan con tu búsqueda.</p>';
+  } else {
+    gridRestaurantes.innerHTML = negociosFiltrados.map(b => `
+      <div class="card">
+        <div>
+          <h3>${b.name}</h3>
+          <p>Contacto: ${b.phone || 'Disponible'}</p>
+        </div>
+        <div class="card-footer">
+          <button class="btn-primario" onclick="seleccionarRestaurante('${b.id}')">
+            Ver Menú →
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
 }
 
 function configurarEventosFiltro() {

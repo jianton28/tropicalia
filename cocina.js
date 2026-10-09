@@ -11,6 +11,7 @@ let ventasChartInstance = null;
 let periodoSeleccionado = 'dia';
 let pedidosHistoricos = [];
 let platoEditandoId = null;
+let estadoNegocioActivo = true;
 
 // Elementos DOM
 const vistaLogin = document.getElementById('vista-login');
@@ -80,6 +81,8 @@ async function inicializarSesion(user) {
     if (vistaLogin) vistaLogin.style.display = 'none';
     if (vistaPanel) vistaPanel.style.display = 'block';
 
+    solicitarPermisoNotificaciones();
+    await cargarEstadoNegocio();
     await cargarTodo();
     suscribirTiempoReal();
   } catch (err) {
@@ -97,6 +100,90 @@ window.cerrarSesion = async function() {
   if (vistaPanel) vistaPanel.style.display = 'none';
   if (vistaLogin) vistaLogin.style.display = 'block';
   if (formLogin) formLogin.reset();
+};
+
+// --- NOTIFICACIONES PUSH Y SONIDO ---
+function solicitarPermisoNotificaciones() {
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    Notification.requestPermission();
+  }
+}
+
+function reproducirAlertaComanda() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+  } catch (e) {
+    console.warn('AudioContext no soportado:', e);
+  }
+}
+
+function dispararNotificacionNuevaOrden(orden) {
+  reproducirAlertaComanda();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('🔔 ¡Nueva comanda recibida en Tropicalia!', {
+      body: `Pedido #${orden.id.slice(0, 8)} de ${orden.customer_name || 'Cliente'} por $${parseFloat(orden.total || 0).toFixed(2)}`,
+      icon: 'favicon.ico'
+    });
+  }
+}
+
+// --- INTERRUPTOR LOCAL ABIERTO / CERRADO ---
+async function cargarEstadoNegocio() {
+  if (!negocioId) return;
+  const { data, error } = await db.from('businesses').select('is_active').eq('id', negocioId).single();
+  if (!error && data) {
+    estadoNegocioActivo = data.is_active;
+    actualizarBotonEstadoNegocio();
+  }
+}
+
+function actualizarBotonEstadoNegocio() {
+  const btn = document.getElementById('btn-toggle-negocio');
+  if (!btn) return;
+  if (estadoNegocioActivo) {
+    btn.className = 'btn-toggle activo';
+    btn.innerText = '🟢 Local Abierto';
+  } else {
+    btn.className = 'btn-toggle pausado';
+    btn.innerText = '🔴 Local Cerrado (Pausado)';
+  }
+}
+
+window.toggleEstadoNegocio = async function() {
+  const nuevoEstado = !estadoNegocioActivo;
+  const { error } = await db.from('businesses').update({ is_active: nuevoEstado }).eq('id', negocioId);
+  if (error) {
+    alert('Error al cambiar estado del local: ' + error.message);
+  } else {
+    estadoNegocioActivo = nuevoEstado;
+    actualizarBotonEstadoNegocio();
+  }
+};
+
+// --- RESPALDO: ENVIAR A WHATSAPP ---
+window.enviarComandaWhatsApp = function(telefonoCliente, ordenId, clienteNombre, direccion, total, itemsJson) {
+  const items = JSON.parse(decodeURIComponent(itemsJson));
+  let detalle = items.map(i => `• ${i.quantity || i.cantidad || 1}x ${i.name} ($${i.subtotal || i.price})`).join('\n');
+  
+  const mensaje = 
+    `*TROPICALIA - RESUMEN DE ORDEN*\n` +
+    `*Orden:* #${ordenId.slice(0, 8)}\n` +
+    `*Cliente:* ${clienteNombre}\n` +
+    `*Dirección:* ${direccion}\n\n` +
+    `*Detalle:*\n${detalle}\n\n` +
+    `*Total:* $${parseFloat(total).toFixed(2)}`;
+
+  const url = `https://wa.me/${(telefonoCliente || '').replace(/\+/g, '').replace(/\s+/g, '')}?text=${encodeURIComponent(mensaje)}`;
+  window.open(url, '_blank');
 };
 
 // --- CRONÓMETRO ---
@@ -150,6 +237,7 @@ async function cargarPedidos() {
     gridPedidos.innerHTML = pedidos.map(orden => {
       const alertaTiempo = calcularTiempoEspera(orden.created_at);
       const items = Array.isArray(orden.items) ? orden.items : [];
+      const itemsSerializados = encodeURIComponent(JSON.stringify(items));
 
       return `
         <div class="ticket ${alertaTiempo.claseCard}">
@@ -175,6 +263,10 @@ async function cargarPedidos() {
           </div>
 
           <div class="ticket-acciones">
+            <button class="btn-secundario" style="padding: 6px; font-size: 0.75rem;" onclick="enviarComandaWhatsApp('${orden.customer_phone || ''}', '${orden.id}', '${orden.customer_name || ''}', '${orden.delivery_address || ''}', '${orden.total}', '${itemsSerializados}')">
+              📲 WhatsApp
+            </button>
+
             ${orden.status === 'pending' ? `
               <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado('${orden.id}', 'cooking')">
                 Comenzar Cocina
@@ -253,10 +345,7 @@ window.toggleVisibilidadPlato = async function(id, estadoActual) {
 window.eliminarPlato = async function(id, nombre) {
   if (!confirm(`¿Eliminar "${nombre}" del menú? Se desvincularán también sus recetas asociadas.`)) return;
 
-  // 1. Eliminar vínculos en product_ingredients
   await db.from('product_ingredients').delete().eq('product_id', id);
-
-  // 2. Eliminar plato de products
   const { error } = await db.from('products').delete().eq('id', id);
   if (error) {
     alert('No se pudo eliminar el plato: ' + error.message);
@@ -317,10 +406,8 @@ window.sumarStock = async function(id, nombre, unidad) {
   if (!error) cargarInsumos();
 };
 
-// --- ELIMINAR INSUMO DE LA BASE DE DATOS Y DE TODAS LAS RECETAS ---
 window.eliminarInsumo = async function(id, nombre) {
   try {
-    // 1. Revisar si alguna receta lo tiene asociado
     const { data: vinculos, error: errVinculos } = await db
       .from('product_ingredients')
       .select('product_id, products(name)')
@@ -337,7 +424,6 @@ window.eliminarInsumo = async function(id, nombre) {
       );
       if (!confirmar) return;
 
-      // Desvincular de product_ingredients
       const { error: errBorrarVinculos } = await db
         .from('product_ingredients')
         .delete()
@@ -348,7 +434,6 @@ window.eliminarInsumo = async function(id, nombre) {
       if (!confirm(`¿Estás seguro de eliminar el insumo "${nombre}" de tu inventario?`)) return;
     }
 
-    // 2. Eliminar el insumo
     const { error: errBorrarInsumo } = await db
       .from('ingredients')
       .delete()
@@ -518,7 +603,6 @@ window.agregarFilaRecetaModal = function(insumoSeleccionado = '', cantidad = '')
     return;
   }
 
-  // Quitar mensaje de advertencia si existía
   const alerta = modalListaInsumos.querySelector('.alerta');
   if (alerta) alerta.remove();
 
@@ -566,7 +650,6 @@ window.guardarRecetaModificada = async function() {
   });
 
   try {
-    // 1. Reemplazo limpio: borrar la receta anterior del plato
     const { error: errDelete } = await db
       .from('product_ingredients')
       .delete()
@@ -574,7 +657,6 @@ window.guardarRecetaModificada = async function() {
 
     if (errDelete) throw errDelete;
 
-    // 2. Insertar los nuevos insumos/cantidades
     if (nuevasAsociaciones.length > 0) {
       const { error: errInsert } = await db
         .from('product_ingredients')
@@ -696,7 +778,10 @@ function suscribirTiempoReal() {
       schema: 'public',
       table: 'orders',
       filter: `business_id=eq.${negocioId}`
-    }, () => {
+    }, (payload) => {
+      if (payload.eventType === 'INSERT') {
+        dispararNotificacionNuevaOrden(payload.new);
+      }
       cargarPedidos();
       cargarDashboardFinanciero();
     })

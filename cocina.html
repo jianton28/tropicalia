@@ -230,12 +230,18 @@
       <div class="container header-content">
         <div>
           <h1 id="panel-nombre-negocio">Centro de Operaciones</h1>
-          <p>Comandas, catálogo en vivo e inventario de insumos</p>
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+            <p style="margin: 0;">Comandas, catálogo en vivo e inventario</p>
+            <!-- Toggle Abierto / Cerrado -->
+            <button id="btn-toggle-negocio" onclick="toggleEstadoNegocio()" class="btn-toggle activo" style="font-size: 0.8rem; padding: 4px 10px;">
+              🟢 Local Abierto
+            </button>
+          </div>
         </div>
-        <div>
-          <a href="index.html" class="btn-secundario" style="text-decoration:none; margin-right:8px;">👀 Ver Menú Cliente</a>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <a href="index.html" class="btn-secundario" style="text-decoration:none;">👀 Ver Menú Cliente</a>
           <button onclick="cargarTodo()" class="btn-secundario">🔄 Actualizar</button>
-          <button onclick="cerrarSesion()" class="btn-secundario" style="margin-left: 8px;">Cerrar Sesión</button>
+          <button onclick="cerrarSesion()" class="btn-secundario">Cerrar Sesión</button>
         </div>
       </div>
     </header>
