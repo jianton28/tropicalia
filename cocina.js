@@ -10,6 +10,7 @@ let listaPlatos = [];
 let ventasChartInstance = null;
 let periodoSeleccionado = 'dia';
 let pedidosHistoricos = [];
+let platoEditandoId = null;
 
 // Elementos DOM
 const vistaLogin = document.getElementById('vista-login');
@@ -27,6 +28,11 @@ const formNuevoPlato = document.getElementById('form-nuevo-plato');
 const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
 const tablaInsumosCuerpo = document.getElementById('tabla-insumos-cuerpo');
 const tablaPlatosCuerpo = document.getElementById('tabla-platos-cuerpo');
+
+// Modal Receta DOM
+const modalReceta = document.getElementById('modal-receta');
+const modalRecetaTitulo = document.getElementById('modal-receta-titulo');
+const modalListaInsumos = document.getElementById('modal-lista-insumos-receta');
 
 // --- AUTENTICACIÓN ---
 if (formLogin) {
@@ -222,7 +228,10 @@ function renderizarTablaPlatos() {
         </button>
       </td>
       <td>
-        <button class="btn-peligro" onclick="eliminarPlato('${p.id}', '${p.name}')">Eliminar</button>
+        <button class="btn-secundario" style="padding: 4px 8px; font-size:0.75rem; margin-right: 4px;" onclick="abrirModalReceta('${p.id}', '${p.name.replace(/'/g, "\\'")}')">
+          📝 Editar Receta
+        </button>
+        <button class="btn-peligro" onclick="eliminarPlato('${p.id}', '${p.name.replace(/'/g, "\\'")}')">Eliminar</button>
       </td>
     </tr>
   `).join('');
@@ -242,11 +251,15 @@ window.toggleVisibilidadPlato = async function(id, estadoActual) {
 };
 
 window.eliminarPlato = async function(id, nombre) {
-  if (!confirm(`¿Eliminar "${nombre}" del menú?`)) return;
+  if (!confirm(`¿Eliminar "${nombre}" del menú? Se desvincularán también sus recetas asociadas.`)) return;
 
+  // 1. Eliminar vínculos en product_ingredients
+  await db.from('product_ingredients').delete().eq('product_id', id);
+
+  // 2. Eliminar plato de products
   const { error } = await db.from('products').delete().eq('id', id);
   if (error) {
-    alert('No se pudo eliminar: ' + error.message);
+    alert('No se pudo eliminar el plato: ' + error.message);
   } else {
     cargarPlatosMenu();
   }
@@ -270,6 +283,7 @@ function renderizarTablaInsumos() {
   if (!tablaInsumosCuerpo) return;
   tablaInsumosCuerpo.innerHTML = insumosDisponibles.map(insumo => {
     const bajoStock = parseFloat(insumo.current_stock) <= parseFloat(insumo.min_stock);
+    const nombreLimpio = insumo.name.replace(/'/g, "\\'");
     return `
       <tr>
         <td><strong>${insumo.name}</strong></td>
@@ -279,8 +293,11 @@ function renderizarTablaInsumos() {
         <td>${insumo.unit}</td>
         <td>${bajoStock ? '⚠️ Reponer stock' : '✅ Suficiente'}</td>
         <td>
-          <button class="btn-secundario" style="padding: 4px 8px; font-size:0.75rem;" onclick="sumarStock('${insumo.id}', '${insumo.name}', '${insumo.unit}')">
+          <button class="btn-secundario" style="padding: 4px 8px; font-size:0.75rem; margin-right: 4px;" onclick="sumarStock('${insumo.id}', '${nombreLimpio}', '${insumo.unit}')">
             + Añadir Existencias
+          </button>
+          <button class="btn-peligro" onclick="eliminarInsumo('${insumo.id}', '${nombreLimpio}')">
+            Eliminar
           </button>
         </td>
       </tr>
@@ -300,7 +317,53 @@ window.sumarStock = async function(id, nombre, unidad) {
   if (!error) cargarInsumos();
 };
 
-// --- REGISTRAR INSUMO ---
+// --- ELIMINAR INSUMO DE LA BASE DE DATOS Y DE TODAS LAS RECETAS ---
+window.eliminarInsumo = async function(id, nombre) {
+  try {
+    // 1. Revisar si alguna receta lo tiene asociado
+    const { data: vinculos, error: errVinculos } = await db
+      .from('product_ingredients')
+      .select('product_id, products(name)')
+      .eq('ingredient_id', id);
+
+    if (errVinculos) throw errVinculos;
+
+    if (vinculos && vinculos.length > 0) {
+      const platosAfectados = vinculos.map(v => v.products ? v.products.name : 'Plato sin nombre').join(', ');
+      const confirmar = confirm(
+        `El insumo "${nombre}" forma parte de las recetas de los siguientes platos:\n` +
+        `• ${platosAfectados}\n\n` +
+        `Si lo eliminas, se quitará de esas recetas automáticamente. ¿Deseas continuar?`
+      );
+      if (!confirmar) return;
+
+      // Desvincular de product_ingredients
+      const { error: errBorrarVinculos } = await db
+        .from('product_ingredients')
+        .delete()
+        .eq('ingredient_id', id);
+
+      if (errBorrarVinculos) throw errBorrarVinculos;
+    } else {
+      if (!confirm(`¿Estás seguro de eliminar el insumo "${nombre}" de tu inventario?`)) return;
+    }
+
+    // 2. Eliminar el insumo
+    const { error: errBorrarInsumo } = await db
+      .from('ingredients')
+      .delete()
+      .eq('id', id);
+
+    if (errBorrarInsumo) throw errBorrarInsumo;
+
+    alert(`Insumo "${nombre}" eliminado exitosamente.`);
+    await cargarInsumos();
+  } catch (err) {
+    alert('Error al eliminar el insumo: ' + err.message);
+  }
+};
+
+// --- REGISTRAR NUEVO INSUMO ---
 if (formNuevoInsumo) {
   formNuevoInsumo.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -329,7 +392,7 @@ if (formNuevoInsumo) {
   });
 }
 
-// --- ASOCIACIÓN DE RECETAS EN DOM ---
+// --- ASOCIACIÓN DE RECETAS EN DOM (CREACIÓN) ---
 const btnAgregarInsumoReceta = document.getElementById('btn-agregar-insumo-receta');
 if (btnAgregarInsumoReceta) {
   btnAgregarInsumoReceta.addEventListener('click', () => {
@@ -338,7 +401,7 @@ if (btnAgregarInsumoReceta) {
       return;
     }
 
-    const contenedor = document.getElementById('contenedor-receta') || document.getElementById('receta-contenedor');
+    const contenedor = document.getElementById('contenedor-receta');
     if (!contenedor) return;
 
     const fila = document.createElement('div');
@@ -384,7 +447,7 @@ if (formNuevoPlato) {
       return;
     }
 
-    const filasReceta = document.querySelectorAll('.fila-receta');
+    const filasReceta = document.querySelectorAll('#contenedor-receta .fila-receta');
     const asociaciones = [];
 
     filasReceta.forEach(f => {
@@ -406,11 +469,129 @@ if (formNuevoPlato) {
 
     alert(`¡Plato "${nombre}" y su receta guardados con éxito!`);
     formNuevoPlato.reset();
-    const contenedor = document.getElementById('contenedor-receta') || document.getElementById('receta-contenedor');
+    const contenedor = document.getElementById('contenedor-receta');
     if (contenedor) contenedor.innerHTML = '';
     cargarPlatosMenu();
   });
 }
+
+// =========================================================================
+// MODAL: EDITAR / REEMPLAZAR RECETAS DE UN PLATO EXISTENTE
+// =========================================================================
+window.abrirModalReceta = async function(platoId, platoNombre) {
+  platoEditandoId = platoId;
+  modalRecetaTitulo.innerText = `Editar Receta: ${platoNombre}`;
+  modalListaInsumos.innerHTML = '<p style="color:#888;">Cargando ingredientes...</p>';
+  modalReceta.style.display = 'flex';
+
+  try {
+    const { data: recetaActual, error } = await db
+      .from('product_ingredients')
+      .select('id, ingredient_id, quantity_required')
+      .eq('product_id', platoId);
+
+    if (error) throw error;
+
+    modalListaInsumos.innerHTML = '';
+
+    if (!recetaActual || recetaActual.length === 0) {
+      modalListaInsumos.innerHTML = '<p class="alerta" style="margin: 0 0 10px 0;">Este plato no tiene receta asociada aún.</p>';
+    } else {
+      recetaActual.forEach(item => {
+        agregarFilaRecetaModal(item.ingredient_id, item.quantity_required);
+      });
+    }
+  } catch (err) {
+    modalListaInsumos.innerHTML = `<p class="alerta">Error: ${err.message}</p>`;
+  }
+};
+
+window.cerrarModalReceta = function() {
+  modalReceta.style.display = 'none';
+  platoEditandoId = null;
+  modalListaInsumos.innerHTML = '';
+};
+
+window.agregarFilaRecetaModal = function(insumoSeleccionado = '', cantidad = '') {
+  if (insumosDisponibles.length === 0) {
+    alert('No hay insumos registrados en el inventario.');
+    return;
+  }
+
+  // Quitar mensaje de advertencia si existía
+  const alerta = modalListaInsumos.querySelector('.alerta');
+  if (alerta) alerta.remove();
+
+  const fila = document.createElement('div');
+  fila.className = 'fila-receta-modal';
+  fila.style = 'display: flex; gap: 8px; align-items: center;';
+
+  const opciones = insumosDisponibles.map(i => `
+    <option value="${i.id}" ${i.id === insumoSeleccionado ? 'selected' : ''}>
+      ${i.name} (${i.unit})
+    </option>
+  `).join('');
+
+  fila.innerHTML = `
+    <select class="modal-insumo-id" style="flex: 2; padding: 6px; background: #262626; color: #fff; border: 1px solid #444; border-radius: 4px;">
+      ${opciones}
+    </select>
+    <input type="number" step="0.01" min="0.01" value="${cantidad}" class="modal-insumo-cantidad" placeholder="Cant. ración" required style="flex: 1; padding: 6px; background: #262626; color: #fff; border: 1px solid #444; border-radius: 4px;" />
+    <button type="button" onclick="this.parentElement.remove()" style="background: #991b1b; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;">✕</button>
+  `;
+
+  modalListaInsumos.appendChild(fila);
+};
+
+window.guardarRecetaModificada = async function() {
+  if (!platoEditandoId) return;
+
+  const btnGuardar = document.getElementById('btn-guardar-receta-modal');
+  btnGuardar.disabled = true;
+  btnGuardar.innerText = 'Guardando...';
+
+  const filas = modalListaInsumos.querySelectorAll('.fila-receta-modal');
+  const nuevasAsociaciones = [];
+
+  filas.forEach(f => {
+    const ingredient_id = f.querySelector('.modal-insumo-id')?.value;
+    const quantity_required = parseFloat(f.querySelector('.modal-insumo-cantidad')?.value);
+    if (ingredient_id && quantity_required > 0) {
+      nuevasAsociaciones.push({
+        product_id: platoEditandoId,
+        ingredient_id: ingredient_id,
+        quantity_required: quantity_required
+      });
+    }
+  });
+
+  try {
+    // 1. Reemplazo limpio: borrar la receta anterior del plato
+    const { error: errDelete } = await db
+      .from('product_ingredients')
+      .delete()
+      .eq('product_id', platoEditandoId);
+
+    if (errDelete) throw errDelete;
+
+    // 2. Insertar los nuevos insumos/cantidades
+    if (nuevasAsociaciones.length > 0) {
+      const { error: errInsert } = await db
+        .from('product_ingredients')
+        .insert(nuevasAsociaciones);
+
+      if (errInsert) throw errInsert;
+    }
+
+    alert('¡Receta actualizada con éxito!');
+    cerrarModalReceta();
+  } catch (err) {
+    alert('Error al actualizar la receta: ' + err.message);
+  } finally {
+    btnGuardar.disabled = false;
+    btnGuardar.innerText = 'Guardar Cambios';
+  }
+};
 
 // --- DASHBOARD FINANCIERO ---
 window.filtrarPeriodo = function(periodo, boton) {
