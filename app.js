@@ -410,7 +410,31 @@ if (formPedido) {
     }
   });
 }
+window.toggleEstadoNegocio = async function() {
+  const btn = document.getElementById('btn-toggle-negocio');
+  if (btn) btn.disabled = true;
 
+  const nuevoEstado = !estadoNegocioActivo;
+
+  try {
+    const { data, error } = await db
+      .from('businesses')
+      .update({ is_active: nuevoEstado })
+      .eq('id', negocioId)
+      .select();
+
+    if (error) throw error;
+
+    // Solo actualiza visualmente si la base de datos realmente guardó el cambio
+    estadoNegocioActivo = nuevoEstado;
+    actualizarBotonEstadoNegocio();
+    console.log('Estado actualizado en BD a:', nuevoEstado);
+  } catch (err) {
+    alert('No se pudo actualizar el estado del local: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
 // =========================================================================
 // INICIALIZACIÓN
 // =========================================================================
