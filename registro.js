@@ -20,20 +20,20 @@ window.cambiarRol = function(rol) {
     b.classList.toggle('activo', b.dataset.rol === rol);
   });
 
-  if (rol === 'client') {
+ if (rol === 'client') {
     seccionCocina.style.display = 'none';
     seccionDelivery.style.display = 'none';
-    textoTyc.innerHTML = 'Acepto los <strong>Términos para Clientes</strong> (Tropicalia opera exclusivamente como intermediario tecnológico de pedidos y entregas).';
+    textoTyc.innerHTML = 'Acepto los <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Términos para Clientes</a> (Tropicalia opera exclusivamente como intermediario tecnológico de pedidos y entregas).';
     btnRegistrar.innerText = 'Crear Cuenta de Cliente';
   } else if (rol === 'restaurant') {
     seccionCocina.style.display = 'flex';
     seccionDelivery.style.display = 'none';
-    textoTyc.innerHTML = 'Acepto los <strong>Términos para Comercios</strong> (Responsabilidad sanitaria y fiscal exclusiva del local, 10% de comisión de plataforma y cortes de caja diarios).';
+    textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Acuerdo Comercial para Locales</a> (Responsabilidad sanitaria y fiscal del local, 10% de comisión y cortes de caja diarios).';
     btnRegistrar.innerText = 'Solicitar Registro de Restaurante';
   } else if (rol === 'delivery') {
     seccionCocina.style.display = 'none';
     seccionDelivery.style.display = 'flex';
-    textoTyc.innerHTML = 'Acepto el <strong>Contrato Mercantil Independiente</strong> (Servicio autónomo sin subordinación laboral bajo la LOTTT, uso de vehículo propio y tope de deuda en efectivo de $15).';
+    textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Contrato Mercantil Independiente</a> (Servicio autónomo sin subordinación bajo LOTTT, vehículo propio y tope de deuda de $20).';
     btnRegistrar.innerText = 'Registrarse como Repartidor';
   }
 };
