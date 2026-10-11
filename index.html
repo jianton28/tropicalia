@@ -8,7 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <!-- HEADER REDISEÑADO -->
+  <!-- HEADER PRINCIPAL -->
   <header class="header-principal">
     <div class="container">
       <div class="header-top">
@@ -46,7 +46,7 @@
     <!-- VISTA 1: Catálogo de Restaurantes -->
     <section id="vista-restaurantes" class="catalogo-seccion" style="width: 100%;">
       
-      <!-- BUSCADOR DE RESTAURANTES -->
+      <!-- BUSCADOR DE RESTAURANTES Y PLATOS -->
       <div class="buscador-container">
         <span class="buscador-icon">🔍</span>
         <input 
@@ -92,30 +92,96 @@
       <div id="carrito-vacio" class="alerta">El carrito está vacío</div>
       <div id="carrito-items" class="carrito-items"></div>
       
-      <div class="carrito-total">
-        <span>Total:</span>
+      <!-- DESGLOSE DETALLADO DE COSTOS -->
+      <div class="desglose-comanda" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px; font-size: 0.9rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span style="color: #a3a3a3;">Subtotal comida:</span>
+          <span id="desglose-subtotal">$0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span style="color: #a3a3a3;">Tarifa de servicio:</span>
+          <span id="desglose-servicio">$0.00</span>
+        </div>
+        <div id="fila-costo-delivery" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span style="color: #a3a3a3;">Delivery:</span>
+          <span id="desglose-delivery">$0.00</span>
+        </div>
+        <div id="fila-propina" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span style="color: #a3a3a3;">Propina voluntaria:</span>
+          <span id="desglose-propina">$0.00</span>
+        </div>
+      </div>
+
+      <div class="carrito-total" style="border-top: 1px solid #404040; margin-top: 10px; padding-top: 10px;">
+        <span>Total a pagar:</span>
         <div style="text-align: right;">
           <strong id="carrito-total-precio">$0.00</strong>
           <div id="carrito-total-bs" style="font-size: 0.85rem; color: #a3a3a3;">Bs. 0.00</div>
         </div>
       </div>
 
+      <!-- FORMULARIO DE CHECKOUT -->
       <form id="form-pedido" style="display: none; flex-direction: column; gap: 10px; margin-top: 15px;">
         <input type="text" id="cliente-nombre" placeholder="Tu Nombre completo" required>
-        <input type="tel" id="cliente-telefono" placeholder="Número de Teléfono" required>
-        <textarea id="cliente-direccion" placeholder="Dirección exacta de entrega" rows="2" required></textarea>
-        <textarea id="cliente-notas" placeholder="Notas adicionales / Alergias (opcional)" rows="2"></textarea>
+        <input type="tel" id="cliente-telefono" placeholder="Número de Teléfono (WhatsApp)" required>
         
-        <label for="cliente-metodo-pago" style="font-size: 0.85rem; color: #a3a3a3; margin-top: 4px;">Método de Pago:</label>
-        <select id="cliente-metodo-pago" required style="padding: 8px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
-          <option value="pago_movil">Pago Móvil</option>
-          <option value="efectivo_bs">Efectivo Bolívares</option>
-          <option value="efectivo_usd">Efectivo Dólares</option>
-          <option value="zelle">Zelle</option>
-          <option value="binance">Binance (USDT)</option>
+        <!-- TIPO DE ENTREGA -->
+        <label for="tipo-entrega" style="font-size: 0.85rem; color: #a3a3a3; margin-top: 4px;">Modalidad de Entrega:</label>
+        <select id="tipo-entrega" required style="padding: 8px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
+          <option value="delivery">🛵 Delivery hasta tu puerta</option>
+          <option value="pickup">🛍️ Retiro en local (Pick-up - Solo pago digital)</option>
         </select>
 
-        <button type="submit" class="btn-primario" style="margin-top: 10px;">Confirmar y Enviar Pedido</button>
+        <textarea id="cliente-direccion" placeholder="Dirección exacta de entrega (Urbanización, calle, edificio/casa, punto de referencia)" rows="2" required></textarea>
+        <textarea id="cliente-notas" placeholder="Notas adicionales / Alergias (opcional)" rows="2"></textarea>
+        
+        <!-- PROPINA VOLUNTARIA -->
+        <label for="propina-delivery" style="font-size: 0.85rem; color: #a3a3a3;">Propina para el motorizado (opcional):</label>
+        <select id="propina-delivery" style="padding: 6px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
+          <option value="0">$0.00</option>
+          <option value="0.5">$0.50</option>
+          <option value="1.0">$1.00</option>
+          <option value="2.0">$2.00</option>
+        </select>
+
+        <!-- MÉTODO DE PAGO -->
+        <label for="cliente-metodo-pago" style="font-size: 0.85rem; color: #a3a3a3; margin-top: 4px;">Método de Pago:</label>
+        <select id="cliente-metodo-pago" required style="padding: 8px; border-radius: 6px; background: #262626; color: #fff; border: 1px solid #404040;">
+          <option value="pago_movil">Pago Móvil (Recomendado)</option>
+          <option value="zelle">Zelle</option>
+          <option value="binance">Binance Pay (USDT)</option>
+          <option value="efectivo_usd" id="opt-efectivo-usd">Efectivo Dólares (Solo contra entrega)</option>
+          <option value="efectivo_bs" id="opt-efectivo-bs">Efectivo Bolívares (Solo contra entrega)</option>
+        </select>
+
+        <!-- BLOQUE DINÁMICO DE PAGO MÓVIL / DIGITAL -->
+        <div id="bloque-datos-pago-digital" style="background: #1f1f1f; padding: 10px; border-radius: 6px; border: 1px dashed #404040; font-size: 0.85rem;">
+          <div id="instrucciones-bancarias" style="color: #e5e5e5; margin-bottom: 8px;">
+            <!-- Rellenado por app.js con datos del operador/banco -->
+            Cargando datos bancarios...
+          </div>
+          <input type="text" id="pago-referencia" placeholder="Últimos 6 dígitos de referencia bancaria" style="width: 100%; margin-bottom: 8px;">
+          <label for="pago-comprobante" style="font-size: 0.75rem; color: #a3a3a3; display: block; margin-bottom: 4px;">Adjuntar captura del pago:</label>
+          <input type="file" id="pago-comprobante" accept="image/*" style="font-size: 0.8rem; color: #a3a3a3;">
+        </div>
+
+        <!-- RESTRICCIÓN DE BEBIDAS ALCOHÓLICAS (Control +18) -->
+        <div id="alerta-licores" style="display: none; background: #2a1b0a; border: 1px solid #d97706; padding: 8px; border-radius: 6px; font-size: 0.8rem; color: #fde68a;">
+          <label style="display: flex; gap: 8px; align-items: flex-start; cursor: pointer;">
+            <input type="checkbox" id="check-mayor-edad" style="margin-top: 3px;">
+            <span>Confirmo que soy mayor de 18 años y presentaré mi Cédula de Identidad física al recibir este pedido con bebidas alcohólicas.</span>
+          </label>
+        </div>
+
+        <!-- TÉRMINOS Y CONDICIONES (CLIENTE) -->
+        <div style="font-size: 0.8rem; color: #a3a3a3; margin-top: 5px;">
+          <label style="display: flex; gap: 8px; align-items: flex-start; cursor: pointer;">
+            <input type="checkbox" id="check-terminos-cliente" required style="margin-top: 3px;">
+            <span>Acepto los <a href="#" style="color: #3b82f6; text-decoration: underline;">Términos del Servicio</a> (Tropicalia actúa como intermediario tecnológico; la calidad sanitaria corresponde al restaurante).</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primario" style="margin-top: 10px;">Confirmar y Procesar Pedido</button>
       </form>
     </aside>
   </main>

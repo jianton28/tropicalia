@@ -3,24 +3,168 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Registro de Restaurante - Tropicalia</title>
+  <title>Registro | Tropicalia</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .selector-rol {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 20px;
+      background: #1c1c1c;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid #333;
+    }
+    .btn-rol {
+      flex: 1;
+      padding: 9px;
+      background: transparent;
+      border: none;
+      color: #a3a3a3;
+      font-weight: 600;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-rol.activo {
+      background: #f59e0b;
+      color: #121212;
+      font-weight: 700;
+    }
+    .campo-file-box {
+      background: #1c1c1c;
+      border: 1px dashed #404040;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 4px;
+    }
+    .campo-file-box label {
+      display: block;
+      font-size: 0.78rem;
+      color: #fbbf24;
+      margin-bottom: 4px;
+    }
+    .campo-file-box input[type="file"] {
+      font-size: 0.8rem;
+      color: #a3a3a3;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .tyc-box {
+      font-size: 0.8rem;
+      color: #a3a3a3;
+      background: #181818;
+      border: 1px solid #2a2a2a;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 6px;
+    }
+  </style>
 </head>
 <body>
-  <div class="container" style="max-width: 480px; margin-top: 50px; margin-bottom: 50px;">
-    <h2>Registra tu Restaurante</h2>
-    <p style="color: #a3a3a3; margin-bottom: 20px;">Súmate a Tropicalia y gestiona tus pedidos en línea</p>
+  <div class="container" style="max-width: 480px; margin-top: 40px; margin-bottom: 60px;">
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+      <h1 style="color: #f59e0b; font-size: 2rem;">Tropicalia</h1>
+      <p style="color: #a3a3a3; font-size: 0.9rem;">Crea tu cuenta según tu rol operativo</p>
+    </div>
+
+    <!-- SELECTOR DE ROL -->
+    <div class="selector-rol">
+      <button type="button" class="btn-rol activo" data-rol="client" onclick="cambiarRol('client')">👤 Cliente</button>
+      <button type="button" class="btn-rol" data-rol="restaurant" onclick="cambiarRol('restaurant')">👨‍🍳 Cocina</button>
+      <button type="button" class="btn-rol" data-rol="delivery" onclick="cambiarRol('delivery')">🛵 Delivery</button>
+    </div>
+
     <form id="form-registro" style="display: flex; flex-direction: column; gap: 12px;">
-      <input type="text" id="reg-nombre" placeholder="Nombre comercial del restaurante" required />
-      <input type="text" id="reg-slug" placeholder="Identificador corto (ej: mi-pizzeria)" required />
-      <input type="tel" id="reg-telefono" placeholder="Teléfono de contacto / WhatsApp" required />
-      <hr style="border: 0; border-top: 1px solid #333; margin: 8px 0;">
-      <p style="color: #f59e0b; font-size: 0.85rem; margin: 0;">Credenciales de acceso para tu cocina:</p>
-      <input type="email" id="reg-email" placeholder="Correo electrónico del negocio" required />
+      
+      <!-- CAMPOS COMUNES -->
+      <input type="text" id="reg-nombre-completo" placeholder="Nombre completo" required />
+      <input type="tel" id="reg-telefono" placeholder="Número de WhatsApp (ej: 04121234567)" required />
+      <input type="email" id="reg-email" placeholder="Correo electrónico" required />
       <input type="password" id="reg-password" placeholder="Contraseña de acceso" minlength="6" required />
-      <button type="submit" class="btn-primario" id="btn-registrar">Crear Restaurante</button>
+
+      <!-- SECCIÓN EXCLUSIVA: COCINA -->
+      <div id="seccion-cocina" style="display: none; flex-direction: column; gap: 10px;">
+        <hr style="border: 0; border-top: 1px solid #333; margin: 4px 0;">
+        <p style="color: #f59e0b; font-size: 0.85rem; font-weight: bold; margin: 0;">Datos del Restaurante:</p>
+        <input type="text" id="reg-restaurante-nombre" placeholder="Nombre comercial de la cocina" />
+        <input type="text" id="reg-restaurante-slug" placeholder="Identificador web único (ej: burgers-ccs)" />
+        <input type="text" id="reg-restaurante-rif" placeholder="RIF del comercio o Cédula titular" />
+
+        <p style="color: #fbbf24; font-size: 0.8rem; margin: 4px 0 0 0;">Recaudos sanitarios y legales (PDF o Foto):</p>
+        
+        <div class="campo-file-box">
+          <label>Cédula de Identidad / RIF Fiscal (Obligatorio):</label>
+          <input type="file" id="doc-cocina-id" accept="image/*,application/pdf" />
+        </div>
+
+        <div class="campo-file-box">
+          <label>Certificado de Manipulación de Alimentos (Obligatorio):</label>
+          <input type="file" id="doc-cocina-sanitario" accept="image/*,application/pdf" />
+        </div>
+
+        <div class="campo-file-box">
+          <label>Licencia de Expendio de Licores (Opcional, si vende alcohol):</label>
+          <input type="file" id="doc-cocina-licores" accept="image/*,application/pdf" />
+        </div>
+      </div>
+
+      <!-- SECCIÓN EXCLUSIVA: DELIVERY -->
+      <div id="seccion-delivery" style="display: none; flex-direction: column; gap: 10px;">
+        <hr style="border: 0; border-top: 1px solid #333; margin: 4px 0;">
+        <p style="color: #f59e0b; font-size: 0.85rem; font-weight: bold; margin: 0;">Datos del Repartidor:</p>
+        <input type="text" id="reg-delivery-ci" placeholder="Cédula de Identidad (V-XXXXXXXX)" />
+        
+        <select id="reg-vehiculo-tipo" style="background: #222; color: #fff;">
+          <option value="moto" selected>Motocicleta</option>
+          <option value="bicicleta">Bicicleta</option>
+          <option value="auto">Automóvil</option>
+        </select>
+        <input type="text" id="reg-vehiculo-placa" placeholder="Placa del vehículo (si aplica)" />
+
+        <p style="color: #fbbf24; font-size: 0.8rem; margin: 4px 0 0 0;">Documentación vial (PDF o Foto):</p>
+        
+        <div class="campo-file-box">
+          <label>Cédula de Identidad laminada (Obligatorio):</label>
+          <input type="file" id="doc-delivery-ci" accept="image/*,application/pdf" />
+        </div>
+
+        <div class="campo-file-box">
+          <label>Licencia de Conducir / Carnet de Circulación (Obligatorio):</label>
+          <input type="file" id="doc-delivery-licencia" accept="image/*,application/pdf" />
+        </div>
+
+        <div class="campo-file-box">
+          <label>Certificado Médico Vial vigente (Obligatorio):</label>
+          <input type="file" id="doc-delivery-medico" accept="image/*,application/pdf" />
+        </div>
+      </div>
+
+      <!-- TÉRMINOS Y CONDICIONES SEGREGADOS -->
+      <div class="tyc-box">
+        <label style="display: flex; gap: 8px; align-items: flex-start; cursor: pointer;">
+          <input type="checkbox" id="reg-check-tyc" required style="margin-top: 3px;" />
+          <span id="texto-tyc-dinamico">
+            Acepto los Términos del Servicio para Clientes (Tropicalia actúa como intermediario tecnológico).
+          </span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn-primario" id="btn-registrar" style="margin-top: 8px;">
+        Completar Registro
+      </button>
+
       <div id="reg-mensaje" class="alerta" style="display: none;"></div>
+
+      <div style="text-align: center; margin-top: 10px;">
+        <a href="portal.html" style="color: #a3a3a3; font-size: 0.85rem; text-decoration: underline;">
+          ¿Ya tienes cuenta? Inicia sesión aquí
+        </a>
+      </div>
     </form>
   </div>
 

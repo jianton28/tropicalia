@@ -13,6 +13,10 @@ let negocioActivo = null;
 let ubicacionMapsUrl = null;
 let tasaActualBCV = 0;
 
+// Constantes de tarifas
+const TARIFA_SERVICIO_BASE = 0.30;
+const TARIFA_DELIVERY_BASE = 1.50;
+
 // Elementos del DOM
 const vistaRestaurantes = document.getElementById('vista-restaurantes');
 const vistaMenu = document.getElementById('vista-menu');
@@ -26,7 +30,27 @@ const cartCount = document.getElementById('cart-count');
 const carritoItems = document.getElementById('carrito-items');
 const carritoVacio = document.getElementById('carrito-vacio');
 const carritoTotalPrecio = document.getElementById('carrito-total-precio');
+const carritoTotalBs = document.getElementById('carrito-total-bs');
 const formPedido = document.getElementById('form-pedido');
+
+// Desglose del DOM
+const desgloseSubtotal = document.getElementById('desglose-subtotal');
+const desgloseServicio = document.getElementById('desglose-servicio');
+const desgloseDelivery = document.getElementById('desglose-delivery');
+const desglosePropina = document.getElementById('desglose-propina');
+const filaCostoDelivery = document.getElementById('fila-costo-delivery');
+const filaPropina = document.getElementById('fila-propina');
+
+// Controles de entrega y pago
+const selectTipoEntrega = document.getElementById('tipo-entrega');
+const selectMetodoPago = document.getElementById('cliente-metodo-pago');
+const selectPropina = document.getElementById('propina-delivery');
+const bloquePagoDigital = document.getElementById('bloque-datos-pago-digital');
+const alertaLicores = document.getElementById('alerta-licores');
+const checkMayorEdad = document.getElementById('check-mayor-edad');
+const checkTerminosCliente = document.getElementById('check-terminos-cliente');
+const optEfectivoUsd = document.getElementById('opt-efectivo-usd');
+const optEfectivoBs = document.getElementById('opt-efectivo-bs');
 
 // Diccionario de equivalencias para filtros por chips
 const MAPA_CATEGORIAS = {
@@ -35,7 +59,8 @@ const MAPA_CATEGORIAS = {
   postres: ['postre', 'dulce', 'cheesecake', 'chocofresa', 'gastronomia', 'gastronomía'],
   sushi: ['sushi', 'roll'],
   pollo: ['pollo', 'chicken', 'crispy'],
-  italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer']
+  italiana: ['italiana', 'pasta', 'pastiche', 'pasticho', 'pizza', 'pizzer'],
+  licores: ['cerveza', 'ron', 'vino', 'licor', 'coctel', 'vodka', 'whisky']
 };
 
 // Geolocalización
@@ -98,14 +123,14 @@ async function inicializarTasa() {
 }
 
 // =========================================================================
-// 1. OBTENER Y RENDERIZAR RESTAURANTES (CON SOPORTE ABIERTO / CERRADO)
+// 1. OBTENER Y RENDERIZAR RESTAURANTES
 // =========================================================================
 async function obtenerRestaurantes() {
   try {
     const { data, error } = await db
       .from('businesses')
       .select('*')
-      .order('is_active', { ascending: false }) // Prioriza abiertos arriba
+      .order('is_active', { ascending: false })
       .order('name');
 
     if (error) throw error;
@@ -225,6 +250,17 @@ window.seleccionarRestaurante = async function(businessId) {
   if (loadingMenu) loadingMenu.style.display = 'block';
   gridProductos.innerHTML = '';
 
+  // Actualizar datos bancarios en el bloque de pago
+  const instrucciones = document.getElementById('instrucciones-bancarias');
+  if (instrucciones) {
+    instrucciones.innerHTML = `
+      <strong>Pago Móvil a Central Tropicalia:</strong><br>
+      Banco: Banesco (0134) | CI: V-24.123.456<br>
+      Tlf: 0412-1234567<br>
+      <small style="color: #9ca3af;">Orden asignada a: ${negocioActivo.name}</small>
+    `;
+  }
+
   try {
     const { data, error } = await db
       .from('products')
@@ -292,7 +328,7 @@ window.volverARestaurantes = function() {
 };
 
 // =========================================================================
-// 3. CARRITO DE COMPRAS
+// 3. CARRITO DE COMPRAS Y DESGLOSE DINÁMICO
 // =========================================================================
 window.agregarAlCarrito = function(id) {
   const item = productos.find(p => p.id === id);
@@ -313,16 +349,79 @@ window.eliminarDelCarrito = function(id) {
   actualizarCarrito();
 };
 
+function contieneLicores() {
+  return carrito.some(item => {
+    const cat = (item.category || '').toLowerCase();
+    const nombre = (item.name || '').toLowerCase();
+    return MAPA_CATEGORIAS.licores.some(p => cat.includes(p) || nombre.includes(p));
+  });
+}
+
+function sincronizarMetodosEntregaYPago() {
+  const esPickup = selectTipoEntrega ? selectTipoEntrega.value === 'pickup' : false;
+
+  // En pick-up se apagan las opciones de efectivo
+  if (optEfectivoUsd && optEfectivoBs) {
+    if (esPickup) {
+      optEfectivoUsd.disabled = true;
+      optEfectivoBs.disabled = true;
+      if (selectMetodoPago.value.startsWith('efectivo')) {
+        selectMetodoPago.value = 'pago_movil';
+      }
+    } else {
+      optEfectivoUsd.disabled = false;
+      optEfectivoBs.disabled = false;
+    }
+  }
+
+  // Alternar vista del bloque de datos bancarios
+  if (bloquePagoDigital) {
+    const esDigital = ['pago_movil', 'zelle', 'binance'].includes(selectMetodoPago.value);
+    bloquePagoDigital.style.display = esDigital ? 'block' : 'none';
+  }
+
+  // Visibilidad de controles de delivery y propina
+  if (filaCostoDelivery) filaCostoDelivery.style.display = esPickup ? 'none' : 'flex';
+  if (filaPropina) filaPropina.style.display = esPickup ? 'none' : 'flex';
+
+  const campoDireccion = document.getElementById('cliente-direccion');
+  if (campoDireccion) {
+    if (esPickup) {
+      campoDireccion.value = 'Retiro en mostrador del local';
+      campoDireccion.disabled = true;
+    } else {
+      if (campoDireccion.value === 'Retiro en mostrador del local') campoDireccion.value = '';
+      campoDireccion.disabled = false;
+    }
+  }
+}
+
 function actualizarCarrito() {
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
-  const totalPrecio = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
-  const totalBs = tasaActualBCV > 0 ? (totalPrecio * tasaActualBCV).toFixed(2) : '0.00';
+  const subtotalComida = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+  const esPickup = selectTipoEntrega ? selectTipoEntrega.value === 'pickup' : false;
+  
+  const costoServicio = subtotalComida > 0 ? TARIFA_SERVICIO_BASE : 0;
+  const costoDelivery = (!esPickup && subtotalComida > 0) ? TARIFA_DELIVERY_BASE : 0;
+  const propina = (!esPickup && selectPropina) ? parseFloat(selectPropina.value || 0) : 0;
+
+  const totalFinal = subtotalComida + costoServicio + costoDelivery + propina;
+  const totalBs = tasaActualBCV > 0 ? (totalFinal * tasaActualBCV).toFixed(2) : '0.00';
 
   if (cartCount) cartCount.innerText = totalItems;
-  if (carritoTotalPrecio) carritoTotalPrecio.innerText = `$${totalPrecio.toFixed(2)}`;
+  if (desgloseSubtotal) desgloseSubtotal.innerText = `$${subtotalComida.toFixed(2)}`;
+  if (desgloseServicio) desgloseServicio.innerText = `$${costoServicio.toFixed(2)}`;
+  if (desgloseDelivery) desgloseDelivery.innerText = `$${costoDelivery.toFixed(2)}`;
+  if (desglosePropina) desglosePropina.innerText = `$${propina.toFixed(2)}`;
+  if (carritoTotalPrecio) carritoTotalPrecio.innerText = `$${totalFinal.toFixed(2)}`;
+  if (carritoTotalBs) carritoTotalBs.innerText = `Bs. ${totalBs}`;
 
-  const totalBsElement = document.getElementById('carrito-total-bs');
-  if (totalBsElement) totalBsElement.innerText = `Bs. ${totalBs}`;
+  // Validación de bebidas alcohólicas
+  if (alertaLicores) {
+    alertaLicores.style.display = contieneLicores() ? 'block' : 'none';
+  }
+
+  sincronizarMetodosEntregaYPago();
 
   if (carrito.length === 0) {
     if (carritoVacio) carritoVacio.style.display = 'block';
@@ -348,9 +447,30 @@ function actualizarCarrito() {
 }
 
 // =========================================================================
-// 4. ENVÍO DE PEDIDO MULTINEGOCIO
+// 4. SUBIDA DE COMPROBANTE Y ENVÍO DE PEDIDO
 // =========================================================================
+async function subirComprobante(file) {
+  if (!file) return null;
+  const fileExt = file.name.split('.').pop();
+  const fileName = `recibo_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+  const filePath = `comprobantes/${fileName}`;
+
+  const { error: uploadError } = await db.storage
+    .from('receipts')
+    .upload(filePath, file);
+
+  if (uploadError) throw new Error('Error al subir comprobante: ' + uploadError.message);
+
+  const { data } = db.storage.from('receipts').getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
 if (formPedido) {
+  // Escuchadores de eventos para cambios en entrega y pago
+  if (selectTipoEntrega) selectTipoEntrega.addEventListener('change', actualizarCarrito);
+  if (selectPropina) selectPropina.addEventListener('change', actualizarCarrito);
+  if (selectMetodoPago) selectMetodoPago.addEventListener('change', sincronizarMetodosEntregaYPago);
+
   formPedido.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -362,83 +482,104 @@ if (formPedido) {
       return;
     }
 
+    if (!checkTerminosCliente.checked) {
+      alert('Debes aceptar los Términos del Servicio para continuar.');
+      return;
+    }
+
+    if (contieneLicores() && (!checkMayorEdad || !checkMayorEdad.checked)) {
+      alert('Debes confirmar que eres mayor de 18 años para comprar bebidas alcohólicas.');
+      return;
+    }
+
+    const tipoEntrega = selectTipoEntrega.value;
+    const metodoPago = selectMetodoPago.value;
     const nombre = document.getElementById('cliente-nombre').value.trim();
     const telefono = document.getElementById('cliente-telefono').value.trim();
     const direccion = document.getElementById('cliente-direccion').value.trim();
-    const metodoPago = document.getElementById('cliente-metodo-pago').value;
     const inputNotas = document.getElementById('cliente-notas');
     const notas = inputNotas ? inputNotas.value.trim() : '';
 
-    const totalPedido = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+    const subtotalComida = carrito.reduce((sum, item) => sum + (item.price * item.cantidad), 0);
+    const esPickup = tipoEntrega === 'pickup';
+    const tarifaServicio = TARIFA_SERVICIO_BASE;
+    const tarifaDelivery = esPickup ? 0 : TARIFA_DELIVERY_BASE;
+    const propina = esPickup ? 0 : parseFloat(selectPropina ? selectPropina.value || 0 : 0);
+    const totalFinal = subtotalComida + tarifaServicio + tarifaDelivery + propina;
 
-    const itemsPedido = carrito.map(item => ({
-      product_id: item.id,
-      name: item.name,
-      quantity: item.cantidad,
-      price: item.price,
-      subtotal: item.price * item.cantidad
-    }));
+    // Validación de comprobante en pagos digitales
+    const fileInput = document.getElementById('pago-comprobante');
+    const referenciaInput = document.getElementById('pago-referencia');
+    const esPagoDigital = ['pago_movil', 'zelle', 'binance'].includes(metodoPago);
+
+    if (esPagoDigital && (!referenciaInput.value.trim())) {
+      alert('Por favor, indica los dígitos de referencia de tu transferencia o pago móvil.');
+      return;
+    }
 
     btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Procesando pedido...';
+    btnSubmit.innerText = 'Procesando comanda...';
 
     try {
+      let comprobanteUrl = null;
+      if (esPagoDigital && fileInput && fileInput.files.length > 0) {
+        btnSubmit.innerText = 'Subiendo comprobante...';
+        comprobanteUrl = await subirComprobante(fileInput.files[0]);
+      }
+
+      const itemsPedido = carrito.map(item => ({
+        product_id: item.id,
+        name: item.name,
+        quantity: item.cantidad,
+        price: item.price,
+        subtotal: item.price * item.cantidad
+      }));
+
+      const payloadOrden = {
+        business_id: negocioActivo.id,
+        customer_name: nombre,
+        customer_phone: telefono,
+        delivery_address: direccion,
+        delivery_type: tipoEntrega,
+        payment_method: metodoPago,
+        payment_reference: referenciaInput ? referenciaInput.value.trim() : null,
+        receipt_url: comprobanteUrl,
+        map_url: esPickup ? null : ubicacionMapsUrl,
+        items: itemsPedido,
+        subtotal_food: subtotalComida,
+        service_fee: tarifaServicio,
+        delivery_fee: tarifaDelivery,
+        driver_tip: propina,
+        total: totalFinal,
+        exchange_rate_bcv: tasaActualBCV,
+        notes: notas,
+        status: esPagoDigital ? 'pending_payment_verification' : 'pending'
+      };
+
       const { data: orden, error: ordenError } = await db
         .from('orders')
-        .insert([{
-          business_id: negocioActivo.id,
-          customer_name: nombre,
-          customer_phone: telefono,
-          delivery_address: direccion,
-          map_url: ubicacionMapsUrl,
-          items: itemsPedido,
-          total: totalPedido,
-          status: 'pending'
-        }])
+        .insert([payloadOrden])
         .select()
         .single();
 
       if (ordenError) throw ordenError;
 
-      alert(`¡Gracias por tu compra! Tu pedido para ${negocioActivo.name} fue registrado con éxito.`);
+      alert(`¡Pedido #${orden.id.slice(0, 6)} registrado con éxito! Tu orden para ${negocioActivo.name} está en proceso.`);
 
       carrito = [];
       actualizarCarrito();
       formPedido.reset();
+      sincronizarMetodosEntregaYPago();
 
     } catch (error) {
       alert('Hubo un error al procesar el pedido: ' + error.message);
     } finally {
       btnSubmit.disabled = false;
-      btnSubmit.innerText = 'Confirmar y Enviar Pedido';
+      btnSubmit.innerText = 'Confirmar y Procesar Pedido';
     }
   });
 }
-window.toggleEstadoNegocio = async function() {
-  const btn = document.getElementById('btn-toggle-negocio');
-  if (btn) btn.disabled = true;
 
-  const nuevoEstado = !estadoNegocioActivo;
-
-  try {
-    const { data, error } = await db
-      .from('businesses')
-      .update({ is_active: nuevoEstado })
-      .eq('id', negocioId)
-      .select();
-
-    if (error) throw error;
-
-    // Solo actualiza visualmente si la base de datos realmente guardó el cambio
-    estadoNegocioActivo = nuevoEstado;
-    actualizarBotonEstadoNegocio();
-    console.log('Estado actualizado en BD a:', nuevoEstado);
-  } catch (err) {
-    alert('No se pudo actualizar el estado del local: ' + err.message);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-};
 // =========================================================================
 // INICIALIZACIÓN
 // =========================================================================

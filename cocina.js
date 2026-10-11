@@ -13,54 +13,33 @@ let pedidosHistoricos = [];
 let platoEditandoId = null;
 let estadoNegocioActivo = true;
 
-// Elementos DOM
-const vistaLogin = document.getElementById('vista-login');
-const vistaPanel = document.getElementById('vista-panel');
-const formLogin = document.getElementById('form-login');
-const loginEmail = document.getElementById('login-email');
-const loginPassword = document.getElementById('login-password');
-const loginError = document.getElementById('login-error');
-const btnLogin = document.getElementById('btn-login');
-const panelNombreNegocio = document.getElementById('panel-nombre-negocio');
+// Constante de comisión plataforma
+const TASA_COMISION_APP = 0.10; // 10%
 
+// Elementos DOM
+const panelNombreNegocio = document.getElementById('panel-nombre-negocio');
 const gridPedidos = document.getElementById('grid-pedidos');
 const loading = document.getElementById('loading');
 const formNuevoPlato = document.getElementById('form-nuevo-plato');
 const formNuevoInsumo = document.getElementById('form-nuevo-insumo');
+const formMerma = document.getElementById('form-merma');
+const selectMermaInsumo = document.getElementById('merma-insumo-id');
 const tablaInsumosCuerpo = document.getElementById('tabla-insumos-cuerpo');
 const tablaPlatosCuerpo = document.getElementById('tabla-platos-cuerpo');
+
+// DOM Cierre de caja
+const cajaVentasBrutas = document.getElementById('caja-ventas-brutas');
+const cajaComision = document.getElementById('caja-comision');
+const cajaNetoRecibir = document.getElementById('caja-neto-recibir');
 
 // Modal Receta DOM
 const modalReceta = document.getElementById('modal-receta');
 const modalRecetaTitulo = document.getElementById('modal-receta-titulo');
 const modalListaInsumos = document.getElementById('modal-lista-insumos-receta');
 
-// --- AUTENTICACIÓN ---
-if (formLogin) {
-  formLogin.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.style.display = 'none';
-    btnLogin.disabled = true;
-    btnLogin.innerText = 'Verificando...';
-
-    try {
-      const { data, error } = await db.auth.signInWithPassword({
-        email: loginEmail.value.trim(),
-        password: loginPassword.value.trim()
-      });
-
-      if (error) throw error;
-      await inicializarSesion(data.user);
-    } catch (err) {
-      loginError.innerText = 'Acceso denegado: ' + err.message;
-      loginError.style.display = 'block';
-    } finally {
-      btnLogin.disabled = false;
-      btnLogin.innerText = 'Ingresar al Panel';
-    }
-  });
-}
-
+// =========================================================================
+// CONTROL DE ACCESO Y SESIÓN (GUARDIA)
+// =========================================================================
 async function inicializarSesion(user) {
   try {
     const { data: perfil, error: errPerfil } = await db
@@ -70,36 +49,30 @@ async function inicializarSesion(user) {
       .single();
 
     if (errPerfil || !perfil) {
-      throw new Error('Este usuario no tiene un restaurante vinculado.');
+      alert('Esta cuenta no está vinculada a ningún restaurante registrado.');
+      await cerrarSesion();
+      return;
     }
 
     negocioId = perfil.business_id;
     if (panelNombreNegocio) {
-      panelNombreNegocio.innerText = `${perfil.businesses.name} - Operaciones`;
+      panelNombreNegocio.innerText = `${perfil.businesses?.name || 'Local'} - Operaciones`;
     }
-
-    if (vistaLogin) vistaLogin.style.display = 'none';
-    if (vistaPanel) vistaPanel.style.display = 'block';
 
     solicitarPermisoNotificaciones();
     await cargarEstadoNegocio();
     await cargarTodo();
     suscribirTiempoReal();
   } catch (err) {
-    if (loginError) {
-      loginError.innerText = err.message;
-      loginError.style.display = 'block';
-    }
-    await db.auth.signOut();
+    console.error('Error inicializando sesión:', err);
+    await cerrarSesion();
   }
 }
 
 window.cerrarSesion = async function() {
   await db.auth.signOut();
   negocioId = null;
-  if (vistaPanel) vistaPanel.style.display = 'none';
-  if (vistaLogin) vistaLogin.style.display = 'block';
-  if (formLogin) formLogin.reset();
+  window.location.href = 'portal.html';
 };
 
 // --- NOTIFICACIONES PUSH Y SONIDO ---
@@ -205,7 +178,8 @@ async function cargarTodo() {
     cargarInsumos(),
     cargarPlatosMenu(),
     cargarPedidos(),
-    cargarDashboardFinanciero()
+    cargarDashboardFinanciero(),
+    cargarBalanceCorteTurno()
   ]);
 }
 
@@ -218,7 +192,7 @@ async function cargarPedidos() {
     .from('orders')
     .select('*')
     .eq('business_id', negocioId)
-    .in('status', ['pending', 'cooking', 'on_the_way'])
+    .in('status', ['pending_payment_verification', 'pending', 'cooking', 'on_the_way'])
     .order('created_at', { ascending: true });
 
   if (loading) loading.style.display = 'none';
@@ -229,7 +203,7 @@ async function cargarPedidos() {
   }
 
   if (!pedidos || pedidos.length === 0) {
-    if (gridPedidos) gridPedidos.innerHTML = '<p class="alerta">No hay comandas pendientes en este momento.</p>';
+    if (gridPedidos) gridPedidos.innerHTML = '<p class="alerta">No hay comandas activas en este momento.</p>';
     return;
   }
 
@@ -238,6 +212,14 @@ async function cargarPedidos() {
       const alertaTiempo = calcularTiempoEspera(orden.created_at);
       const items = Array.isArray(orden.items) ? orden.items : [];
       const itemsSerializados = encodeURIComponent(JSON.stringify(items));
+      const esVerificacion = orden.status === 'pending_payment_verification';
+
+      let etiquetaBadge = orden.status;
+      let claseBadge = `badge-${orden.status}`;
+      if (esVerificacion) {
+        etiquetaBadge = 'Esperando Pago';
+        claseBadge = 'badge-verification';
+      }
 
       return `
         <div class="ticket ${alertaTiempo.claseCard}">
@@ -247,7 +229,7 @@ async function cargarPedidos() {
                 <strong>#ORD-${orden.id.slice(0, 8)}</strong>
                 <span class="tiempo-badge ${alertaTiempo.claseTiempo}">${alertaTiempo.texto}</span>
               </div>
-              <span class="badge badge-${orden.status}">${orden.status}</span>
+              <span class="badge ${claseBadge}">${etiquetaBadge}</span>
             </div>
 
             <ul class="ticket-items">
@@ -257,7 +239,9 @@ async function cargarPedidos() {
             <div class="ticket-cliente">
               <p><strong>Cliente:</strong> ${orden.customer_name || 'Sin nombre'}</p>
               <p><strong>Tlf:</strong> ${orden.customer_phone || 'N/A'}</p>
+              <p><strong>Modalidad:</strong> ${orden.delivery_type === 'pickup' ? '🛍️ Retiro en Local' : '🛵 Delivery'}</p>
               <p><strong>Dirección:</strong> ${orden.delivery_address || 'No indicada'}</p>
+              ${orden.notes ? `<p style="color:#f59e0b;"><strong>Notas:</strong> ${orden.notes}</p>` : ''}
               ${orden.map_url ? `<p><a href="${orden.map_url}" target="_blank" style="color: #fbbf24;">📍 Ver Mapa GPS</a></p>` : ''}
             </div>
           </div>
@@ -267,19 +251,25 @@ async function cargarPedidos() {
               📲 WhatsApp
             </button>
 
+            ${esVerificacion ? `
+              <button class="btn-estado" disabled style="background:#4b5563; color:#d1d5db; cursor:not-allowed;" title="Esperando que el operador valide el pago móvil">
+                ⏳ Pago en Validación
+              </button>
+            ` : ''}
+
             ${orden.status === 'pending' ? `
-              <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="cambiarEstado('${orden.id}', 'cooking')">
+              <button class="btn-estado" style="background:#f59e0b; color:#000;" onclick="iniciarCocinaYDescontarStock('${orden.id}', '${itemsSerializados}')">
                 Comenzar Cocina
               </button>` : ''}
 
             ${orden.status === 'cooking' ? `
               <button class="btn-estado" style="background:#10b981; color:#000;" onclick="cambiarEstado('${orden.id}', 'on_the_way')">
-                Listo / En Camino
+                Listo / Despachar
               </button>` : ''}
 
             ${orden.status === 'on_the_way' ? `
               <button class="btn-estado" style="background:#6366f1; color:#fff;" onclick="cambiarEstado('${orden.id}', 'delivered')">
-                Despachado
+                Entregado
               </button>` : ''}
           </div>
         </div>
@@ -288,10 +278,136 @@ async function cargarPedidos() {
   }
 }
 
+// Descuenta receta al comenzar preparación
+window.iniciarCocinaYDescontarStock = async function(ordenId, itemsJson) {
+  const items = JSON.parse(decodeURIComponent(itemsJson));
+
+  try {
+    for (const item of items) {
+      const { data: receta } = await db
+        .from('product_ingredients')
+        .select('ingredient_id, quantity_required')
+        .eq('product_id', item.product_id);
+
+      if (receta && receta.length > 0) {
+        for (const ing of receta) {
+          const gastoTotal = ing.quantity_required * (item.quantity || 1);
+          const insumo = insumosDisponibles.find(i => i.id === ing.ingredient_id);
+          if (insumo) {
+            const nuevoStock = Math.max(0, parseFloat(insumo.current_stock) - gastoTotal);
+            await db.from('ingredients').update({ current_stock: nuevoStock }).eq('id', ing.ingredient_id);
+          }
+        }
+      }
+    }
+
+    await cambiarEstado(ordenId, 'cooking');
+    await cargarInsumos();
+  } catch (err) {
+    console.error('Error al descontar receta:', err);
+    cambiarEstado(ordenId, 'cooking');
+  }
+};
+
 window.cambiarEstado = async function(id, nuevoEstado) {
   const { error } = await db.from('orders').update({ status: nuevoEstado }).eq('id', id);
-  if (!error) cargarPedidos();
+  if (!error) {
+    cargarPedidos();
+    cargarBalanceCorteTurno();
+  }
 };
+
+// --- CIERRE DE CAJA Y LIQUIDACIÓN POR TURNOS ---
+async function cargarBalanceCorteTurno() {
+  if (!negocioId) return;
+
+  const hoyInicio = new Date();
+  hoyInicio.setHours(0, 0, 0, 0);
+
+  const { data: ordenesTurno, error } = await db
+    .from('orders')
+    .select('subtotal_food, total, status')
+    .eq('business_id', negocioId)
+    .gte('created_at', hoyInicio.toISOString())
+    .neq('status', 'cancelled');
+
+  if (error || !ordenesTurno) return;
+
+  const ventasBrutas = ordenesTurno.reduce((acc, o) => acc + (parseFloat(o.subtotal_food || o.total) || 0), 0);
+  const comision = ventasBrutas * TASA_COMISION_APP;
+  const neto = ventasBrutas - comision;
+
+  if (cajaVentasBrutas) cajaVentasBrutas.innerText = `$${ventasBrutas.toFixed(2)}`;
+  if (cajaComision) cajaComision.innerText = `-$${comision.toFixed(2)}`;
+  if (cajaNetoRecibir) cajaNetoRecibir.innerText = `$${neto.toFixed(2)}`;
+}
+
+window.solicitarCorteCaja = async function() {
+  if (!confirm('¿Deseas cerrar este turno y enviar la solicitud de liquidación a los operadores?')) return;
+
+  const montoNeto = cajaNetoRecibir ? cajaNetoRecibir.innerText.replace('$', '') : '0.00';
+  
+  const { error } = await db.from('cash_closures').insert([{
+    business_id: negocioId,
+    net_amount: parseFloat(montoNeto),
+    status: 'pending_settlement'
+  }]);
+
+  if (error) {
+    alert('Aviso: Registrado corte local.');
+  } else {
+    alert('Turno cerrado. La administración procesará la transferencia de tu balance neto.');
+  }
+};
+
+// --- MÓDULO DE REGISTRO DE MERMA Y VENTAS EN LOCAL ---
+function actualizarSelectMermas() {
+  if (!selectMermaInsumo) return;
+  selectMermaInsumo.innerHTML = '<option value="" disabled selected>Seleccionar insumo...</option>' +
+    insumosDisponibles.map(i => `<option value="${i.id}">${i.name} (Stock: ${i.current_stock} ${i.unit})</option>`).join('');
+}
+
+if (formMerma) {
+  formMerma.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const insumoId = selectMermaInsumo.value;
+    const cantidad = parseFloat(document.getElementById('merma-cantidad').value);
+    const motivo = document.getElementById('merma-motivo').value;
+
+    if (!insumoId || isNaN(cantidad) || cantidad <= 0) {
+      alert('Ingresa un insumo y una cantidad válida.');
+      return;
+    }
+
+    const insumo = insumosDisponibles.find(i => i.id === insumoId);
+    if (!insumo) return;
+
+    if (parseFloat(insumo.current_stock) < cantidad) {
+      if (!confirm(`La cantidad a descontar (${cantidad}) supera el stock registrado (${insumo.current_stock}). ¿Deseas forzar el ajuste?`)) {
+        return;
+      }
+    }
+
+    try {
+      await db.from('stock_waste').insert([{
+        business_id: negocioId,
+        ingredient_id: insumoId,
+        quantity: cantidad,
+        reason: motivo
+      }]);
+
+      const nuevoStock = Math.max(0, parseFloat(insumo.current_stock) - cantidad);
+      await db.from('ingredients').update({ current_stock: nuevoStock }).eq('id', insumoId);
+
+      alert('Salida de inventario registrada con éxito.');
+      formMerma.reset();
+      await cargarInsumos();
+    } catch (err) {
+      alert('Error al registrar merma: ' + err.message);
+    }
+  });
+}
 
 // --- CATÁLOGO DE PLATOS ---
 async function cargarPlatosMenu() {
@@ -366,6 +482,7 @@ async function cargarInsumos() {
   if (error) return console.error('Error al cargar insumos:', error);
   insumosDisponibles = data || [];
   renderizarTablaInsumos();
+  actualizarSelectMermas();
 }
 
 function renderizarTablaInsumos() {
@@ -506,7 +623,6 @@ if (btnAgregarInsumoReceta) {
   });
 }
 
-// --- CREAR PLATO CON SU RECETA ---
 // --- CREAR PLATO CON SU FOTO Y RECETA ---
 if (formNuevoPlato) {
   formNuevoPlato.addEventListener('submit', async (e) => {
@@ -529,11 +645,10 @@ if (formNuevoPlato) {
     btnSubmit.innerText = 'Subiendo foto y guardando...';
 
     try {
-      // 1. Subir la imagen al bucket 'platos'
       const extension = archivoFoto.name.split('.').pop();
       const nombreArchivo = `${negocioId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
 
-      const { data: uploadData, error: uploadError } = await db.storage
+      const { error: uploadError } = await db.storage
         .from('platos')
         .upload(nombreArchivo, archivoFoto, {
           cacheControl: '3600',
@@ -542,14 +657,12 @@ if (formNuevoPlato) {
 
       if (uploadError) throw new Error('Error al subir la imagen: ' + uploadError.message);
 
-      // 2. Obtener URL pública de la imagen
       const { data: urlData } = db.storage
         .from('platos')
         .getPublicUrl(nombreArchivo);
 
       const imageUrl = urlData.publicUrl;
 
-      // 3. Insertar plato en la tabla 'products' con su imagen
       const { data: plato, error: errPlato } = await db
         .from('products')
         .insert([{
@@ -565,7 +678,6 @@ if (formNuevoPlato) {
 
       if (errPlato) throw errPlato;
 
-      // 4. Asociar insumos de la receta
       const filasReceta = document.querySelectorAll('#contenedor-receta .fila-receta');
       const asociaciones = [];
 
@@ -601,9 +713,7 @@ if (formNuevoPlato) {
   });
 }
 
-// =========================================================================
-// MODAL: EDITAR / REEMPLAZAR RECETAS DE UN PLATO EXISTENTE
-// =========================================================================
+// --- MODAL: EDITAR / REEMPLAZAR RECETAS DE UN PLATO EXISTENTE ---
 window.abrirModalReceta = async function(platoId, platoNombre) {
   platoEditandoId = platoId;
   modalRecetaTitulo.innerText = `Editar Receta: ${platoNombre}`;
@@ -728,7 +838,7 @@ async function cargarDashboardFinanciero() {
   if (!negocioId) return;
   const { data: ordenes, error } = await db
     .from('orders')
-    .select('id, total, status, created_at')
+    .select('id, total, subtotal_food, status, created_at')
     .eq('business_id', negocioId)
     .neq('status', 'cancelled')
     .order('created_at', { ascending: true });
@@ -763,7 +873,7 @@ function procesarMetricasYGrafica() {
     }
 
     if (entraEnPeriodo) {
-      const tot = parseFloat(orden.total) || 0;
+      const tot = parseFloat(orden.subtotal_food || orden.total) || 0;
       totalFacturado += tot;
       conteoPedidos++;
       gruposGrafica[etiquetaEjeX] = (gruposGrafica[etiquetaEjeX] || 0) + tot;
@@ -789,7 +899,7 @@ function renderizarGrafica(etiquetas, datos) {
     data: {
       labels: etiquetas.length ? etiquetas : ['Sin ventas en este período'],
       datasets: [{
-        label: 'Ventas ($)',
+        label: 'Ventas Comida ($)',
         data: datos.length ? datos : [0],
         borderColor: '#fbbf24',
         backgroundColor: 'rgba(251, 191, 36, 0.15)',
@@ -825,14 +935,19 @@ function suscribirTiempoReal() {
       }
       cargarPedidos();
       cargarDashboardFinanciero();
+      cargarBalanceCorteTurno();
     })
     .subscribe();
 }
 
-// Inicialización de sesión activa
+// =========================================================================
+// INICIALIZACIÓN CON GUARDIA DE ACCESO
+// =========================================================================
 (async () => {
-  const { data: { user } } = await db.auth.getUser();
-  if (user) {
-    await inicializarSesion(user);
+  const { data: { session } } = await db.auth.getSession();
+  if (!session || !session.user) {
+    window.location.href = 'portal.html';
+    return;
   }
+  await inicializarSesion(session.user);
 })();

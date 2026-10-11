@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bienvenido a Tropicalia</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     .portal-container {
-      max-width: 850px;
-      margin: 60px auto;
+      max-width: 980px;
+      margin: 40px auto;
       padding: 20px;
       text-align: center;
     }
@@ -19,19 +20,20 @@
     }
     .portal-hero p {
       color: #a3a3a3;
-      font-size: 1.1rem;
-      margin-bottom: 40px;
+      font-size: 1.05rem;
+      margin-bottom: 30px;
     }
     .portal-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
+      gap: 20px;
+      margin-bottom: 40px;
     }
     .portal-card {
       background: #1a1a1a;
       border: 1px solid #333;
       border-radius: 12px;
-      padding: 30px 24px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -43,22 +45,31 @@
       border-color: #fbbf24;
     }
     .portal-card h3 {
-      font-size: 1.4rem;
-      margin-bottom: 10px;
+      font-size: 1.25rem;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .portal-card p {
       color: #a3a3a3;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      margin-bottom: 24px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      margin-bottom: 20px;
     }
-    .portal-card .btn-grupo {
+    .btn-grupo {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
+    }
+    .auth-unificado-box {
+      max-width: 440px;
+      margin: 0 auto;
+      background: #181818;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      padding: 24px;
+      text-align: left;
     }
   </style>
 </head>
@@ -66,39 +77,121 @@
   <div class="container portal-container">
     <div class="portal-hero">
       <h1>Tropicalia</h1>
-      <p>Plataforma gastronómica multinegocio</p>
+      <p>Plataforma de delivery y operaciones gastronómicas</p>
     </div>
 
+    <!-- CUADRÍCULA DE LOS 3 ACTORES DEL ECOSISTEMA -->
     <div class="portal-grid">
-      <!-- Tarjeta Clientes -->
+      <!-- 1. Clientes -->
       <div class="portal-card">
         <div>
-          <h3>🍔 Quiero pedir comida</h3>
-          <p>Explora el catálogo de restaurantes disponibles, revisa sus menús en vivo y envía tu pedido directo por delivery.</p>
+          <h3>👤 Clientes</h3>
+          <p>Explora el menú de restaurantes en Caracas, arma tu pedido con precios BCV al día y recíbelo por delivery o retíralo en local.</p>
         </div>
-        <div class="portal-grupo">
+        <div class="btn-grupo">
           <a href="index.html" class="btn-primario" style="text-decoration: none; text-align: center; display: block;">
-            Entrar a la Tienda
+            Ver Restaurantes y Pedir
           </a>
         </div>
       </div>
 
-      <!-- Tarjeta Restaurantes -->
+      <!-- 2. Restaurantes -->
       <div class="portal-card">
         <div>
-          <h3>👨‍🍳 Soy un Restaurante</h3>
-          <p>Gestiona tus comandas en tiempo real, actualiza inventario y precios, o da de alta tu nuevo local comercial.</p>
+          <h3>👨‍🍳 Cocinas y Locales</h3>
+          <p>Controla tus comandas activas, sincroniza recetas e inventario, registra mermas y cierra turno con corte de liquidación neta.</p>
         </div>
-        <div class="portal-card btn-grupo" style="padding: 0; background: transparent; border: none;">
+        <div class="btn-grupo">
           <a href="cocina.html" class="btn-primario" style="text-decoration: none; text-align: center; display: block;">
-            Acceder al Panel de Cocina
+            Panel de Cocina
           </a>
-          <a href="registro.html" class="btn-secundario" style="text-decoration: none; text-align: center; display: block; border-color: #404040;">
+          <a href="registro.html" class="btn-secundario" style="text-decoration: none; text-align: center; display: block;">
             Registrar mi Restaurante
           </a>
         </div>
       </div>
+
+      <!-- 3. Delivery / Motorizados -->
+      <div class="portal-card">
+        <div>
+          <h3>🛵 Repartidores</h3>
+          <p>Recibe solicitudes de despacho, navega con coordenadas exactas, controla tus cobros y monitorea tu saldo y billetera de efectivo.</p>
+        </div>
+        <div class="btn-grupo">
+          <a href="delivery.html" class="btn-primario" style="text-decoration: none; text-align: center; display: block;">
+            Panel de Repartidor
+          </a>
+          <a href="registro.html" class="btn-secundario" style="text-decoration: none; text-align: center; display: block;">
+            Postularme como Repartidor
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- INICIO DE SESIÓN UNIFICADO CON ENRUTAMIENTO INTELIGENTE -->
+    <div class="auth-unificado-box">
+      <h3 style="font-size: 1.15rem; margin-bottom: 6px; color: #fbbf24;">Acceso Central</h3>
+      <p style="font-size: 0.85rem; color: #a3a3a3; margin-bottom: 14px;">Inicia sesión con tu correo y te redirigiremos a tu panel correspondiente.</p>
+      
+      <form id="form-portal-login" style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="email" id="portal-email" placeholder="Correo electrónico registrado" required />
+        <input type="password" id="portal-password" placeholder="Contraseña" required />
+        <button type="submit" class="btn-primario" id="btn-portal-login">Ingresar</button>
+        <div id="portal-login-error" class="alerta" style="display: none; background: #7f1d1d; border-color: #991b1b; padding: 8px;"></div>
+      </form>
     </div>
   </div>
+
+  <script>
+    const SUPABASE_URL = 'https://utmmswvwqrqdxzobzakv.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0bW1zd3Z3cXJxZHh6b2J6YWt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTU2NTksImV4cCI6MjEwNTU5MTY1OX0.ykNc6yhpgUqJWQKMMWKOVgYY-JA0UP25SxLRQKUB_Vc';
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const formPortalLogin = document.getElementById('form-portal-login');
+    const portalError = document.getElementById('portal-login-error');
+    const btnPortalLogin = document.getElementById('btn-portal-login');
+
+    if (formPortalLogin) {
+      formPortalLogin.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        portalError.style.display = 'none';
+        btnPortalLogin.disabled = true;
+        btnPortalLogin.innerText = 'Verificando cuenta...';
+
+        const email = document.getElementById('portal-email').value.trim();
+        const password = document.getElementById('portal-password').value.trim();
+
+        try {
+          const { data, error } = await db.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+
+          const user = data.user;
+          const rol = user.user_metadata?.role;
+
+          // Redirección según rol registrado en metadata
+       let destino = 'index.html';
+
+if (rol === 'restaurant') {
+  destino = 'cocina.html';
+} else if (rol === 'delivery') {
+  destino = 'delivery.html';
+} else {
+  // Comprobación de respaldo por si no viene en user_metadata
+  const { data: esCocina } = await db.from('kitchen_profiles').select('id').eq('id', user.id).maybeSingle();
+  if (esCocina) destino = 'cocina.html';
+}
+
+window.location.href = destino;
+
+        } catch (err) {
+          portalError.innerText = 'Error: ' + err.message;
+          portalError.style.display = 'block';
+        } finally {
+          btnPortalLogin.disabled = false;
+          btnPortalLogin.innerText = 'Ingresar';
+        }
+      });
+    }
+  </script>
 </body>
 </html>

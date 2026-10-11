@@ -10,7 +10,7 @@
   <style>
     .grid-cocina {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: 16px;
       margin-top: 15px;
     }
@@ -38,6 +38,7 @@
       text-transform: uppercase;
     }
     .badge-pending { background: #3b82f6; color: #fff; }
+    .badge-verification { background: #6366f1; color: #fff; }
     .badge-cooking { background: #f59e0b; color: #000; }
     .badge-on_the_way { background: #10b981; color: #000; }
     .ticket-items {
@@ -59,9 +60,11 @@
       display: flex;
       gap: 6px;
       margin-top: 12px;
+      flex-wrap: wrap;
     }
     .btn-estado {
       flex: 1;
+      min-width: 90px;
       padding: 6px;
       border: none;
       border-radius: 6px;
@@ -74,7 +77,7 @@
       border: 1px solid #2e2e2e;
       border-radius: 10px;
       padding: 20px;
-      margin-top: 30px;
+      margin-top: 25px;
     }
     .form-grid {
       display: grid;
@@ -137,12 +140,9 @@
       border-radius: 4px;
       background: #262626;
     }
-    .tiempo-optimo { color: #10b981; }
-    .tiempo-demorado { color: #f59e0b; }
-    .tiempo-critico { color: #ef4444; }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 14px;
       margin-bottom: 20px;
     }
@@ -186,7 +186,6 @@
       margin-bottom: 24px;
       height: 280px;
     }
-    /* Estilos del Modal */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -212,34 +211,21 @@
   </style>
 </head>
 <body>
-  <!-- PANTALLA DE ACCESO (LOGIN) -->
-  <div id="vista-login" class="container" style="max-width: 400px; margin-top: 80px;">
-    <h2>Acceso al Centro de Operaciones</h2>
-    <p style="color: #a3a3a3; margin-bottom: 20px;">Ingresa las credenciales del restaurante</p>
-    <form id="form-login" style="display: flex; flex-direction: column; gap: 12px;">
-      <input type="email" id="login-email" placeholder="Correo del negocio" required />
-      <input type="password" id="login-password" placeholder="Contraseña" required />
-      <button type="submit" class="btn-primario" id="btn-login">Ingresar al Panel</button>
-      <div id="login-error" class="alerta" style="display: none; background: #7f1d1d; border-color: #991b1b;"></div>
-    </form>
-  </div>
-
-  <!-- PANEL DE OPERACIONES -->
-  <div id="vista-panel" style="display: none;">
+  <!-- PANEL DE OPERACIONES (PROTEGIDO) -->
+  <div id="vista-panel">
     <header>
       <div class="container header-content">
         <div>
           <h1 id="panel-nombre-negocio">Centro de Operaciones</h1>
-          <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap;">
             <p style="margin: 0;">Comandas, catálogo en vivo e inventario</p>
-            <!-- Toggle Abierto / Cerrado -->
             <button id="btn-toggle-negocio" onclick="toggleEstadoNegocio()" class="btn-toggle activo" style="font-size: 0.8rem; padding: 4px 10px;">
               🟢 Local Abierto
             </button>
           </div>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <a href="index.html" class="btn-secundario" style="text-decoration:none;">👀 Ver Menú Cliente</a>
+          <a href="index.html" class="btn-secundario" style="text-decoration:none;">👀 Ver Tienda</a>
           <button onclick="cargarTodo()" class="btn-secundario">🔄 Actualizar</button>
           <button onclick="cerrarSesion()" class="btn-secundario">Cerrar Sesión</button>
         </div>
@@ -247,17 +233,71 @@
     </header>
 
     <main class="container">
-      <!-- 1. Monitor de Comandas Activas -->
-      <section>
-        <h2>Comandas en Preparación</h2>
+      <!-- AVISO DE CUMPLIMIENTO OPERATIVO Y SANITARIO -->
+      <div style="background: #182218; border: 1px solid #15803d; padding: 10px 14px; border-radius: 8px; margin-top: 15px; font-size: 0.8rem; color: #86efac; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <span>🔒 <strong>Protocolo Tropicalia:</strong> Bolsas selladas con precinto/grapas obligatorias. Responsabilidad de inocuidad y permisos sanitarios a cargo del comercio.</span>
+        <span style="color: #cbd5e1;">Cortes de caja: 2 turnos diarios</span>
+      </div>
+
+      <!-- 1. MONITOR DE COMANDAS ACTIVAS -->
+      <section style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <h2>Comandas en Preparación y Despacho</h2>
+          <span style="font-size: 0.8rem; color: #a3a3a3;">Solo se preparan comandas con pago confirmado</span>
+        </div>
         <div id="loading" class="alerta">Cargando pedidos...</div>
         <div id="grid-pedidos" class="grid-cocina"></div>
       </section>
 
-      <!-- 2. Gestión del Catálogo de Platos -->
+      <!-- 2. CIERRE DE TURNO Y LIQUIDACIÓN FINANCIERA (CORTES DE CAJA) -->
+      <section class="seccion-admin">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <h2>Liquidación y Cierre de Caja</h2>
+          <button class="btn-secundario" onclick="solicitarCorteCaja()">📋 Cerrar Turno Actual</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #a3a3a3;">La plataforma retiene su comisión (10-12%) y liquida tu monto neto por Pago Móvil en el corte seleccionado.</p>
+        
+        <div class="kpi-grid" style="margin-top: 12px;">
+          <div class="kpi-card">
+            <span>Ventas Brutas Turno</span>
+            <strong id="caja-ventas-brutas">$0.00</strong>
+          </div>
+          <div class="kpi-card">
+            <span>Comisión Plataforma (~10%)</span>
+            <strong id="caja-comision" style="color: #ef4444;">$0.00</strong>
+          </div>
+          <div class="kpi-card exito">
+            <span>Neto a Recibir</span>
+            <strong id="caja-neto-recibir">$0.00</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. MÓDULO DE REGISTRO DE MERMA Y VENTAS FUERA DE LA APP -->
+      <section class="seccion-admin">
+        <h2>Registro de Merma y Ventas en Local (Físico)</h2>
+        <p style="font-size: 0.85rem; color: #a3a3a3; margin-bottom: 12px;">
+          Descuenta ingredientes por consumo en salón, pedidos directos de WhatsApp o comida dañada/vencida.
+        </p>
+
+        <form id="form-merma" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+          <select id="merma-insumo-id" required style="flex: 2; min-width: 180px; background: #262626; color: #fff;">
+            <option value="" disabled selected>Seleccionar insumo...</option>
+          </select>
+          <input type="number" id="merma-cantidad" step="0.01" placeholder="Cantidad a descontar" required style="flex: 1; min-width: 120px;" />
+          <select id="merma-motivo" required style="flex: 1; min-width: 160px; background: #262626; color: #fff;">
+            <option value="venta_local">Venta en salón / mostrador</option>
+            <option value="merma_vencimiento">Merma por vencimiento</option>
+            <option value="dano_cocina">Error en cocción / Daño</option>
+          </select>
+          <button type="submit" class="btn-primario" style="flex: 1; min-width: 140px;">Registrar Salida</button>
+        </form>
+      </section>
+
+      <!-- 4. GESTIÓN DEL CATÁLOGO DE PLATOS -->
       <section class="seccion-admin">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <h2>Gestión del Menú (Platos Activos y Visibilidad)</h2>
+          <h2>Gestión del Menú (Platos y Visibilidad)</h2>
           <span style="font-size:0.8rem; color:#a3a3a3;">Pausar un plato lo oculta de la tienda de inmediato</span>
         </div>
         
@@ -265,7 +305,7 @@
           <thead>
             <tr>
               <th>Nombre del Plato</th>
-              <th>Precio</th>
+              <th>Precio Neto</th>
               <th>Estado en Tienda</th>
               <th>Acciones</th>
             </tr>
@@ -273,32 +313,31 @@
           <tbody id="tabla-platos-cuerpo"></tbody>
         </table>
 
-       <!-- Formulario para Agregar Nuevo Plato -->
-<h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
-<form id="form-nuevo-plato">
-  <div class="form-grid">
-    <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
-    <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
-    <input type="text" id="plato-desc" placeholder="Descripción breve" required />
-  </div>
+        <!-- Formulario para Agregar Nuevo Plato -->
+        <h3 style="font-size: 1.1rem; margin-top: 25px; margin-bottom: 10px; color: #f59e0b;">+ Agregar Nuevo Plato al Menú</h3>
+        <form id="form-nuevo-plato">
+          <div class="form-grid">
+            <input type="text" id="plato-nombre" placeholder="Nombre del plato" required />
+            <input type="number" id="plato-precio" step="0.5" placeholder="Precio ($)" required />
+            <input type="text" id="plato-desc" placeholder="Descripción breve" required />
+          </div>
 
-  <!-- Campo Obligatorio para Foto del Plato -->
-  <div style="margin-bottom: 15px;">
-    <label style="display: block; font-size: 0.85rem; color: #fbbf24; margin-bottom: 6px; font-weight: bold;">
-      📸 Foto del plato (Obligatoria):
-    </label>
-    <input type="file" id="plato-foto" accept="image/*" required style="background: #262626; color: #fff; padding: 8px; border-radius: 6px; border: 1px solid #444; width: 100%; box-sizing: border-box;" />
-  </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 0.85rem; color: #fbbf24; margin-bottom: 6px; font-weight: bold;">
+              📸 Foto del plato (Obligatoria):
+            </label>
+            <input type="file" id="plato-foto" accept="image/*" required style="background: #262626; color: #fff; padding: 8px; border-radius: 6px; border: 1px solid #444; width: 100%; box-sizing: border-box;" />
+          </div>
 
-  <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
-  <div id="contenedor-receta" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
-  <button type="button" id="btn-agregar-insumo-receta" class="btn-secundario" style="margin-top: 8px;">+ Asociar otro insumo</button>
+          <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #a3a3a3;">Receta (Insumos requeridos por ración):</h4>
+          <div id="contenedor-receta" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+          <button type="button" id="btn-agregar-insumo-receta" class="btn-secundario" style="margin-top: 8px;">+ Asociar otro insumo</button>
 
-  <button type="submit" class="btn-primario" id="btn-submit-plato" style="margin-top: 14px;">Guardar y Publicar Plato</button>
-</form>
+          <button type="submit" class="btn-primario" id="btn-submit-plato" style="margin-top: 14px;">Guardar y Publicar Plato</button>
+        </form>
       </section>
 
-      <!-- Formulario para Registrar Nuevo Insumo -->
+      <!-- 5. INVENTARIO ACTUAL DE INSUMOS -->
       <section class="seccion-admin">
         <h2>Inventario Actual de Insumos</h2>
         <h3 style="font-size: 1rem; margin-top: 10px; margin-bottom: 8px; color: #f59e0b;">+ Registrar Nuevo Insumo Base</h3>
@@ -316,7 +355,6 @@
           <button type="submit" class="btn-primario">Guardar Insumo</button>
         </form>
 
-        <!-- Monitor, Reposición y Eliminación de Inventario -->
         <table class="tabla-gestion">
           <thead>
             <tr>
@@ -331,10 +369,10 @@
         </table>
       </section>
 
-      <!-- Dashboard Financiero y Métricas -->
+      <!-- 6. DASHBOARD FINANCIERO HISTÓRICO -->
       <section class="seccion-admin" style="margin-top: 30px; margin-bottom: 30px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <h2>Resumen Financiero y Ventas</h2>
+          <h2>Métricas Históricas de Ventas</h2>
           <div class="periodo-filtros">
             <button class="btn-filtro activo" onclick="filtrarPeriodo('dia', this)">Hoy</button>
             <button class="btn-filtro" onclick="filtrarPeriodo('mes', this)">Este Mes</button>
