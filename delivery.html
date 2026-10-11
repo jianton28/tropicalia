@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Repartidor | Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Leaflet CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    .delivery-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #333;
+    }
+    .status-toggle-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wallet-card {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 18px;
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .wallet-item span {
+      font-size: 0.8rem;
+      color: #a3a3a3;
+      text-transform: uppercase;
+    }
+    .wallet-item strong {
+      display: block;
+      font-size: 1.4rem;
+      margin-top: 4px;
+    }
+    .alerta-deuda {
+      background: #7f1d1d;
+      border: 1px solid #b91c1c;
+      color: #fecaca;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-top: 15px;
+      display: none;
+    }
+    #mapa-delivery {
+      width: 100%;
+      height: 340px;
+      border-radius: 10px;
+      margin-top: 15px;
+      border: 1px solid #333;
+      z-index: 1;
+    }
+    .carreras-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 15px;
+    }
+    .carrera-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .carrera-activa {
+      border: 2px solid #fbbf24;
+      background: #201c13;
+    }
+    .step-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      background: #fbbf24;
+      color: #000;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 24px;
+      width: 90%;
+      max-width: 440px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="margin-top: 30px; margin-bottom: 60px;">
+    
+    <!-- CABECERA DEL REPARTIDOR -->
+    <header class="delivery-header">
+      <div>
+        <h1 id="driver-nombre" style="font-size: 1.6rem; margin: 0; color: #fbbf24;">Repartidor Tropicalia</h1>
+        <p id="driver-vehiculo" style="margin: 4px 0 0 0; font-size: 0.85rem; color: #a3a3a3;">Cargando perfil...</p>
+      </div>
+
+      <div class="status-toggle-box">
+        <button id="btn-toggle-online" onclick="toggleDisponibilidad()" class="btn-toggle pausado">
+          ⚪ Desconectado
+        </button>
+        <button onclick="cerrarSesion()" class="btn-secundario" style="padding: 6px 12px; font-size: 0.8rem;">
+          Salir
+        </button>
+      </div>
+    </header>
+
+    <!-- BILLETERA Y CONTROL DE DEUDA EN EFECTIVO -->
+    <section class="wallet-card">
+      <div class="wallet-item">
+        <span>Saldo a Favor (Fletes Digitales)</span>
+        <strong id="wallet-saldo" style="color: #10b981;">$0.00</strong>
+      </div>
+      <div class="wallet-item">
+        <span>Deuda en Efectivo</span>
+        <strong id="wallet-deuda" style="color: #ef4444;">$0.00 / $20.00</strong>
+      </div>
+      <div class="wallet-item" style="display: flex; flex-direction: column; justify-content: center;">
+        <button id="btn-saldar-deuda" onclick="saldarDeudaConSaldo()" class="btn-primario" style="font-size: 0.8rem; padding: 8px;" disabled>
+          Amortizar Deuda con Saldo
+        </button>
+      </div>
+    </section>
+
+    <!-- BANNER DE BLOQUEO POR TECHO DE DEUDA ($20) -->
+    <div id="alerta-limite-deuda" class="alerta-deuda">
+      ⚠️ <strong>Has alcanzado el límite de $20 en efectivo:</strong> No puedes aceptar órdenes pagadas en efectivo. Solo recibirás carreras pagadas por Pago Móvil (se retendrá el 50% de cada flete para amortizar tu deuda) o salda tu deuda directamente.
+    </div>
+
+    <!-- SECCIÓN DE MAPA ACTIVO Y RUTA -->
+    <section style="margin-top: 25px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.2rem; margin: 0;">🗺️ Navegación de Ruta</h2>
+        <span id="mapa-estado-texto" style="font-size: 0.8rem; color: #a3a3a3;">Sin carrera en curso</span>
+      </div>
+      <div id="mapa-delivery"></div>
+    </section>
+
+    <!-- CARRERA ACTIVA EN CURSO -->
+    <section id="seccion-carrera-activa" style="margin-top: 30px; display: none;">
+      <h2 style="font-size: 1.2rem; color: #fbbf24;">🛵 Pedido en Curso</h2>
+      <div id="contenedor-carrera-activa" class="carrera-card carrera-activa" style="margin-top: 10px;"></div>
+    </section>
+
+    <!-- PEDIDOS DISPONIBLES PARA TOMAR -->
+    <section style="margin-top: 35px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.2rem; margin: 0;">📦 Carreras Disponibles</h2>
+        <button onclick="cargarCarrerasDisponibles()" class="btn-secundario" style="padding: 4px 10px; font-size: 0.8rem;">
+          🔄 Actualizar
+        </button>
+      </div>
+      <div id="grid-carreras" class="carreras-grid">
+        <p style="color: #888; font-size: 0.9rem;">No hay carreras disponibles en tu radio actual.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN Y ENTREGA CON CÓDIGO / FOTO -->
+  <div id="modal-entrega" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <h3 style="margin-top: 0; color: #fbbf24;">Confirmar Entrega Segura</h3>
+      <p style="font-size: 0.85rem; color: #a3a3a3;">Solicita el código de 4 dígitos al cliente o sube foto del paquete sellado:</p>
+      
+      <div style="margin-bottom: 14px;">
+        <label style="display:block; font-size:0.8rem; color:#fff; margin-bottom:4px;">Código de seguridad del cliente:</label>
+        <input type="text" id="input-codigo-entrega" maxlength="4" placeholder="Ej: 4821" style="font-size: 1.2rem; text-align: center; letter-spacing: 4px;" />
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display:block; font-size:0.8rem; color:#fff; margin-bottom:4px;">O foto del paquete con precinto entregado:</label>
+        <input type="file" id="input-foto-entrega" accept="image/*" />
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="button" onclick="cerrarModalEntrega()" class="btn-secundario" style="flex: 1;">Cancelar</button>
+        <button type="button" onclick="validarYFinalizarEntrega()" class="btn-primario" id="btn-finalizar-entrega" style="flex: 1;">Finalizar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="delivery.js"></script>
+</body>
+</html>
