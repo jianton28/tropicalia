@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marco Legal y Términos de Servicio | Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .legal-container {
+      max-width: 900px;
+      margin: 40px auto 80px auto;
+      padding: 0 20px;
+      line-height: 1.65;
+    }
+    .legal-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 25px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-legal-tab {
+      background: #1c1c1c;
+      border: 1px solid #333;
+      color: #a3a3a3;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .btn-legal-tab.activo {
+      background: #fbbf24;
+      color: #000;
+      border-color: #fbbf24;
+    }
+    .legal-seccion {
+      display: none;
+      background: #181818;
+      border: 1px solid #282828;
+      border-radius: 10px;
+      padding: 28px;
+    }
+    .legal-seccion.activa {
+      display: block;
+    }
+    .legal-seccion h2 {
+      color: #fbbf24;
+      font-size: 1.4rem;
+      margin-top: 0;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+    }
+    .legal-seccion h3 {
+      color: #f3f4f6;
+      font-size: 1.05rem;
+      margin-top: 20px;
+      margin-bottom: 6px;
+    }
+    .legal-seccion p, .legal-seccion li {
+      color: #cbd5e1;
+      font-size: 0.9rem;
+    }
+    .alerta-juridica {
+      background: #201a11;
+      border-left: 4px solid #fbbf24;
+      padding: 10px 14px;
+      margin: 15px 0;
+      font-size: 0.85rem;
+      color: #fde68a;
+    }
+  </style>
+</head>
+<body>
+  <div class="legal-container">
+    
+    <header style="margin-bottom: 25px;">
+      <a href="portal.html" style="color: #fbbf24; text-decoration: none; font-size: 0.85rem;">← Volver al Portal Central</a>
+      <h1 style="color: #fff; font-size: 2rem; margin: 10px 0 4px 0;">Marco Legal y Condiciones del Servicio</h1>
+      <p style="color: #a3a3a3; font-size: 0.9rem; margin: 0;">Plataforma Tecnológica Tropicalia • República Bolivariana de Venezuela</p>
+    </header>
+
+    <!-- SELECTOR DE DOCUMENTOS -->
+    <nav class="legal-nav">
+      <button class="btn-legal-tab activo" data-tab="legal-clientes" onclick="mostrarSeccionLegal('legal-clientes')">
+        👤 Términos para Clientes
+      </button>
+      <button class="btn-legal-tab" data-tab="legal-cocinas" onclick="mostrarSeccionLegal('legal-cocinas')">
+        👨‍🍳 Acuerdo con Restaurantes
+      </button>
+      <button class="btn-legal-tab" data-tab="legal-delivery" onclick="mostrarSeccionLegal('legal-delivery')">
+        🛵 Contrato Mercantil Repartidores
+      </button>
+    </nav>
+
+    <!-- 1. TÉRMINOS PARA CLIENTES -->
+    <article id="legal-clientes" class="legal-seccion activa">
+      <h2>Condiciones Generales de Uso para Consumidores</h2>
+      
+      <div class="alerta-juridica">
+        Tropicalia opera exclusivamente como una plataforma tecnológica de intermediación digital. No elabora alimentos ni realiza servicios directos de transporte.
+      </div>
+
+      <h3>1. Naturaleza del Servicio</h3>
+      <p>Tropicalia facilita la conexión entre el usuario final, comercios gastronómicos independientes y prestadores de servicios de despacho autónomos. Cada pedido formaliza un contrato de compraventa directo entre el cliente y el restaurante seleccionado.</p>
+
+      <h3>2. Precios y Tasas de Cambio</h3>
+      <p>Los precios exhibidos en divisas ($ USD) son referenciales de cuenta. Todo pago en bolívares (Bs) a través de canales electrónicos como Pago Móvil se procesa calculando la tasa oficial emitida por el Banco Central de Venezuela (BCV) correspondiente a la fecha y hora de la transacción.</p>
+
+      <h3>3. Bebidas Alcohólicas (+18)</h3>
+      <p>La comercialización de bebidas alcohólicas está estrictamente reservada para usuarios mayores de 18 años conforme a la legislación nacional. El repartidor o local se reserva el derecho de exigir la cédula de identidad laminada al momento de la entrega física.</p>
+
+      <h3>4. Reclamaciones y Calidad</h3>
+      <p>La responsabilidad directa sobre la cocción, estado de los insumos, alérgenos y empaque corresponde exclusivamente al restaurante emisor. Reclamos sobre cobros de intermediación serán canalizados por soporte dentro de las primeras 2 horas posteriores al despacho.</p>
+    </article>
+
+    <!-- 2. ACUERDO CON RESTAURANTES -->
+    <article id="legal-cocinas" class="legal-seccion">
+      <h2>Acuerdo Comercial y Operativo de Locales Gastronómicos</h2>
+
+      <div class="alerta-juridica">
+        El establecimiento mercantil asume total responsabilidad sanitaria, tributaria y fiscal por los productos despachados a través del catálogo.
+      </div>
+
+      <h3>1. Inocuidad y Permisos Sanitarios</h3>
+      <p>El comercio garantiza contar con RIF vigente, Permiso Sanitario del Ministerio del Poder Popular para la Salud (MPPS), Certificados de Manipulación de Alimentos de su personal y, de expender alcohol, la respectiva Licencia Municipal de Licores.</p>
+
+      <h3>2. Protocolo de Embalaje Seguro</h3>
+      <p>Todo pedido despachado mediante la modalidad de delivery debe entregarse con precinto de seguridad intacto (sellado térmico, etiquetas adhesivas de garantía o grapas en bolsas kraft). Una vez entregado el paquete vulnerado al repartidor, el restaurante responde por faltantes.</p>
+
+      <h3>3. Comisión de Intermediación y Cortes de Caja</h3>
+      <p>Tropicalia retiene una comisión por intermediación tecnológica del 10% sobre el subtotal bruto de alimentos de cada orden completada. Los montos netos resultantes son liquidados en cortes de turno diarios vía Pago Móvil o transferencia bancaria previa conciliación administrativa.</p>
+
+      <h3>4. Emisión de Factura Fiscal</h3>
+      <p>El comercio está en la obligación de emitir el ticket fiscal o comprobante de compra conforme a las providencias del SENIAT al cliente final dentro del paquete entregado.</p>
+    </article>
+
+    <!-- 3. CONTRATO MERCANTIL DE REPARTIDORES -->
+    <article id="legal-delivery" class="legal-seccion">
+      <h2>Contrato de Prestación de Servicios Mercantiles Independientes</h2>
+
+      <div class="alerta-juridica">
+        Este vínculo es de naturaleza estrictamente mercantil y autónoma, sin relación de dependencia ni subordinación laboral bajo la LOTTT.
+      </div>
+
+      <h3>1. Autonomía Operativa</h3>
+      <p>El repartidor presta servicios de transporte y mensajería de forma independiente, con vehículo propio (moto, auto o bicicleta), asumiendo sus costos de mantenimiento, combustible, pólizas de responsabilidad civil vial y equipos de telefonía móvil.</p>
+
+      <h3>2. Libre Conexión</h3>
+      <p>El prestador no está sujeto a horarios fijos, exclusividad de servicio, ni órdenes jerárquicas; decide con absoluta libertad sus horas de disponibilidad activando o desactivando la función en su panel operativo.</p>
+
+      <h3>3. Manejo de Deuda y Recaudación de Efectivo</h3>
+      <p>Al cobrar órdenes en efectivo en nombre del comercio/plataforma, el repartidor actúa como mandatario de cobro temporal:</p>
+      <ul>
+        <li>Existe un tope máximo de retención de efectivo fijado en $20.00 USD.</li>
+        <li>Alcanzado dicho techo, el sistema restringe automáticamente nuevas carreras en efectivo hasta la amortización del saldo.</li>
+        <li>Para pedidos digitales, la plataforma retendrá de forma automática el 50% del flete generado para abonar a la deuda acumulada hasta liquidar el balance.</li>
+      </ul>
+
+      <h3>4. Requisitos Viales</h3>
+      <p>El repartidor debe mantener vigentes su Cédula de Identidad, Licencia de Conducir de grado correspondiente, Carnet de Circulación vehicular y Certificado Médico Vial expedido por colegio autorizado.</p>
+    </article>
+
+  </div>
+
+  <script>
+    function mostrarSeccionLegal(idSeccion) {
+      document.querySelectorAll('.btn-legal-tab').forEach(btn => {
+        btn.classList.toggle('activo', btn.dataset.tab === idSeccion);
+      });
+      document.querySelectorAll('.legal-seccion').forEach(sec => {
+        sec.classList.toggle('activa', sec.id === idSeccion);
+      });
+    }
+  </script>
+</body>
+</html>
