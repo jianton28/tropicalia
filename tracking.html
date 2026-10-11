@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estado de tu Pedido | Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Leaflet CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    .tracking-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 30px;
+    }
+    .stepper {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin: 25px 0;
+    }
+    .stepper::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 10%;
+      right: 10%;
+      height: 3px;
+      background: #333;
+      z-index: 0;
+    }
+    .step-item {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      flex: 1;
+    }
+    .step-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #262626;
+      border: 2px solid #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 6px auto;
+      font-size: 0.85rem;
+      color: #888;
+      transition: all 0.3s ease;
+    }
+    .step-item.activo .step-icon {
+      background: #fbbf24;
+      border-color: #fbbf24;
+      color: #000;
+      font-weight: bold;
+    }
+    .step-item.completado .step-icon {
+      background: #10b981;
+      border-color: #10b981;
+      color: #000;
+      font-weight: bold;
+    }
+    .step-label {
+      font-size: 0.75rem;
+      color: #888;
+      display: block;
+    }
+    .step-item.activo .step-label {
+      color: #fbbf24;
+      font-weight: bold;
+    }
+    #mapa-tracking {
+      width: 100%;
+      height: 320px;
+      border-radius: 10px;
+      border: 1px solid #333;
+      margin-top: 18px;
+    }
+    .codigo-box {
+      background: #242424;
+      border: 1px dashed #fbbf24;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="max-width: 640px; margin-top: 40px; margin-bottom: 60px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <a href="index.html" class="btn-secundario" style="text-decoration: none; font-size: 0.8rem; padding: 6px 12px;">← Volver al Menú</a>
+      <span id="label-orden-id" style="font-size: 0.85rem; color: #a3a3a3; font-family: monospace;">#ORD-......</span>
+    </div>
+
+    <!-- PANEL PRINCIPAL DE ESTADO -->
+    <div class="tracking-card">
+      <div style="text-align: center;">
+        <h1 id="tracking-titulo" style="font-size: 1.5rem; color: #fbbf24; margin: 0 0 4px 0;">Preparando tu pedido</h1>
+        <p id="tracking-restaurante-nombre" style="color: #a3a3a3; font-size: 0.9rem; margin: 0;">Restaurante</p>
+      </div>
+
+      <!-- LÍNEA DE TIEMPO INTERACTIVA -->
+      <div class="stepper">
+        <div id="step-1" class="step-item activo">
+          <div class="step-icon">1</div>
+          <span class="step-label">Pago / Espera</span>
+        </div>
+        <div id="step-2" class="step-item">
+          <div class="step-icon">2</div>
+          <span class="step-label">En Cocina</span>
+        </div>
+        <div id="step-3" class="step-item">
+          <div class="step-icon">3</div>
+          <span class="step-label">En Camino</span>
+        </div>
+        <div id="step-4" class="step-item">
+          <div class="step-icon">4</div>
+          <span class="step-label">Entregado</span>
+        </div>
+      </div>
+
+      <!-- DESCRIPCIÓN DEL ESTADO ACTUAL -->
+      <div id="banner-estado-desc" style="background: #222; border-left: 4px solid #fbbf24; padding: 12px; border-radius: 4px; font-size: 0.85rem; color: #f3f4f6;">
+        El restaurante ha recibido tu pedido y está alistando los ingredientes.
+      </div>
+
+      <!-- CÓDIGO DE SEGURIDAD PARA EL REPARTIDOR -->
+      <div id="bloque-codigo-entrega" class="codigo-box" style="display: none;">
+        <span style="font-size: 0.8rem; color: #a3a3a3; display: block;">Muestra este código al motorizado al recibir tu comida:</span>
+        <strong id="codigo-seguridad-cliente" style="font-size: 1.6rem; color: #10b981; letter-spacing: 4px; display: block; margin-top: 4px;">----</strong>
+      </div>
+
+      <!-- MAPA DINÁMICO (COCINA FIJA O REPARTIDOR EN MOVIMIENTO) -->
+      <div id="contenedor-mapa" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong id="mapa-subtitulo" style="font-size: 0.85rem; color: #a3a3a3;">📍 Ubicación del Restaurante</strong>
+          <span id="badge-tracking-tipo" style="font-size: 0.75rem; background: #262626; padding: 2px 8px; border-radius: 4px; color: #fbbf24;">Comanda en local</span>
+        </div>
+        <div id="mapa-tracking"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="tracking.js"></script>
+</body>
+</html>

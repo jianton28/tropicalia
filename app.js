@@ -570,6 +570,7 @@ if (formPedido) {
       actualizarCarrito();
       formPedido.reset();
       sincronizarMetodosEntregaYPago();
+      window.location.href = `tracking.html?order_id=${orden.id}`;
 
     } catch (error) {
       alert('Hubo un error al procesar el pedido: ' + error.message);
