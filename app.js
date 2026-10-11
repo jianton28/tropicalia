@@ -589,3 +589,29 @@ document.addEventListener('DOMContentLoaded', () => {
   obtenerRestaurantes();
   suscribirNegociosRealtime();
 });
+async function actualizarBotonAcceso() {
+  const btnAuth = document.getElementById('btn-nav-auth');
+  if (!btnAuth) return;
+
+  const { data: { session } } = await db.auth.getSession();
+
+  if (session && session.user) {
+    const rol = session.user.user_metadata?.role;
+    btnAuth.innerText = 'Panel';
+
+    if (rol === 'restaurant') {
+      btnAuth.href = 'cocina.html';
+    } else if (rol === 'delivery') {
+      btnAuth.href = 'delivery.html';
+    } else if (rol === 'admin') {
+      btnAuth.href = 'admin.html';
+    } else {
+      btnAuth.href = 'portal.html';
+    }
+  } else {
+    btnAuth.innerText = 'Iniciar Sesión';
+    btnAuth.href = 'portal.html';
+  }
+}
+
+actualizarBotonAcceso();
