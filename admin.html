@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Administración y Conciliación | Tropicalia</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .admin-container {
+      max-width: 1100px;
+      margin: 30px auto 60px auto;
+      padding: 0 16px;
+    }
+    .admin-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-tab {
+      background: #1c1c1c;
+      border: 1px solid #333;
+      color: #a3a3a3;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+    .btn-tab.activo {
+      background: #fbbf24;
+      color: #000;
+      border-color: #fbbf24;
+    }
+    .seccion-tab {
+      display: none;
+    }
+    .seccion-tab.activa {
+      display: block;
+    }
+    .tabla-admin {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 0.85rem;
+    }
+    .tabla-admin th, .tabla-admin td {
+      border: 1px solid #2a2a2a;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .tabla-admin th {
+      background: #222;
+      color: #fbbf24;
+    }
+    .badge-estado {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .badge-pendiente { background: #6366f1; color: #fff; }
+    .badge-aprobado { background: #10b981; color: #000; }
+    .badge-rechazado { background: #ef4444; color: #fff; }
+    .btn-accion-mini {
+      padding: 5px 10px;
+      border-radius: 4px;
+      border: none;
+      font-size: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-aprobar { background: #10b981; color: #000; }
+    .btn-aprobar:hover { background: #059669; }
+    .btn-rechazar { background: #ef4444; color: #fff; }
+    .btn-rechazar:hover { background: #dc2626; }
+    .btn-ver-doc { background: #262626; color: #fbbf24; border: 1px solid #444; text-decoration: none; display: inline-block; padding: 4px 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="admin-container">
+    
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <h1 style="color: #fbbf24; font-size: 1.8rem; margin: 0;">Consola Administrativa</h1>
+        <p style="color: #a3a3a3; font-size: 0.85rem; margin: 4px 0 0 0;">Conciliación de pagos, altas operativas y liquidaciones</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button onclick="cargarDatosActuales()" class="btn-secundario" style="font-size: 0.8rem; padding: 6px 12px;">🔄 Refrescar</button>
+        <button onclick="cerrarSesionAdmin()" class="btn-secundario" style="font-size: 0.8rem; padding: 6px 12px;">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- NAVEGACIÓN POR PESTAÑAS -->
+    <nav class="admin-nav">
+      <button class="btn-tab activo" data-tab="tab-pagos" onclick="cambiarTab('tab-pagos')">
+        💳 Conciliación de Pagos Móvil
+      </button>
+      <button class="btn-tab" data-tab="tab-locales" onclick="cambiarTab('tab-locales')">
+        👨‍🍳 Expedientes de Restaurantes
+      </button>
+      <button class="btn-tab" data-tab="tab-liquidaciones" onclick="cambiarTab('tab-liquidaciones')">
+        📋 Liquidaciones de Turno (Cortes)
+      </button>
+    </nav>
+
+    <!-- 1. TAB: CONCILIACIÓN DE PAGOS MÓVIL PENDIENTES -->
+    <section id="tab-pagos" class="seccion-tab activa">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.2rem; margin: 0;">Pagos Reportados por Clientes</h2>
+        <span style="font-size: 0.8rem; color: #a3a3a3;">Solo las órdenes aprobadas pasan a preparación en cocina</span>
+      </div>
+
+      <table class="tabla-admin">
+        <thead>
+          <tr>
+            <th>Orden / Cliente</th>
+            <th>Restaurante</th>
+            <th>Monto ($ / Bs)</th>
+            <th>Referencia</th>
+            <th>Comprobante</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-pagos-cuerpo">
+          <tr><td colspan="6" style="text-align: center; color: #888;">Cargando pagos pendientes...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 2. TAB: EXPEDIENTES DE COMERCIOS -->
+    <section id="tab-locales" class="seccion-tab">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.2rem; margin: 0;">Restaurantes Pendientes de Verificación</h2>
+        <span style="font-size: 0.8rem; color: #a3a3a3;">Revisa RIF y Certificados Sanitarios antes de activar</span>
+      </div>
+
+      <table class="tabla-admin">
+        <thead>
+          <tr>
+            <th>Restaurante / Contacto</th>
+            <th>RIF</th>
+            <th>Cédula / RIF</th>
+            <th>Permiso Sanitario</th>
+            <th>Licencia Licores</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-locales-cuerpo">
+          <tr><td colspan="6" style="text-align: center; color: #888;">Cargando expedientes...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3. TAB: LIQUIDACIONES Y CORTES DE CAJA -->
+    <section id="tab-liquidaciones" class="seccion-tab">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 1.2rem; margin: 0;">Cortes de Caja Enviados por Restaurantes</h2>
+        <span style="font-size: 0.8rem; color: #a3a3a3;">Monto neto a transferir tras descontar comisión (10%)</span>
+      </div>
+
+      <table class="tabla-admin">
+        <thead>
+          <tr>
+            <th>Restaurante</th>
+            <th>Fecha Corte</th>
+            <th>Neto Liquidable</th>
+            <th>Estado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-cortes-cuerpo">
+          <tr><td colspan="5" style="text-align: center; color: #888;">Cargando solicitudes de corte...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
