@@ -6,6 +6,82 @@
   <title>Confirmar Pedido | Tropicalia</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .metodos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+      margin-bottom: 16px;
+    }
+    .metodo-card {
+      background: #161616;
+      border: 1.5px solid #2e2e2e;
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      user-select: none;
+    }
+    .metodo-card:hover {
+      border-color: #555;
+      background: #1c1c1c;
+    }
+    .metodo-card.activo {
+      background: rgba(251, 191, 36, 0.12);
+      border-color: var(--gold, #fbbf24);
+      box-shadow: 0 0 0 1px var(--gold, #fbbf24);
+    }
+    .metodo-card .icono {
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .metodo-card .titulo {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+    .metodo-card.activo .titulo {
+      color: var(--gold, #fbbf24);
+    }
+    .panel-metodo-dinamico {
+      background: #141414;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .grid-2-cols {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .datos-receptor-box {
+      background: rgba(251, 191, 36, 0.08);
+      border-left: 3px solid var(--gold, #fbbf24);
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+      font-size: 0.83rem;
+      color: #d1d5db;
+    }
+    .badge-distancia {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid #10b981;
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
 
@@ -16,13 +92,13 @@
     </div>
   </nav>
 
-  <main class="container" style="max-width: 680px; margin-top: 28px; margin-bottom: 80px;">
+  <main class="container" style="max-width: 700px; margin-top: 28px; margin-bottom: 80px;">
     
-    <!-- RESUMEN DE PLATOS -->
+    <!-- RESUMEN DE PLATOS Y TARIFA DINÁMICA -->
     <section class="card" style="margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
         <h2 style="font-size: 1.15rem; margin: 0;">🛒 Tu Carrito (<span id="checkout-local-nombre">Restaurante</span>)</h2>
-        <button onclick="vaciarCarritoCheckout()" class="btn-secundario" style="font-size: 0.75rem; padding: 4px 10px; color: #fca5a5;">Vaciar</button>
+        <button type="button" onclick="vaciarCarritoCheckout()" class="btn-secundario" style="font-size: 0.75rem; padding: 4px 10px; color: #fca5a5;">Vaciar</button>
       </div>
 
       <div id="lista-items-checkout"></div>
@@ -32,9 +108,9 @@
           <span style="color: var(--text-muted);">Subtotal Comida:</span>
           <strong id="chk-subtotal">$0.00</strong>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span style="color: var(--text-muted);">Costo de Delivery:</span>
-          <strong id="chk-delivery">$2.50</strong>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="color: var(--text-muted);">Costo de Delivery <small id="chk-distancia-label" style="color:#fbbf24;">(Según distancia)</small>:</span>
+          <strong id="chk-delivery">$1.50</strong>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
           <span style="color: var(--text-muted);">Propina Motorizado:</span>
@@ -52,33 +128,55 @@
 
     <!-- FORMULARIO DE ENTREGA Y PAGO -->
     <form id="form-checkout" class="card">
-      <h3 style="margin-top: 0; color: var(--gold); font-size: 1.1rem;">Datos de Entrega y Pago</h3>
+      <h3 style="margin-top: 0; color: var(--gold); font-size: 1.1rem;">1. Datos de Contacto y Entrega</h3>
 
-      <label>Nombre y Apellido:</label>
-      <input type="text" id="chk-nombre" required placeholder="Ej: Jimmie Hamilton" />
-
-      <label>Teléfono (WhatsApp activo):</label>
-      <input type="tel" id="chk-telefono" required placeholder="Ej: 04121234567" />
+      <div class="grid-2-cols">
+        <div>
+          <label>Nombre y Apellido:</label>
+          <input type="text" id="chk-nombre" required placeholder="Ej: Jimmie Hamilton" />
+        </div>
+        <div>
+          <label>Teléfono (WhatsApp activo):</label>
+          <input type="tel" id="chk-telefono" required placeholder="Ej: 04141234567" />
+        </div>
+      </div>
 
       <label>Modalidad de Entrega:</label>
       <select id="chk-modalidad" onchange="recalcularTotalesCheckout()">
-        <option value="delivery">🛵 Delivery hasta tu puerta ($2.50)</option>
-        <option value="pickup">🛍️ Retiro personalmente en el local (Gratis)</option>
+        <option value="delivery">🛵 Delivery hasta tu puerta (Cobro justo por distancia)</option>
+        <option value="pickup">🛍️ Retiro personalmente en el local (Gratis - $0.00)</option>
       </select>
 
-      <!-- BLOQUE EXCLUSIVO DE UBICACIÓN DELIVERY -->
-      <div id="bloque-direccion-delivery">
-        <label>Ubicación de Entrega:</label>
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <button type="button" id="btn-capturar-gps" onclick="obtenerUbicacionGPSCliente()" class="btn-secundario" style="width: 100%; border-color: var(--gold); color: var(--gold);">
-            📍 Usar mi ubicación GPS actual
-          </button>
+      <!-- BLOQUE EXCLUSIVO DE UBICACIÓN Y CÁLCULO DE DISTANCIA -->
+      <div id="bloque-direccion-delivery" style="background: #141414; border: 1px solid #262626; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+          <label style="margin: 0;">Cálculo de Distancia y Ubicación:</label>
+          <span id="badge-km-calculados" class="badge-distancia">📍 Calcula tu tarifa con GPS</span>
         </div>
-        <input type="hidden" id="chk-map-url" />
-        <textarea id="chk-direccion" rows="2" placeholder="Punto de referencia, edificio/casa o pulsa el botón GPS arriba..."></textarea>
 
-        <label>Propina voluntaria para el repartidor:</label>
-        <select id="chk-select-propina" onchange="recalcularTotalesCheckout()">
+        <div class="grid-2-cols" style="margin-bottom: 8px; align-items: center;">
+          <button type="button" id="btn-capturar-gps" onclick="obtenerUbicacionGPSCliente()" class="btn-secundario" style="width: 100%; border-color: var(--gold); color: var(--gold); padding: 10px;">
+            📍 Calcular con mi GPS actual
+          </button>
+
+          <div>
+            <select id="chk-distancia-manual" onchange="seleccionarDistanciaManual()" style="margin: 0;">
+              <option value="1.5">Distancia estimada (si no usas GPS): ~1.5 km ($1.50)</option>
+              <option value="0.5">Muy cerca (2 a 5 cuadras / &lt; 1 km) — $1.00</option>
+              <option value="2.0">Media distancia (1.5 a 2.5 km) — $1.75</option>
+              <option value="3.5">Zona intermedia (3 a 4 km) — $2.25</option>
+              <option value="5.5">Zona lejana (5 a 6 km) — $3.25</option>
+              <option value="8.0">Extrema (&gt; 7 km) — $4.50</option>
+            </select>
+          </div>
+        </div>
+
+        <input type="hidden" id="chk-map-url" />
+        <label>Dirección exacta / Punto de referencia:</label>
+        <textarea id="chk-direccion" rows="2" placeholder="Urbanización, calle, edificio/casa y punto de referencia..."></textarea>
+
+        <label style="margin-top: 6px;">Propina voluntaria para el motorizado:</label>
+        <select id="chk-select-propina" onchange="recalcularTotalesCheckout()" style="margin-bottom: 0;">
           <option value="0">$0.00 (Sin propina)</option>
           <option value="1">$1.00</option>
           <option value="2">$2.00</option>
@@ -87,29 +185,53 @@
       </div>
 
       <label>Notas de cocina / Alergias (opcional):</label>
-      <input type="text" id="chk-notas" placeholder="Ej: Sin cebolla, salsas aparte..." />
+      <input type="text" id="chk-notas" placeholder="Ej: Sin cebolla, cucharilla extra..." />
 
-      <label>Método de Pago:</label>
-      <select id="chk-metodo-pago" onchange="alternarBloquePagoMovil()">
-        <option value="pago_movil">📲 Pago Móvil (Recomendado)</option>
-        <option value="efectivo">💵 Efectivo en divisas ($)</option>
-      </select>
+      <!-- 2. SELECCIÓN DE MÉTODO DE PAGO DINÁMICO -->
+      <h3 style="margin-top: 22px; margin-bottom: 6px; color: var(--gold); font-size: 1.1rem;">2. Seleccionar Método de Abono</h3>
+      <input type="hidden" id="chk-metodo-pago" value="pago_movil" />
 
-      <!-- DATOS BANCARIOS PAGO MÓVIL -->
-      <div id="bloque-pago-movil" style="background: #161616; border: 1px dashed #444; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
-        <strong style="color: var(--gold); display: block; margin-bottom: 4px;">Pago Móvil Central Tropicalia:</strong>
-        <p style="margin: 0 0 10px 0; font-size: 0.85rem; color: #d1d5db;">
-          Banco: <strong>Banesco (0134)</strong> | RIF/CI: <strong>V-24.123.456</strong> | Tlf: <strong>0412-1234567</strong>
-        </p>
+      <div class="metodos-grid">
+        <div class="metodo-card activo" data-metodo="pago_movil" onclick="seleccionarMetodoPago('pago_movil')">
+          <span class="icono">📲</span>
+          <span class="titulo">Pago Móvil</span>
+        </div>
+        <div class="metodo-card" data-metodo="binance" onclick="seleccionarMetodoPago('binance')">
+          <span class="icono">🟡</span>
+          <span class="titulo">Binance Pay (USDT)</span>
+        </div>
+        <div class="metodo-card" data-metodo="zelle" onclick="seleccionarMetodoPago('zelle')">
+          <span class="icono">🟣</span>
+          <span class="titulo">Zelle</span>
+        </div>
+        <div class="metodo-card" data-metodo="zinli" onclick="seleccionarMetodoPago('zinli')">
+          <span class="icono">⚡</span>
+          <span class="titulo">Zinli</span>
+        </div>
+        <div class="metodo-card" data-metodo="punto" onclick="seleccionarMetodoPago('punto')">
+          <span class="icono">💳</span>
+          <span class="titulo">Punto (Tarjeta)</span>
+        </div>
+        <div class="metodo-card" data-metodo="efectivo" onclick="seleccionarMetodoPago('efectivo')">
+          <span class="icono">💵</span>
+          <span class="titulo">Efectivo Divisa ($)</span>
+        </div>
+        <div class="metodo-card" data-metodo="efectivo_bs" onclick="seleccionarMetodoPago('efectivo_bs')">
+          <span class="icono">🇻🇪</span>
+          <span class="titulo">Efectivo (Bs)</span>
+        </div>
+      </div>
 
-        <label>Últimos 6 dígitos de la referencia bancaria:</label>
-        <input type="text" id="chk-referencia" maxlength="8" placeholder="Ej: 849201" />
+      <!-- CONTENEDOR DINÁMICO DE CAMPOS SEGÚN EL MÉTODO -->
+      <div id="contenedor-campos-pago" class="panel-metodo-dinamico"></div>
 
-        <label>Adjuntar captura del comprobante:</label>
+      <!-- CAMPO DE CAPTURA DE PANTALLA (SOLO PARA PAGOS DIGITALES) -->
+      <div id="bloque-captura-digital" style="margin-bottom: 16px;">
+        <label>Adjuntar comprobante / captura de pago (Recomendado para agilizar):</label>
         <input type="file" id="chk-captura" accept="image/*" />
       </div>
 
-      <!-- TÉRMINOS Y CONDICIONES (SE OCULTA SI YA TIENE SESIÓN) -->
+      <!-- TÉRMINOS Y CONDICIONES -->
       <div id="bloque-tyc-checkout" style="margin-bottom: 16px;">
         <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #d1d5db;">
           <input type="checkbox" id="chk-tyc" style="width: auto; margin-top: 4px;" required />
