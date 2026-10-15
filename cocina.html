@@ -7,21 +7,60 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .scroll-box {
+      max-height: 270px;
+      overflow-y: auto;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      background: #121212;
+    }
+    .scroll-box::-webkit-scrollbar { width: 6px; }
+    .scroll-box::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid #1f1f1f;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row:hover { background: #181818; }
+    .filter-pills { display: flex; gap: 6px; }
+    .pill-btn {
+      background: #1f1f1f;
+      color: #9ca3af;
+      border: 1px solid #333;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pill-btn.active {
+      background: var(--gold, #fbbf24);
+      color: #000;
+      border-color: var(--gold, #fbbf24);
+      font-weight: 700;
+    }
+  </style>
 </head>
 <body>
 
-  <div class="container" style="margin-top: 28px; margin-bottom: 80px;">
+  <div class="container" style="margin-top: 24px; margin-bottom: 80px;">
     
     <!-- CABECERA -->
     <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
       <div>
         <h1 id="cocina-titulo" style="margin: 0; font-size: 1.6rem; color: var(--gold);">Restaurante - Operaciones</h1>
-        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">Comandas en tiempo real, catálogo, inventario y cierres</p>
+        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">Comandas en vivo, recetas inteligentes, stock y métricas</p>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="btn-estado-local" onclick="toggleEstadoLocal()" class="btn-toggle activo">🟢 Local Abierto</button>
+        <button id="btn-estado-local" type="button" onclick="toggleEstadoLocal()" class="btn-toggle activo">🟢 Local Abierto</button>
         <a href="index.html" class="btn-secundario">👀 Ver Tienda</a>
-        <button onclick="cerrarSesionCocina()" class="btn-secundario">Salir</button>
+        <button id="btn-salir-cocina" type="button" onclick="cerrarSesionCocina()" class="btn-secundario" style="border-color: var(--red); color: #fca5a5;">🚪 Salir</button>
       </div>
     </header>
 
@@ -30,216 +69,232 @@
       🔒 <strong>Protocolo Tropicalia:</strong> Toda orden debe entregarse al motorizado con precinto de seguridad o grapas intactas.
     </div>
 
-    <!-- 1. COMANDAS ACTIVAS CON INDICADOR DE ETA -->
-    <section style="margin-top: 28px;">
+    <!-- 1. COMANDAS ACTIVAS -->
+    <section style="margin-top: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h2 style="font-size: 1.25rem; margin: 0;">🔥 Comandas en Preparación y Despacho</h2>
-        <button onclick="cargarComandasCocina()" class="btn-secundario" style="padding: 4px 10px; font-size: 0.8rem;">🔄 Actualizar</button>
+        <button type="button" onclick="cargarComandasCocina()" class="btn-secundario" style="padding: 5px 12px; font-size: 0.8rem;">🔄 Actualizar</button>
       </div>
       <div id="grid-comandas" class="grid-cards">
         <p style="color: #888;">Cargando comandas confirmadas...</p>
       </div>
     </section>
 
-    <!-- 2. GESTIÓN DEL MENÚ Y CATÁLOGO DE PLATOS -->
-    <section class="card" style="margin-top: 38px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
-        <h2 style="font-size: 1.25rem; margin: 0; color: var(--gold);">🍔 Gestión de Menú y Platos</h2>
-        <input type="text" id="buscador-menu" placeholder="🔍 Buscar plato por nombre..." oninput="filtrarMenuCocina()" style="max-width: 280px; margin: 0;" />
+    <!-- 2. LIQUIDACIÓN Y CIERRE DE TURNO (ARRIBA DESPUÉS DE COMANDAS) -->
+    <section class="card" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-left: 4px solid var(--gold);">
+      <div>
+        <h3 style="margin: 0; color: var(--gold); font-size: 1.1rem;">📋 Liquidación y Cierre de Turno</h3>
+        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
+          Ventas App Entregadas Hoy: <strong id="corte-bruto" style="color: #fff;">$0.00</strong> • Neto a Recibir (90%): <strong id="corte-neto" style="color: #34d399;">$0.00</strong> • Salón Hoy: <strong id="corte-salon" style="color: #fbbf24;">$0.00</strong>
+        </p>
       </div>
-
-      <!-- Formulario rápido para agregar nuevo plato -->
-      <form id="form-nuevo-plato" style="background: #161616; padding: 14px; border-radius: 8px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) 120px; gap: 10px; align-items: flex-end;">
-        <div>
-          <label>Nombre del Plato:</label>
-          <input type="text" id="nuevo-plato-nombre" required placeholder="Ej: Burger Especial" style="margin:0;" />
-        </div>
-        <div>
-          <label>Precio ($):</label>
-          <input type="number" step="0.01" id="nuevo-plato-precio" required placeholder="6.50" style="margin:0;" />
-        </div>
-        <div>
-          <label>Stock inicial:</label>
-          <input type="number" id="nuevo-plato-stock" value="50" required style="margin:0;" />
-        </div>
-        <button type="submit" class="btn-primario" style="height: 42px;">+ Agregar</button>
-      </form>
-
-      <div id="tabla-menu-container" style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
-          <thead>
-            <tr style="border-bottom: 1px solid #333; color: var(--text-muted);">
-              <th style="padding: 8px;">Plato</th>
-              <th style="padding: 8px;">Precio ($)</th>
-              <th style="padding: 8px;">Stock App</th>
-              <th style="padding: 8px;">Estado</th>
-              <th style="padding: 8px; text-align: right;">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-menu">
-            <tr><td colspan="5" style="padding: 12px; color: #888;">Cargando menú...</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <button type="button" onclick="solicitarCorteCaja()" class="btn-primario">Solicitar Liquidación de Turno</button>
     </section>
 
-    <!-- 3. GESTIÓN DE INSUMOS Y ALERTA DE STOCK BAJO -->
-    <section class="card" style="margin-top: 38px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
-        <div>
-          <h2 style="font-size: 1.25rem; margin: 0; color: #34d399;">📦 Inventario e Insumos Críticos</h2>
-          <small style="color: var(--text-muted);">Control de azúcar, cucharillas, empaques y materia prima</small>
+    <!-- 3. PANEL DOBLE COMPACTO: MENÚ Y CONTROL DE INVENTARIO -->
+    <section style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px;">
+      
+      <!-- COLUMNA A: GESTIÓN DE MENÚ Y PLATOS -->
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+          <div>
+            <h2 style="font-size: 1.15rem; margin: 0; color: var(--gold);">🍔 Menú y Recetas</h2>
+            <small style="color: var(--text-muted);">Se bloquean solos si falta algún ingrediente</small>
+          </div>
+          <button type="button" onclick="document.getElementById('box-nuevo-plato').style.display = document.getElementById('box-nuevo-plato').style.display === 'none' ? 'grid' : 'none'" class="btn-secundario" style="padding: 4px 10px; font-size: 0.78rem;">+ Nuevo Plato</button>
         </div>
-        <input type="text" id="buscador-insumos" placeholder="🔍 Buscar insumo..." oninput="filtrarInsumosCocina()" style="max-width: 280px; margin: 0;" />
+
+        <!-- Formulario colapsable para agregar nuevo plato -->
+        <form id="box-nuevo-plato" style="display: none; background: #161616; padding: 12px; border-radius: 8px; margin-bottom: 12px; grid-template-columns: 1fr 80px 70px auto; gap: 8px; align-items: flex-end;">
+          <div>
+            <label style="font-size: 0.75rem;">Nombre:</label>
+            <input type="text" id="nuevo-plato-nombre" required placeholder="Ej: Pasticho" style="margin:0; padding:6px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem;">Precio ($):</label>
+            <input type="number" step="0.01" id="nuevo-plato-precio" required placeholder="8.00" style="margin:0; padding:6px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem;">Stock:</label>
+            <input type="number" id="nuevo-plato-stock" value="50" required style="margin:0; padding:6px;" />
+          </div>
+          <button type="submit" class="btn-primario" style="padding: 8px 12px;">Guardar</button>
+        </form>
+
+        <input type="text" id="buscador-menu" placeholder="🔍 Buscar plato para editar o ver receta..." oninput="filtrarMenuCocina()" style="margin-bottom: 10px;" />
+
+        <div id="lista-menu-compacta" class="scroll-box">
+          <p style="padding: 12px; color: #888; margin: 0;">Cargando platos...</p>
+        </div>
       </div>
 
-      <!-- Alerta de insumos por agotarse -->
-      <div id="alerta-insumos-bajos" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--red); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 0.85rem; color: #fca5a5;">
-        ⚠️ <strong>¡Atención!</strong> Hay insumos cercanos o por debajo del stock mínimo recomendado.
+      <!-- COLUMNA B: CONTROL DE INVENTARIO E INSUMOS CRÍTICOS -->
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+          <div>
+            <h2 style="font-size: 1.15rem; margin: 0; color: #34d399;">📦 Insumos Críticos y Stock</h2>
+            <small style="color: var(--text-muted);">Alertas en vivo y reposición rápida</small>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="btn-filtro-criticos" onclick="cambiarFiltroInsumos('criticos')" class="pill-btn active">⚠️ Críticos</button>
+            <button type="button" id="btn-filtro-todos" onclick="cambiarFiltroInsumos('todos')" class="pill-btn">Todos</button>
+            <button type="button" onclick="document.getElementById('box-nuevo-insumo').style.display = document.getElementById('box-nuevo-insumo').style.display === 'none' ? 'grid' : 'none'" class="btn-secundario" style="padding: 4px 10px; font-size: 0.78rem;">+ Insumo</button>
+          </div>
+        </div>
+
+        <div id="alerta-insumos-bajos" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--red); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem; color: #fca5a5;"></div>
+
+        <!-- Formulario colapsable para agregar nuevo insumo -->
+        <form id="box-nuevo-insumo" style="display: none; background: #161616; padding: 12px; border-radius: 8px; margin-bottom: 12px; grid-template-columns: 1fr 70px 60px 60px auto; gap: 8px; align-items: flex-end;">
+          <div>
+            <label style="font-size: 0.75rem;">Insumo:</label>
+            <input type="text" id="insumo-nombre" required placeholder="Ej: Mozzarella" style="margin:0; padding:6px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem;">Cant:</label>
+            <input type="number" step="0.01" id="insumo-cantidad" value="1000" required style="margin:0; padding:6px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem;">Unidad:</label>
+            <input type="text" id="insumo-unidad" value="g" required style="margin:0; padding:6px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem;">Mín:</label>
+            <input type="number" step="0.01" id="insumo-min" value="200" required style="margin:0; padding:6px;" />
+          </div>
+          <button type="submit" class="btn-primario" style="padding: 8px 12px; background: #10b981;">Crear</button>
+        </form>
+
+        <input type="text" id="buscador-insumos" placeholder="🔍 Buscar cualquier insumo (ej: carne, tomate, envase)..." oninput="filtrarInsumosCocina()" style="margin-bottom: 10px;" />
+
+        <div id="lista-insumos-compacta" class="scroll-box">
+          <p style="padding: 12px; color: #888; margin: 0;">Cargando inventario...</p>
+        </div>
       </div>
 
-      <!-- Formulario para agregar nuevo insumo -->
-      <form id="form-nuevo-insumo" style="background: #161616; padding: 14px; border-radius: 8px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) 100px 100px 120px; gap: 10px; align-items: flex-end;">
-        <div>
-          <label>Insumo:</label>
-          <input type="text" id="insumo-nombre" required placeholder="Ej: Cucharillas / Azúcar" style="margin:0;" />
-        </div>
-        <div>
-          <label>Cantidad:</label>
-          <input type="number" step="0.1" id="insumo-cantidad" value="50" required style="margin:0;" />
-        </div>
-        <div>
-          <label>Unidad:</label>
-          <input type="text" id="insumo-unidad" value="und" required style="margin:0;" />
-        </div>
-        <div>
-          <label>Mínimo alerta:</label>
-          <input type="number" id="insumo-min" value="10" required style="margin:0;" />
-        </div>
-        <button type="submit" class="btn-primario" style="height: 42px; background: #10b981;">+ Insumo</button>
-      </form>
-
-      <div id="tabla-insumos-container" style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
-          <thead>
-            <tr style="border-bottom: 1px solid #333; color: var(--text-muted);">
-              <th style="padding: 8px;">Insumo</th>
-              <th style="padding: 8px;">Cantidad Actual</th>
-              <th style="padding: 8px;">Alerta Mínima</th>
-              <th style="padding: 8px;">Estado Stock</th>
-              <th style="padding: 8px; text-align: right;">Ajustar / Reponer</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-insumos">
-            <tr><td colspan="5" style="padding: 12px; color: #888;">Cargando inventario...</td></tr>
-          </tbody>
-        </table>
-      </div>
     </section>
 
-    <!-- 4. VENTA EN SALÓN Y MERMAS -->
-    <section style="margin-top: 38px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    <!-- 4. VENTA FÍSICA EN SALÓN Y REGISTRO DE MERMAS REALES -->
+    <section style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
       
       <div class="card">
         <h3 style="margin-top: 0; color: #34d399; font-size: 1.05rem;">💵 Registrar Venta en Salón (Mostrador)</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Descuenta stock del plato vendido en físico sin comisión de app.</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Descuenta automáticamente los ingredientes de la receta y suma a tus métricas.</p>
         <form id="form-venta-salon">
-          <label>Plato vendido:</label>
+          <label>Plato vendido (solo platos con insumos suficientes):</label>
           <select id="select-plato-salon" required></select>
           <label>Cantidad vendida:</label>
           <input type="number" id="cant-venta-salon" min="1" value="1" required />
-          <button type="submit" class="btn-primario" style="width: 100%; background: #10b981;">Registrar Venta en Mostrador</button>
+          <button type="submit" class="btn-primario" style="width: 100%; background: #10b981;">Registrar Venta y Descontar Insumos</button>
         </form>
       </div>
 
       <div class="card">
-        <h3 style="margin-top: 0; color: #f87171; font-size: 1.05rem;">🗑️ Reportar Merma de Materia Prima</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Registra pérdidas por caducidad, daño o error de cocción.</p>
+        <h3 style="margin-top: 0; color: #f87171; font-size: 1.05rem;">🗑️ Reportar Merma (Descuento Real de Stock)</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Resta del inventario los insumos dañados o los ingredientes de un plato perdido.</p>
         <form id="form-merma">
-          <label>Insumo o Plato afectado:</label>
-          <input type="text" id="merma-insumo" required placeholder="Ej: Tomate / Queso" style="margin-bottom: 8px;" />
-          <label>Cantidad dada de baja:</label>
-          <input type="number" id="merma-cantidad" step="0.01" min="0.1" value="1" required style="margin-bottom: 8px;" />
-          <label>Motivo:</label>
-          <input type="text" id="merma-motivo" required placeholder="Ej: Dañado" style="margin-bottom: 8px;" />
-          <button type="submit" class="btn-secundario" style="width: 100%; border-color: var(--red); color: #fca5a5;">Asentar Baja por Merma</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label>Tipo de baja:</label>
+              <select id="merma-tipo" onchange="actualizarSelectorMerma()">
+                <option value="insumo">Insumo directo</option>
+                <option value="plato">Plato preparado (Receta)</option>
+              </select>
+            </div>
+            <div>
+              <label>Ítem afectado:</label>
+              <select id="merma-item-id" required></select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 110px 1fr; gap: 8px;">
+            <div>
+              <label>Cantidad:</label>
+              <input type="number" id="merma-cantidad" step="0.01" min="0.1" value="1" required />
+            </div>
+            <div>
+              <label>Motivo de la merma:</label>
+              <input type="text" id="merma-motivo" required placeholder="Ej: Quemado / Caducado" />
+            </div>
+          </div>
+          <button type="submit" class="btn-secundario" style="width: 100%; border-color: var(--red); color: #fca5a5;">Descontar de Inventario y Asentar Merma</button>
         </form>
       </div>
 
     </section>
 
-    <!-- 5. CIERRE DE CAJA -->
-    <section class="card" style="margin-top: 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-      <div>
-        <h3 style="margin: 0; color: var(--gold);">📋 Liquidación y Cierre de Turno</h3>
-        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
-          Ventas App Entregadas Hoy: <strong id="corte-bruto" style="color: #fff;">$0.00</strong> • Neto a Recibir (90%): <strong id="corte-neto" style="color: #34d399;">$0.00</strong>
-        </p>
+    <!-- 5. GRÁFICOS Y MÉTRICAS FINANCIERAS CON FILTRO (DÍA, SEMANA, MES, AÑO) -->
+    <section class="card" style="margin-top: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.2rem; margin: 0; color: var(--gold);">📈 Rendimiento Financiero y Ventas (App + Salón)</h2>
+        <div class="filter-pills">
+          <button type="button" id="btn-chart-dia" onclick="cambiarPeriodoGrafico('dia')" class="pill-btn">Día</button>
+          <button type="button" id="btn-chart-semana" onclick="cambiarPeriodoGrafico('semana')" class="pill-btn active">Semana</button>
+          <button type="button" id="btn-chart-mes" onclick="cambiarPeriodoGrafico('mes')" class="pill-btn">Mes</button>
+          <button type="button" id="btn-chart-anio" onclick="cambiarPeriodoGrafico('anio')" class="pill-btn">Año</button>
+        </div>
       </div>
-      <button onclick="solicitarCorteCaja()" class="btn-primario">Solicitar Liquidación de Turno</button>
-    </section>
-
-  </div>
-
-  <script src="cocina.js"></script>
-  <!-- 6. GRÁFICOS Y MÉTRICAS FINANCIERAS (DÍA, SEMANA, MES, AÑO) -->
-    <section class="card" style="margin-top: 38px;">
-      <h2 style="font-size: 1.25rem; margin-top: 0; color: var(--gold); margin-bottom: 16px;">📈 Rendimiento Financiero y Ventas</h2>
       
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-        <div style="background: #161616; padding: 14px; border-radius: 8px; border-left: 3px solid var(--green);">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+        <div style="background: #161616; padding: 12px; border-radius: 8px; border-left: 3px solid var(--green);">
           <small style="color: var(--text-muted);">Ventas Hoy</small>
-          <h3 id="stat-dia" style="margin: 4px 0 0 0; color: #fff; font-size: 1.3rem;">$0.00</h3>
+          <h3 id="stat-dia" style="margin: 4px 0 0 0; color: #fff; font-size: 1.25rem;">$0.00</h3>
         </div>
-        <div style="background: #161616; padding: 14px; border-radius: 8px; border-left: 3px solid var(--gold);">
+        <div style="background: #161616; padding: 12px; border-radius: 8px; border-left: 3px solid var(--gold);">
           <small style="color: var(--text-muted);">Ventas Esta Semana</small>
-          <h3 id="stat-semana" style="margin: 4px 0 0 0; color: #fff; font-size: 1.3rem;">$0.00</h3>
+          <h3 id="stat-semana" style="margin: 4px 0 0 0; color: #fff; font-size: 1.25rem;">$0.00</h3>
         </div>
-        <div style="background: #161616; padding: 14px; border-radius: 8px; border-left: 3px solid #3b82f6;">
+        <div style="background: #161616; padding: 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
           <small style="color: var(--text-muted);">Ventas Este Mes</small>
-          <h3 id="stat-mes" style="margin: 4px 0 0 0; color: #fff; font-size: 1.3rem;">$0.00</h3>
+          <h3 id="stat-mes" style="margin: 4px 0 0 0; color: #fff; font-size: 1.25rem;">$0.00</h3>
         </div>
-        <div style="background: #161616; padding: 14px; border-radius: 8px; border-left: 3px solid #a855f7;">
+        <div style="background: #161616; padding: 12px; border-radius: 8px; border-left: 3px solid #a855f7;">
           <small style="color: var(--text-muted);">Ventas Este Año</small>
-          <h3 id="stat-anio" style="margin: 4px 0 0 0; color: #fff; font-size: 1.3rem;">$0.00</h3>
+          <h3 id="stat-anio" style="margin: 4px 0 0 0; color: #fff; font-size: 1.25rem;">$0.00</h3>
         </div>
       </div>
 
-      <div style="position: relative; height: 260px; width: 100%;">
+      <div style="position: relative; height: 250px; width: 100%;">
         <canvas id="chartVentas"></canvas>
       </div>
     </section>
-    <!-- MODAL DE CONFIGURACIÓN DE RECETA -->
-<div id="modal-receta" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
-  <div class="card" style="width: 90%; max-width: 500px; background: #1a1a1a; border: 1px solid var(--gold);">
-    <h3 id="modal-receta-titulo" style="margin-top: 0; color: var(--gold);">Configurar Receta</h3>
-    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">Indica qué insumos y qué cantidad consume este plato al venderse.</p>
 
-    <form id="form-agregar-ingrediente" style="display: flex; gap: 8px; margin-bottom: 14px;">
-      <select id="select-insumo-receta" required style="margin:0; flex: 2;"></select>
-      <input type="number" step="0.01" id="input-cantidad-ingrediente" placeholder="Cantidad" required style="margin:0; flex: 1;" />
-      <button type="submit" class="btn-primario" style="background: #10b981;">+ Añadir</button>
-    </form>
+  </div>
 
-    <div style="max-height: 200px; overflow-y: auto; margin-bottom: 14px; border: 1px solid #333; border-radius: 6px; padding: 8px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-        <thead>
-          <tr style="color: var(--text-muted); border-bottom: 1px solid #333;">
-            <th style="text-align: left; padding: 4px;">Ingrediente</th>
-            <th style="text-align: left; padding: 4px;">Cantidad</th>
-            <th style="text-align: right; padding: 4px;">Acción</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-ingredientes-receta">
-          <tr><td colspan="3" style="text-align: center; color: #888; padding: 10px;">Selecciona un plato.</td></tr>
-        </tbody>
-      </table>
-    </div>
+  <!-- MODAL DE CONFIGURACIÓN DE RECETA -->
+  <div id="modal-receta" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.82); z-index: 1000; justify-content: center; align-items: center;">
+    <div class="card" style="width: 92%; max-width: 520px; background: #181818; border: 1px solid var(--gold);">
+      <h3 id="modal-receta-titulo" style="margin-top: 0; color: var(--gold);">Configurar Receta</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">Asocia los insumos y cantidades que consume 1 unidad de este plato.</p>
 
-    <div style="text-align: right;">
-      <button type="button" onclick="cerrarModalReceta()" class="btn-secundario">Cerrar y Guardar</button>
+      <form id="form-agregar-ingrediente" style="display: flex; gap: 8px; margin-bottom: 14px;">
+        <select id="select-insumo-receta" required style="margin:0; flex: 2;"></select>
+        <input type="number" step="0.01" id="input-cantidad-ingrediente" placeholder="Cant." required style="margin:0; flex: 1;" />
+        <button type="submit" class="btn-primario" style="background: #10b981;">+ Añadir</button>
+      </form>
+
+      <div class="scroll-box" style="max-height: 200px; margin-bottom: 14px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+          <thead>
+            <tr style="color: var(--text-muted); border-bottom: 1px solid #262626;">
+              <th style="text-align: left; padding: 8px;">Ingrediente</th>
+              <th style="text-align: left; padding: 8px;">Por Plato</th>
+              <th style="text-align: left; padding: 8px;">En Stock</th>
+              <th style="text-align: right; padding: 8px;">Quitar</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ingredientes-receta">
+            <tr><td colspan="4" style="text-align: center; color: #888; padding: 10px;">Selecciona un plato.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="text-align: right;">
+        <button type="button" onclick="cerrarModalReceta()" class="btn-secundario">Cerrar y Actualizar</button>
+      </div>
     </div>
   </div>
-</div>
+
+  <!-- IMPORTANTE: El script va AL FINAL del body para que todos los elementos existan -->
+  <script src="cocina.js"></script>
 </body>
 </html>
