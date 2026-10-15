@@ -128,10 +128,10 @@
       </div>
 
       <div class="status-toggle-box">
-        <button id="btn-toggle-online" onclick="toggleDisponibilidad()" class="btn-toggle pausado">
+        <button id="btn-toggle-online" type="button" onclick="toggleDisponibilidad()" class="btn-toggle pausado">
           ⚪ Desconectado
         </button>
-        <button onclick="cerrarSesion()" class="btn-secundario" style="padding: 6px 12px; font-size: 0.8rem;">
+        <button type="button" onclick="cerrarSesion()" class="btn-secundario" style="padding: 6px 12px; font-size: 0.8rem;">
           Salir
         </button>
       </div>
@@ -148,7 +148,7 @@
         <strong id="wallet-deuda" style="color: #ef4444;">$0.00 / $20.00</strong>
       </div>
       <div class="wallet-item" style="display: flex; flex-direction: column; justify-content: center;">
-        <button id="btn-saldar-deuda" onclick="saldarDeudaConSaldo()" class="btn-primario" style="font-size: 0.8rem; padding: 8px;" disabled>
+        <button id="btn-saldar-deuda" type="button" onclick="saldarDeudaConSaldo()" class="btn-primario" style="font-size: 0.8rem; padding: 8px;" disabled>
           Amortizar Deuda con Saldo
         </button>
       </div>
@@ -156,7 +156,7 @@
 
     <!-- BANNER DE BLOQUEO POR TECHO DE DEUDA ($20) -->
     <div id="alerta-limite-deuda" class="alerta-deuda">
-      ⚠️ <strong>Has alcanzado el límite de $20 en efectivo:</strong> No puedes aceptar órdenes pagadas en efectivo. Solo recibirás carreras pagadas por Pago Móvil (se retendrá el 50% de cada flete para amortizar tu deuda) o salda tu deuda directamente.
+      ⚠️ <strong>Has alcanzado el límite de $20 en efectivo:</strong> No puedes aceptar órdenes pagadas en efectivo. Solo recibirás carreras pagadas por Pago Móvil o salda tu deuda directamente.
     </div>
 
     <!-- SECCIÓN DE MAPA ACTIVO Y RUTA -->
@@ -178,7 +178,7 @@
     <section style="margin-top: 35px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2 style="font-size: 1.2rem; margin: 0;">📦 Carreras Disponibles</h2>
-        <button onclick="cargarCarrerasDisponibles()" class="btn-secundario" style="padding: 4px 10px; font-size: 0.8rem;">
+        <button type="button" onclick="cargarCarrerasDisponibles()" class="btn-secundario" style="padding: 4px 10px; font-size: 0.8rem;">
           🔄 Actualizar
         </button>
       </div>

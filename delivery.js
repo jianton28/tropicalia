@@ -4,19 +4,16 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Variables de estado local
 let driverUser = null;
 let driverPerfil = null;
 let driverWallet = null;
 let pedidoActivo = null;
 let mapaLeaflet = null;
 let marcadorDriver = null;
-let marcadorDestino = null;
 let canalRealtime = null;
 
 const TECHO_DEUDA = 20.00;
 
-// Elementos DOM
 const driverNombreEl = document.getElementById('driver-nombre');
 const driverVehiculoEl = document.getElementById('driver-vehiculo');
 const btnToggleOnline = document.getElementById('btn-toggle-online');
@@ -33,13 +30,10 @@ const inputCodigoEntrega = document.getElementById('input-codigo-entrega');
 const inputFotoEntrega = document.getElementById('input-foto-entrega');
 const btnFinalizarEntrega = document.getElementById('btn-finalizar-entrega');
 
-// =========================================================================
-// INICIALIZACIÓN Y CONTROL DE ACCESO
-// =========================================================================
 (async () => {
   const { data: { session } } = await db.auth.getSession();
   if (!session || !session.user) {
-    window.location.href = 'portal.html';
+    window.location.replace('portal.html');
     return;
   }
 
@@ -48,7 +42,7 @@ const btnFinalizarEntrega = document.getElementById('btn-finalizar-entrega');
   inicializarMapa();
   await cargarBilletera();
   
-  // PRIMERO verificar si hay carrera en curso antes de cargar las disponibles (Persistencia al refrescar)
+  // Verificar carrera en curso antes de listar las disponibles
   await verificarCarreraEnCurso();
   await cargarCarrerasDisponibles();
   
@@ -109,13 +103,14 @@ window.toggleDisponibilidad = async function() {
 };
 
 window.cerrarSesion = async function() {
-  await db.auth.signOut();
-  window.location.href = 'portal.html';
+  try {
+    await db.auth.signOut();
+  } catch(e) {}
+  localStorage.clear();
+  sessionStorage.clear();
+  window.location.replace('portal.html');
 };
 
-// =========================================================================
-// BILLETERA Y REGLAS DE TECHO DE DEUDA ($20)
-// =========================================================================
 async function cargarBilletera() {
   let { data: wallet } = await db
     .from('delivery_wallets')
@@ -140,7 +135,6 @@ async function cargarBilletera() {
 
   walletSaldoEl.innerText = `$${saldo.toFixed(2)}`;
   walletDeudaEl.innerText = `$${deuda.toFixed(2)} / $${TECHO_DEUDA.toFixed(2)}`;
-
   btnSaldarDeuda.disabled = !(saldo > 0 && deuda > 0);
 
   const tieneBloqueoEfectivo = deuda >= TECHO_DEUDA;
@@ -181,13 +175,9 @@ window.saldarDeudaConSaldo = async function() {
   }
 };
 
-// =========================================================================
-// MAPA INTERACTIVO CON LEAFLET Y GPS
-// =========================================================================
 function inicializarMapa() {
   const coordsCaracas = [10.4806, -66.9036];
   mapaLeaflet = L.map('mapa-delivery').setView(coordsCaracas, 13);
-
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© OpenStreetMap'
@@ -196,12 +186,10 @@ function inicializarMapa() {
 
 function iniciarTrackingGPS() {
   if (!navigator.geolocation) return;
-
   navigator.geolocation.watchPosition(
     pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-
       if (!marcadorDriver) {
         marcadorDriver = L.marker([lat, lng], {
           icon: L.divIcon({
@@ -214,21 +202,28 @@ function iniciarTrackingGPS() {
         marcadorDriver.setLatLng([lat, lng]);
       }
     },
-    err => console.warn('Error obteniendo coordenadas GPS:', err),
+    err => console.warn('GPS:', err),
     { enableHighAccuracy: true }
   );
 }
 
 // =========================================================================
-// FLUJO Y GESTIÓN DE CARRERAS (DISPONIBLES Y ACTIVAS)
+// CORRECCIÓN CLAVE: VERIFICACIÓN ROBUSTA DE CARRERA EN CURSO
 // =========================================================================
 async function verificarCarreraEnCurso() {
-  const { data: activa } = await db
+  // Buscamos cualquier orden asignada a este driver que no esté entregada ni cancelada
+  const { data: activa, error } = await db
     .from('orders')
     .select('*, businesses(name, phone)')
     .eq('driver_id', driverUser.id)
-    .in('delivery_status', ['accepted', 'arrived_at_store', 'on_the_way'])
+    .not('status', 'in', '("delivered","cancelled","rejected")')
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
+
+  if (error) {
+    console.error('Error verificando carrera:', error);
+  }
 
   if (activa) {
     pedidoActivo = activa;
@@ -241,7 +236,6 @@ async function verificarCarreraEnCurso() {
 }
 
 async function cargarCarrerasDisponibles() {
-  // Si ya tiene pedido activo, bloquear listado de disponibles
   if (pedidoActivo) {
     gridCarreras.innerHTML = '<p style="color: #a3a3a3; font-size: 0.85rem;">Ya tienes una carrera activa en curso. Finalízala para ver nuevas asignaciones.</p>';
     return;
@@ -278,26 +272,22 @@ async function cargarCarrerasDisponibles() {
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <strong style="color: #fbbf24;">#ORD-${orden.id.slice(0, 8)}</strong>
-            <span class="badge ${esEfectivo ? 'badge-cooking' : 'badge-on_the_way'}">${esEfectivo ? '💵 Efectivo' : '📲 Pago Móvil'}</span>
+            <span class="badge ${esEfectivo ? 'badge-cooking' : 'badge-on_the_way'}">${esEfectivo ? '💵 Efectivo' : '📲 Pago Digital'}</span>
           </div>
-
           <p style="margin: 4px 0; font-size: 0.85rem;"><strong>Restaurante:</strong> ${orden.businesses?.name || 'Local'}</p>
           <p style="margin: 4px 0; font-size: 0.85rem;"><strong>Entrega en:</strong> ${orden.delivery_address}</p>
-          
           <div style="background: #222; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem;">
             <span>Ganancia Flete + Propina:</span>
             <strong style="color: #10b981; font-size: 1.1rem; display: block;">$${gananciaTotal}</strong>
-            ${esEfectivo ? `<small style="color:#ef4444;">Deberás cobrar $${parseFloat(orden.total).toFixed(2)} al cliente</small>` : ''}
           </div>
         </div>
-
         <div>
           ${(esEfectivo && bloqueadoEfectivo) ? `
-            <button class="btn-estado" disabled style="background:#4b5563; color:#aaa; width:100%; cursor:not-allowed;">
+            <button type="button" class="btn-estado" disabled style="background:#4b5563; color:#aaa; width:100%; cursor:not-allowed;">
               Bloqueado (Deuda > $20)
             </button>
           ` : `
-            <button class="btn-primario" onclick="aceptarCarrera('${orden.id}')" style="width: 100%;">
+            <button type="button" onclick="aceptarCarrera('${orden.id}')" class="btn-primario" style="width: 100%;">
               Aceptar Carrera
             </button>
           `}
@@ -308,38 +298,27 @@ async function cargarCarrerasDisponibles() {
 }
 
 window.aceptarCarrera = async function(ordenId) {
-  // RESTRICCIÓN DE CONCURRENCIA: Validar nuevamente en BD si ya tiene otra orden activa
-  const { data: enCurso } = await db
-    .from('orders')
-    .select('id')
-    .eq('driver_id', driverUser.id)
-    .in('delivery_status', ['accepted', 'arrived_at_store', 'on_the_way'])
-    .maybeSingle();
-
-  if (enCurso) {
-    alert('Ya tienes una carrera activa. No puedes aceptar múltiples pedidos simultáneamente.');
-    await verificarCarreraEnCurso();
-    await cargarCarrerasDisponibles();
-    return;
-  }
-
+  // Asignar orden de manera estricta asegurando que driver_id esté libre
   const codigoSeguridad = Math.floor(1000 + Math.random() * 9000).toString();
 
-  const { error } = await db
+  const { data, error } = await db
     .from('orders')
     .update({
       driver_id: driverUser.id,
       delivery_status: 'accepted',
       delivery_code: codigoSeguridad
     })
-    .eq('id', ordenId);
+    .eq('id', ordenId)
+    .is('driver_id', null)
+    .select()
+    .maybeSingle();
 
-  if (error) {
-    alert('No se pudo tomar la carrera: ' + error.message);
-  } else {
-    await verificarCarreraEnCurso();
-    await cargarCarrerasDisponibles();
+  if (error || !data) {
+    alert('Esta carrera ya fue tomada por otro repartidor o no se pudo asignar.');
   }
+
+  await verificarCarreraEnCurso();
+  await cargarCarrerasDisponibles();
 };
 
 function renderizarCarreraActiva() {
@@ -355,36 +334,36 @@ function renderizarCarreraActiva() {
 
   let botonAccion = '';
   if (orden.delivery_status === 'accepted') {
-    botonAccion = `<button class="btn-primario" onclick="actualizarPasoCarrera('arrived_at_store')" style="width: 100%;">1. Llegué al Restaurante</button>`;
+    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('arrived_at_store')" class="btn-primario" style="width: 100%;">1. Llegué al Restaurante</button>`;
   } else if (orden.delivery_status === 'arrived_at_store') {
-    botonAccion = `<button class="btn-primario" onclick="actualizarPasoCarrera('on_the_way')" style="width: 100%; background:#10b981; color:#000;">2. Recibí el paquete (En Camino)</button>`;
+    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('on_the_way')" class="btn-primario" style="width: 100%; background:#10b981; color:#000;">2. Recibí el paquete (En Camino)</button>`;
   } else if (orden.delivery_status === 'on_the_way') {
-    botonAccion = `<button class="btn-primario" onclick="abrirModalEntrega()" style="width: 100%; background:#6366f1;">3. Entregar al Cliente</button>`;
+    botonAccion = `<button type="button" onclick="abrirModalEntrega()" class="btn-primario" style="width: 100%; background:#6366f1;">3. Entregar al Cliente</button>`;
   }
 
   contenedorCarreraActiva.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <span class="step-badge">${orden.delivery_status.replace(/_/g, ' ')}</span>
-      <strong style="color: #fbbf24;">Total Ganancia: $${flete}</strong>
+      <span class="step-badge">${(orden.delivery_status || 'En curso').replace(/_/g, ' ')}</span>
+      <strong style="color: #fbbf24;">Ganancia: $${flete}</strong>
     </div>
 
     <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Restaurante:</strong> ${orden.businesses?.name || 'Local'}</p>
     <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Destino:</strong> ${orden.delivery_address}</p>
-    <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Cliente:</strong> ${orden.customer_name} (${orden.customer_phone})</p>
+    <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Cliente:</strong> ${orden.customer_name || 'Cliente'} (${orden.customer_phone || 'S/N'})</p>
     
     ${esEfectivo ? `
       <div style="background: #3b1818; border: 1px solid #7f1d1d; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem; color: #fca5a5;">
-        💵 <strong>Cobro en Efectivo requerido:</strong> Recibir $${totalCobrar} del cliente.
+        💵 <strong>Cobro en Efectivo:</strong> Recibir $${totalCobrar} del cliente.
       </div>
     ` : `
       <div style="background: #182818; border: 1px solid #166534; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem; color: #86efac;">
-        ✅ <strong>Pago Digital Confirmado:</strong> No debes cobrar nada al cliente.
+        ✅ <strong>Pago Digital Confirmado.</strong>
       </div>
     `}
 
     <div style="display: flex; gap: 8px; margin-top: 10px;">
-      ${orden.map_url ? `<a href="${orden.map_url}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📍 Abrir en Google Maps</a>` : ''}
-      <a href="https://wa.me/${(orden.customer_phone || '').replace(/\D/g, '')}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📲 WhatsApp Cliente</a>
+      ${orden.map_url ? `<a href="${orden.map_url}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📍 Ver Mapa</a>` : ''}
+      <a href="https://wa.me/${(orden.customer_phone || '').replace(/\D/g, '')}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📲 WhatsApp</a>
     </div>
 
     <div style="margin-top: 12px;">
@@ -395,9 +374,7 @@ function renderizarCarreraActiva() {
 
 window.actualizarPasoCarrera = async function(nuevoPaso) {
   if (!pedidoActivo) return;
-
   const actualizacion = { delivery_status: nuevoPaso };
-  // Sincronización con tracking: al marcar que va en camino, actualizamos status a 'on_the_way'
   if (nuevoPaso === 'on_the_way') {
     actualizacion.status = 'on_the_way';
   }
@@ -410,9 +387,6 @@ window.actualizarPasoCarrera = async function(nuevoPaso) {
   }
 };
 
-// =========================================================================
-// CONFIRMACIÓN DE ENTREGA Y CÁLCULO FINANCIERO
-// =========================================================================
 window.abrirModalEntrega = function() {
   modalEntrega.style.display = 'flex';
 };
@@ -430,7 +404,7 @@ window.validarYFinalizarEntrega = async function() {
   const archivoFoto = inputFotoEntrega.files[0];
 
   btnFinalizarEntrega.disabled = true;
-  btnFinalizarEntrega.innerText = 'Validando entrega...';
+  btnFinalizarEntrega.innerText = 'Validando...';
 
   try {
     let fotoUrl = null;
@@ -447,7 +421,7 @@ window.validarYFinalizarEntrega = async function() {
       const { data: urlData } = db.storage.from('receipts').getPublicUrl(ruta);
       fotoUrl = urlData.publicUrl;
     } else {
-      throw new Error('Debes ingresar el código de 4 dígitos del cliente o adjuntar una foto del paquete entregado.');
+      throw new Error('Debes ingresar el código de 4 dígitos o subir la foto de entrega.');
     }
 
     await db.from('orders').update({
@@ -484,7 +458,6 @@ async function procesarFinanzasEntrega(orden) {
   if (esEfectivo) {
     const valorComida = parseFloat(orden.subtotal_food || (orden.total - gananciaFlete));
     deudaActual += valorComida;
-
     await db.from('delivery_transactions').insert([{
       driver_id: driverUser.id,
       order_id: orden.id,
@@ -492,27 +465,23 @@ async function procesarFinanzasEntrega(orden) {
       type: 'cash_collected',
       notes: `Efectivo recaudado comanda #${orden.id.slice(0, 8)}`
     }]);
-
   } else {
     if (deudaActual > 0) {
       const retencion = gananciaFlete * 0.50;
       const abonoReal = Math.min(deudaActual, retencion);
       const saldoNeto = gananciaFlete - abonoReal;
-
       deudaActual -= abonoReal;
       saldoActual += saldoNeto;
-
       await db.from('delivery_transactions').insert([{
         driver_id: driverUser.id,
         order_id: orden.id,
         amount: abonoReal,
         type: 'debt_payment',
-        notes: `Retención automática 50% flete digital (#ORD-${orden.id.slice(0, 8)})`
+        notes: `Retención automática 50% flete digital`
       }]);
     } else {
       saldoActual += gananciaFlete;
     }
-
     await db.from('delivery_transactions').insert([{
       driver_id: driverUser.id,
       order_id: orden.id,
@@ -529,16 +498,9 @@ async function procesarFinanzasEntrega(orden) {
   }).eq('driver_id', driverUser.id);
 }
 
-// =========================================================================
-// SUSCRIPCIÓN TIEMPO REAL A NUEVOS PEDIDOS
-// =========================================================================
 function suscribirCambiosEnTiempoReal() {
   canalRealtime = db.channel('delivery-orders-realtime')
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'orders'
-    }, async () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
       await verificarCarreraEnCurso();
       await cargarCarrerasDisponibles();
     })
