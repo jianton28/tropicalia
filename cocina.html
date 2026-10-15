@@ -15,7 +15,7 @@
     <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
       <div>
         <h1 id="cocina-titulo" style="margin: 0; font-size: 1.6rem; color: var(--gold);">Restaurante - Operaciones</h1>
-        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">Comandas en tiempo real, stock y cierres de turno</p>
+        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-muted);">Comandas en tiempo real, catálogo, inventario y cierres</p>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <button id="btn-estado-local" onclick="toggleEstadoLocal()" class="btn-toggle activo">🟢 Local Abierto</button>
@@ -29,7 +29,7 @@
       🔒 <strong>Protocolo Tropicalia:</strong> Toda orden debe entregarse al motorizado con precinto de seguridad o grapas intactas.
     </div>
 
-    <!-- 1. COMANDAS ACTIVAS CON INDICADOR DE ETA DE REPARTIDOR -->
+    <!-- 1. COMANDAS ACTIVAS CON INDICADOR DE ETA -->
     <section style="margin-top: 28px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h2 style="font-size: 1.25rem; margin: 0;">🔥 Comandas en Preparación y Despacho</h2>
@@ -40,13 +40,108 @@
       </div>
     </section>
 
-    <!-- 2. SEPARACIÓN: VENTA EN SALÓN VS MERMAS TÉCNICAS -->
+    <!-- 2. GESTIÓN DEL MENÚ Y CATÁLOGO DE PLATOS -->
+    <section class="card" style="margin-top: 38px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <h2 style="font-size: 1.25rem; margin: 0; color: var(--gold);">🍔 Gestión de Menú y Platos</h2>
+        <input type="text" id="buscador-menu" placeholder="🔍 Buscar plato por nombre..." oninput="filtrarMenuCocina()" style="max-width: 280px; margin: 0;" />
+      </div>
+
+      <!-- Formulario rápido para agregar nuevo plato -->
+      <form id="form-nuevo-plato" style="background: #161616; padding: 14px; border-radius: 8px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) 120px; gap: 10px; align-items: flex-end;">
+        <div>
+          <label>Nombre del Plato:</label>
+          <input type="text" id="nuevo-plato-nombre" required placeholder="Ej: Burger Especial" style="margin:0;" />
+        </div>
+        <div>
+          <label>Precio ($):</label>
+          <input type="number" step="0.01" id="nuevo-plato-precio" required placeholder="6.50" style="margin:0;" />
+        </div>
+        <div>
+          <label>Stock inicial:</label>
+          <input type="number" id="nuevo-plato-stock" value="50" required style="margin:0;" />
+        </div>
+        <button type="submit" class="btn-primario" style="height: 42px;">+ Agregar</button>
+      </form>
+
+      <div id="tabla-menu-container" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid #333; color: var(--text-muted);">
+              <th style="padding: 8px;">Plato</th>
+              <th style="padding: 8px;">Precio ($)</th>
+              <th style="padding: 8px;">Stock App</th>
+              <th style="padding: 8px;">Estado</th>
+              <th style="padding: 8px; text-align: right;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-menu">
+            <tr><td colspan="5" style="padding: 12px; color: #888;">Cargando menú...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3. GESTIÓN DE INSUMOS Y ALERTA DE STOCK BAJO -->
+    <section class="card" style="margin-top: 38px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <div>
+          <h2 style="font-size: 1.25rem; margin: 0; color: #34d399;">📦 Inventario e Insumos Críticos</h2>
+          <small style="color: var(--text-muted);">Control de azúcar, cucharillas, empaques y materia prima</small>
+        </div>
+        <input type="text" id="buscador-insumos" placeholder="🔍 Buscar insumo..." oninput="filtrarInsumosCocina()" style="max-width: 280px; margin: 0;" />
+      </div>
+
+      <!-- Alerta de insumos por agotarse -->
+      <div id="alerta-insumos-bajos" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--red); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 0.85rem; color: #fca5a5;">
+        ⚠️ <strong>¡Atención!</strong> Hay insumos cercanos o por debajo del stock mínimo recomendado.
+      </div>
+
+      <!-- Formulario para agregar nuevo insumo -->
+      <form id="form-nuevo-insumo" style="background: #161616; padding: 14px; border-radius: 8px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) 100px 100px 120px; gap: 10px; align-items: flex-end;">
+        <div>
+          <label>Insumo:</label>
+          <input type="text" id="insumo-nombre" required placeholder="Ej: Cucharillas / Azúcar" style="margin:0;" />
+        </div>
+        <div>
+          <label>Cantidad:</label>
+          <input type="number" step="0.1" id="insumo-cantidad" value="50" required style="margin:0;" />
+        </div>
+        <div>
+          <label>Unidad:</label>
+          <input type="text" id="insumo-unidad" value="und" required style="margin:0;" />
+        </div>
+        <div>
+          <label>Mínimo alerta:</label>
+          <input type="number" id="insumo-min" value="10" required style="margin:0;" />
+        </div>
+        <button type="submit" class="btn-primario" style="height: 42px; background: #10b981;">+ Insumo</button>
+      </form>
+
+      <div id="tabla-insumos-container" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid #333; color: var(--text-muted);">
+              <th style="padding: 8px;">Insumo</th>
+              <th style="padding: 8px;">Cantidad Actual</th>
+              <th style="padding: 8px;">Alerta Mínima</th>
+              <th style="padding: 8px;">Estado Stock</th>
+              <th style="padding: 8px; text-align: right;">Ajustar / Reponer</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-insumos">
+            <tr><td colspan="5" style="padding: 12px; color: #888;">Cargando inventario...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. VENTA EN SALÓN Y MERMAS -->
     <section style="margin-top: 38px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
       
-      <!-- FORMULARIO A: VENTA FÍSICA EN SALÓN / MOSTRADOR -->
       <div class="card">
         <h3 style="margin-top: 0; color: #34d399; font-size: 1.05rem;">💵 Registrar Venta en Salón (Mostrador)</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Descuenta stock del plato vendido en físico sin cobrar comisión de app.</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Descuenta stock del plato vendido en físico sin comisión de app.</p>
         <form id="form-venta-salon">
           <label>Plato vendido:</label>
           <select id="select-plato-salon" required></select>
@@ -56,24 +151,23 @@
         </form>
       </div>
 
-      <!-- FORMULARIO B: BAJA POR MERMA DE MATERIA PRIMA -->
       <div class="card">
         <h3 style="margin-top: 0; color: #f87171; font-size: 1.05rem;">🗑️ Reportar Merma de Materia Prima</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Registra pérdidas por caducidad, daño o error de cocción para auditoría.</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: -4px;">Registra pérdidas por caducidad, daño o error de cocción.</p>
         <form id="form-merma">
           <label>Insumo o Plato afectado:</label>
-          <input type="text" id="merma-insumo" required placeholder="Ej: 500g Tomate / 1 Masa de Pizza" />
+          <input type="text" id="merma-insumo" required placeholder="Ej: Tomate / Queso" style="margin-bottom: 8px;" />
           <label>Cantidad dada de baja:</label>
-          <input type="number" id="merma-cantidad" step="0.01" min="0.1" value="1" required />
-          <label>Motivo de la merma:</label>
-          <input type="text" id="merma-motivo" required placeholder="Ej: Producto dañado / Quemado en horno" />
+          <input type="number" id="merma-cantidad" step="0.01" min="0.1" value="1" required style="margin-bottom: 8px;" />
+          <label>Motivo:</label>
+          <input type="text" id="merma-motivo" required placeholder="Ej: Dañado" style="margin-bottom: 8px;" />
           <button type="submit" class="btn-secundario" style="width: 100%; border-color: var(--red); color: #fca5a5;">Asentar Baja por Merma</button>
         </form>
       </div>
 
     </section>
 
-    <!-- 3. LIQUIDACIÓN Y CIERRE DE CAJA -->
+    <!-- 5. CIERRE DE CAJA -->
     <section class="card" style="margin-top: 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
       <div>
         <h3 style="margin: 0; color: var(--gold);">📋 Liquidación y Cierre de Turno</h3>

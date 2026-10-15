@@ -6,10 +6,13 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let localActivo = null;
 let productosLocal = [];
+let insumosLocal = [];
 let comandasActivas = [];
 
 const gridComandas = document.getElementById('grid-comandas');
 const selectPlatoSalon = document.getElementById('select-plato-salon');
+const tbodyMenu = document.getElementById('tbody-menu');
+const tbodyInsumos = document.getElementById('tbody-insumos');
 
 (async () => {
   const { data: { session } } = await db.auth.getSession();
@@ -20,13 +23,16 @@ const selectPlatoSalon = document.getElementById('select-plato-salon');
 
   await cargarNegocioCocina(session.user);
   await cargarCatalogoLocal();
+  await cargarInventarioInsumos();
   await cargarComandasCocina();
   suscribirComandasRealtime();
 })();
 
 async function cargarNegocioCocina(user) {
+  // Buscar negocio cuyo owner_id sea el usuario actual
   let { data: neg } = await db.from('businesses').select('*').eq('owner_id', user.id).maybeSingle();
   if (!neg) {
+    // Respaldo por si el usuario es administrador o prueba genérica
     const { data: primero } = await db.from('businesses').select('*').limit(1).single();
     neg = primero;
   }
@@ -55,12 +61,161 @@ window.toggleEstadoLocal = async function() {
   }
 };
 
+// ==========================================
+// GESTIÓN DE MENÚ Y CATÁLOGO
+// ==========================================
 async function cargarCatalogoLocal() {
-  const { data } = await db.from('products').select('*').eq('business_id', localActivo.id);
+  const { data } = await db.from('products').select('*').eq('business_id', localActivo.id).order('name', { ascending: true });
   productosLocal = data || [];
+  renderizarMenuCocina(productosLocal);
+  
   selectPlatoSalon.innerHTML = productosLocal.map(p => `<option value="${p.id}">${p.name} ($${parseFloat(p.price).toFixed(2)} - Stock: ${p.stock ?? 99})</option>`).join('');
 }
 
+function renderizarMenuCocina(lista) {
+  if (lista.length === 0) {
+    tbodyMenu.innerHTML = `<tr><td colspan="5" style="padding: 12px; color: #888; text-align: center;">No hay platos en el menú.</td></tr>`;
+    return;
+  }
+
+  tbodyMenu.innerHTML = lista.map(p => `
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 10px; font-weight: 600; color: #fff;">${p.name}</td>
+      <td style="padding: 10px; color: var(--gold);">$${parseFloat(p.price).toFixed(2)}</td>
+      <td style="padding: 10px;">${p.stock ?? 99} unds</td>
+      <td style="padding: 10px;"><span class="badge ${p.is_available ? 'badge-on_the_way' : 'badge-pending'}">${p.is_available ? 'Disponible' : 'Pausado'}</span></td>
+      <td style="padding: 10px; text-align: right;">
+        <button onclick="toggleDisponibilidadPlato('${p.id}', ${p.is_available})" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem;">${p.is_available ? 'Pausar' : 'Activar'}</button>
+        <button onclick="eliminarPlatoMenu('${p.id}')" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem; border-color: var(--red); color: #fca5a5;">Eliminar</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+window.filtrarMenuCocina = function() {
+  const query = document.getElementById('buscador-menu').value.toLowerCase();
+  const filtrados = productosLocal.filter(p => p.name.toLowerCase().includes(query));
+  renderizarMenuCocina(filtrados);
+};
+
+document.getElementById('form-nuevo-plato').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('nuevo-plato-nombre').value.trim();
+  const price = parseFloat(document.getElementById('nuevo-plato-precio').value);
+  const stock = parseInt(document.getElementById('nuevo-plato-stock').value);
+
+  const { error } = await db.from('products').insert([{
+    business_id: localActivo.id,
+    name,
+    price,
+    stock,
+    is_available: true
+  }]);
+
+  if (!error) {
+    alert('Plato agregado al menú correctamente.');
+    e.target.reset();
+    await cargarCatalogoLocal();
+  } else {
+    alert('Error al agregar plato: ' + error.message);
+  }
+});
+
+window.toggleDisponibilidadPlato = async function(id, estadoActual) {
+  await db.from('products').update({ is_available: !estadoActual }).eq('id', id);
+  await cargarCatalogoLocal();
+};
+
+window.eliminarPlatoMenu = async function(id) {
+  if (confirm('¿Seguro que deseas eliminar este plato del menú?')) {
+    await db.from('products').delete().eq('id', id);
+    await cargarCatalogoLocal();
+  }
+};
+
+// ==========================================
+// GESTIÓN DE INVENTARIO E INSUMOS
+// ==========================================
+async function cargarInventarioInsumos() {
+  const { data } = await db.from('inventory_items').select('*').eq('business_id', localActivo.id).order('name', { ascending: true });
+  insumosLocal = data || [];
+  renderizarInventario(insumosLocal);
+  verificarAlertasInsumos(insumosLocal);
+}
+
+function renderizarInventario(lista) {
+  if (lista.length === 0) {
+    tbodyInsumos.innerHTML = `<tr><td colspan="5" style="padding: 12px; color: #888; text-align: center;">No hay insumos registrados.</td></tr>`;
+    return;
+  }
+
+  tbodyInsumos.innerHTML = lista.map(ins => {
+    const bajoStock = parseFloat(ins.quantity) <= parseFloat(ins.min_threshold);
+    return `
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding: 10px; font-weight: 600; color: #fff;">${ins.name}</td>
+        <td style="padding: 10px; color: ${bajoStock ? '#fca5a5' : '#fff'}; font-weight: ${bajoStock ? 'bold' : 'normal'};">${ins.quantity} ${ins.unit}</td>
+        <td style="padding: 10px; color: var(--text-muted);">${ins.min_threshold} ${ins.unit}</td>
+        <td style="padding: 10px;"><span class="badge" style="background: ${bajoStock ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}; color: ${bajoStock ? '#fca5a5' : '#34d399'};">${bajoStock ? '⚠️ Stock Bajo' : 'Normal'}</span></td>
+        <td style="padding: 10px; text-align: right;">
+          <button onclick="ajustarInsumo('${ins.id}', ${ins.quantity}, 10)" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem;">+10</button>
+          <button onclick="ajustarInsumo('${ins.id}', ${ins.quantity}, -5)" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem; border-color: var(--red); color: #fca5a5;">-5</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+window.filtrarInsumosCocina = function() {
+  const query = document.getElementById('buscador-insumos').value.toLowerCase();
+  const filtrados = insumosLocal.filter(i => i.name.toLowerCase().includes(query));
+  renderizarInventario(filtrados);
+};
+
+document.getElementById('form-nuevo-insumo').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('insumo-nombre').value.trim();
+  const quantity = parseFloat(document.getElementById('insumo-cantidad').value);
+  const unit = document.getElementById('insumo-unidad').value.trim();
+  const min_threshold = parseFloat(document.getElementById('insumo-min').value);
+
+  const { error } = await db.from('inventory_items').insert([{
+    business_id: localActivo.id,
+    name,
+    quantity,
+    unit,
+    min_threshold
+  }]);
+
+  if (!error) {
+    alert('Insumo registrado con éxito.');
+    e.target.reset();
+    await cargarInventarioInsumos();
+  } else {
+    alert('Error al registrar insumo: ' + error.message);
+  }
+});
+
+window.ajustarInsumo = async function(id, actual, delta) {
+  const nuevaCant = Math.max(0, parseFloat(actual) + delta);
+  await db.from('inventory_items').update({ quantity: nuevaCant }).eq('id', id);
+  await cargarInventarioInsumos();
+};
+
+function verificarAlertasInsumos(lista) {
+  const alertaBox = document.getElementById('alerta-insumos-bajos');
+  const bajos = lista.filter(i => parseFloat(i.quantity) <= parseFloat(i.min_threshold));
+  if (bajos.length > 0) {
+    alertaBox.style.display = 'block';
+    alertaBox.innerHTML = `⚠️ <strong>¡Atención!</strong> Insumos por agotarse: ${bajos.map(b => `<b>${b.name} (${b.quantity}${b.unit})</b>`).join(', ')}.`;
+  } else {
+    alertaBox.style.display = 'none';
+  }
+}
+
+// ==========================================
+// COMANDAS EN TIEMPO REAL
+// ==========================================
 window.cargarComandasCocina = async function() {
   const { data: ordenes, error } = await db
     .from('orders')
@@ -72,7 +227,6 @@ window.cargarComandasCocina = async function() {
   if (error) return;
   comandasActivas = ordenes || [];
 
-  // Calcular montos entregados hoy para corte
   const entregadas = comandasActivas.filter(o => o.status === 'delivered');
   const bruto = entregadas.reduce((acc, o) => acc + parseFloat(o.subtotal_food || o.total || 0), 0);
   document.getElementById('corte-bruto').innerText = `$${bruto.toFixed(2)}`;
@@ -87,7 +241,6 @@ window.cargarComandasCocina = async function() {
   gridComandas.innerHTML = enCurso.map(ord => {
     const itemsHtml = (ord.items || []).map(i => `<div><strong>${i.quantity}x ${i.name}</strong> ($${i.price})</div>`).join('');
     
-    // CÁLCULO DE ETA DEL REPARTIDOR PARA LA COCINA (SIN MAPA)
     let badgeEtaDelivery = '';
     if (ord.delivery_type === 'delivery') {
       if (!ord.driver_id) {
@@ -141,7 +294,7 @@ window.cambiarEstadoComanda = async function(ordenId, nuevoEstado) {
   await cargarComandasCocina();
 };
 
-// FORMULARIO A: VENTA EN SALÓN
+// VENTA EN SALÓN Y MERMA
 document.getElementById('form-venta-salon').addEventListener('submit', async (e) => {
   e.preventDefault();
   const prodId = selectPlatoSalon.value;
@@ -165,7 +318,6 @@ document.getElementById('form-venta-salon').addEventListener('submit', async (e)
   await cargarCatalogoLocal();
 });
 
-// FORMULARIO B: BAJA POR MERMA
 document.getElementById('form-merma').addEventListener('submit', async (e) => {
   e.preventDefault();
   const insumo = document.getElementById('merma-insumo').value.trim();
