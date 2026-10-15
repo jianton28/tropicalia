@@ -447,6 +447,27 @@ window.validarYFinalizarEntrega = async function() {
 };
 
 async function procesarFinanzasEntrega(orden) {
+  // Asegurar que driverWallet exista antes de leer sus propiedades
+  if (!driverWallet) {
+    let { data: wallet } = await db
+      .from('delivery_wallets')
+      .select('*')
+      .eq('driver_id', driverUser.id)
+      .maybeSingle();
+
+    if (!wallet) {
+      const { data: nuevaWallet } = await db.from('delivery_wallets').insert([{
+        driver_id: driverUser.id,
+        prepaid_balance: 0.00,
+        cash_debt: 0.00,
+        debt_ceiling: 20.00,
+        is_blocked: false
+      }]).select().single();
+      wallet = nuevaWallet;
+    }
+    driverWallet = wallet;
+  }
+
   const flete = parseFloat(orden.delivery_fee || 2.50);
   const propina = parseFloat(orden.driver_tip || 0);
   const gananciaFlete = flete + propina;
@@ -480,7 +501,7 @@ async function procesarFinanzasEntrega(orden) {
         notes: `Retención automática 50% flete digital`
       }]);
     } else {
-      saldoActual += gananciaFlete;
+      saldoActual += gananciaFlelte || gananciaFlete;
     }
     await db.from('delivery_transactions').insert([{
       driver_id: driverUser.id,
@@ -494,8 +515,12 @@ async function procesarFinanzasEntrega(orden) {
   await db.from('delivery_wallets').update({
     prepaid_balance: saldoActual,
     cash_debt: deudaActual,
-    is_blocked: deudaActual >= TECHO_DEUDA
+    is_blocked: deudaActual >= 20.00
   }).eq('driver_id', driverUser.id);
+  
+  // Actualizar la variable local
+  driverWallet.prepaid_balance = saldoActual;
+  driverWallet.cash_debt = deudaActual;
 }
 
 function suscribirCambiosEnTiempoReal() {
