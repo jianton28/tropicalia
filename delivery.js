@@ -47,8 +47,11 @@ const btnFinalizarEntrega = document.getElementById('btn-finalizar-entrega');
   await cargarPerfilDriver();
   inicializarMapa();
   await cargarBilletera();
+  
+  // PRIMERO verificar si hay carrera en curso antes de cargar las disponibles (Persistencia al refrescar)
   await verificarCarreraEnCurso();
   await cargarCarrerasDisponibles();
+  
   suscribirCambiosEnTiempoReal();
 })();
 
@@ -60,7 +63,6 @@ async function cargarPerfilDriver() {
     .maybeSingle();
 
   if (error || !data) {
-    // Si no tiene perfil aún, registrarlo con metadatos de sesión
     const nombre = driverUser.user_metadata?.full_name || 'Repartidor';
     const tlf = driverUser.user_metadata?.phone || 'Sin número';
     const { data: nuevo } = await db.from('driver_profiles').insert([{
@@ -100,7 +102,7 @@ window.toggleDisponibilidad = async function() {
     driverPerfil.is_online = nuevoEstado;
     actualizarBotonOnlineUI();
     if (nuevoEstado) {
-      cargarCarrerasDisponibles();
+      await cargarCarrerasDisponibles();
       iniciarTrackingGPS();
     }
   }
@@ -139,10 +141,8 @@ async function cargarBilletera() {
   walletSaldoEl.innerText = `$${saldo.toFixed(2)}`;
   walletDeudaEl.innerText = `$${deuda.toFixed(2)} / $${TECHO_DEUDA.toFixed(2)}`;
 
-  // Habilitar botón si hay saldo disponible y deuda pendiente
   btnSaldarDeuda.disabled = !(saldo > 0 && deuda > 0);
 
-  // Evaluar bloqueo de órdenes en efectivo
   const tieneBloqueoEfectivo = deuda >= TECHO_DEUDA;
   alertaLimiteDeuda.style.display = tieneBloqueoEfectivo ? 'block' : 'none';
 
@@ -185,7 +185,6 @@ window.saldarDeudaConSaldo = async function() {
 // MAPA INTERACTIVO CON LEAFLET Y GPS
 // =========================================================================
 function inicializarMapa() {
-  // Centro por defecto: Caracas
   const coordsCaracas = [10.4806, -66.9036];
   mapaLeaflet = L.map('mapa-delivery').setView(coordsCaracas, 13);
 
@@ -220,17 +219,6 @@ function iniciarTrackingGPS() {
   );
 }
 
-function trazarRutaEnMapa(latDestino, lngDestino, etiqueta) {
-  if (!mapaLeaflet || !latDestino || !lngDestino) return;
-
-  if (marcadorDestino) mapaLeaflet.removeLayer(marcadorDestino);
-
-  marcadorDestino = L.marker([latDestino, lngDestino]).addTo(mapaLeaflet)
-    .bindPopup(`<strong>${etiqueta}</strong>`).openPopup();
-
-  mapaLeaflet.setView([latDestino, lngDestino], 14);
-}
-
 // =========================================================================
 // FLUJO Y GESTIÓN DE CARRERAS (DISPONIBLES Y ACTIVAS)
 // =========================================================================
@@ -253,6 +241,7 @@ async function verificarCarreraEnCurso() {
 }
 
 async function cargarCarrerasDisponibles() {
+  // Si ya tiene pedido activo, bloquear listado de disponibles
   if (pedidoActivo) {
     gridCarreras.innerHTML = '<p style="color: #a3a3a3; font-size: 0.85rem;">Ya tienes una carrera activa en curso. Finalízala para ver nuevas asignaciones.</p>';
     return;
@@ -263,7 +252,6 @@ async function cargarCarrerasDisponibles() {
     return;
   }
 
-  // Filtrar pedidos listos o en cocina que requieran delivery y no tengan repartidor
   const { data: pedidos, error } = await db
     .from('orders')
     .select('*, businesses(name, phone)')
@@ -320,7 +308,21 @@ async function cargarCarrerasDisponibles() {
 }
 
 window.aceptarCarrera = async function(ordenId) {
-  // Generar código de seguridad de 4 dígitos para entrega
+  // RESTRICCIÓN DE CONCURRENCIA: Validar nuevamente en BD si ya tiene otra orden activa
+  const { data: enCurso } = await db
+    .from('orders')
+    .select('id')
+    .eq('driver_id', driverUser.id)
+    .in('delivery_status', ['accepted', 'arrived_at_store', 'on_the_way'])
+    .maybeSingle();
+
+  if (enCurso) {
+    alert('Ya tienes una carrera activa. No puedes aceptar múltiples pedidos simultáneamente.');
+    await verificarCarreraEnCurso();
+    await cargarCarrerasDisponibles();
+    return;
+  }
+
   const codigoSeguridad = Math.floor(1000 + Math.random() * 9000).toString();
 
   const { error } = await db
@@ -395,6 +397,7 @@ window.actualizarPasoCarrera = async function(nuevoPaso) {
   if (!pedidoActivo) return;
 
   const actualizacion = { delivery_status: nuevoPaso };
+  // Sincronización con tracking: al marcar que va en camino, actualizamos status a 'on_the_way'
   if (nuevoPaso === 'on_the_way') {
     actualizacion.status = 'on_the_way';
   }
@@ -402,6 +405,7 @@ window.actualizarPasoCarrera = async function(nuevoPaso) {
   const { error } = await db.from('orders').update(actualizacion).eq('id', pedidoActivo.id);
   if (!error) {
     pedidoActivo.delivery_status = nuevoPaso;
+    if (nuevoPaso === 'on_the_way') pedidoActivo.status = 'on_the_way';
     renderizarCarreraActiva();
   }
 };
@@ -431,7 +435,6 @@ window.validarYFinalizarEntrega = async function() {
   try {
     let fotoUrl = null;
 
-    // Validación: debe cumplir código de 4 dígitos O foto de entrega
     if (codigoIngresado) {
       if (codigoIngresado !== pedidoActivo.delivery_code) {
         throw new Error('El código ingresado no coincide con el del cliente.');
@@ -447,14 +450,12 @@ window.validarYFinalizarEntrega = async function() {
       throw new Error('Debes ingresar el código de 4 dígitos del cliente o adjuntar una foto del paquete entregado.');
     }
 
-    // 1. Actualizar estado del pedido a entregado
     await db.from('orders').update({
       delivery_status: 'delivered',
       status: 'delivered',
       delivery_photo_url: fotoUrl
     }).eq('id', pedidoActivo.id);
 
-    // 2. Liquidación financiera en la billetera del repartidor
     await procesarFinanzasEntrega(pedidoActivo);
 
     alert('¡Entrega concretada con éxito!');
@@ -481,8 +482,6 @@ async function procesarFinanzasEntrega(orden) {
   let deudaActual = parseFloat(driverWallet.cash_debt || 0);
 
   if (esEfectivo) {
-    // El repartidor cobró el total de la orden en efectivo (comida + delivery).
-    // La comida le pertenece al restaurante/app, así que se le carga como deuda:
     const valorComida = parseFloat(orden.subtotal_food || (orden.total - gananciaFlete));
     deudaActual += valorComida;
 
@@ -495,9 +494,7 @@ async function procesarFinanzasEntrega(orden) {
     }]);
 
   } else {
-    // Orden con Pago Móvil: ganancia líquida para el motorizado
     if (deudaActual > 0) {
-      // Regla: Se retiene el 50% de la ganancia para amortizar deuda y el otro 50% va a saldo
       const retencion = gananciaFlete * 0.50;
       const abonoReal = Math.min(deudaActual, retencion);
       const saldoNeto = gananciaFlete - abonoReal;
@@ -525,7 +522,6 @@ async function procesarFinanzasEntrega(orden) {
     }]);
   }
 
-  // Guardar nuevo balance
   await db.from('delivery_wallets').update({
     prepaid_balance: saldoActual,
     cash_debt: deudaActual,
