@@ -45,13 +45,77 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0bW1zd3Z3cXJxZHh6b2J6YWt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTU2NTksImV4cCI6MjEwNTU5MTY1OX0.ykNc6yhpgUqJWQKMMWKOVgYY-JA0UP25SxLRQKUB_Vc';
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    function redirigirPorRol(user) {
-      const rol = user.user_metadata?.role;
-      if (rol === 'restaurant') window.location.href = 'cocina.html';
-      else if (rol === 'delivery') window.location.href = 'delivery.html';
-      else if (rol === 'admin') window.location.href = 'admin.html';
-      else window.location.href = 'index.html';
+    async function resolverRolYRedirigir(user, desdeLogin = false) {
+      let rol = user.user_metadata?.role;
+
+      // Respaldo automático si la cuenta se creó sin metadata
+      if (!rol) {
+        if (user.email.includes('admin')) {
+          rol = 'admin';
+        } else {
+          const { data: neg } = await db.from('businesses').select('id').eq('owner_id', user.id).maybeSingle();
+          if (neg) rol = 'restaurant';
+          else {
+            const { data: drv } = await db.from('driver_profiles').select('id').eq('id', user.id).maybeSingle();
+            if (drv) rol = 'delivery';
+          }
+        }
+      }
+
+      if (rol === 'restaurant') {
+        window.location.href = 'cocina.html';
+      } else if (rol === 'delivery') {
+        window.location.href = 'delivery.html';
+      } else if (rol === 'admin') {
+        window.location.href = 'admin.html';
+      } else {
+        // Es cliente
+        if (desdeLogin) {
+          window.location.href = 'index.html';
+        } else {
+          mostrarVistaCuentaCliente(user);
+        }
+      }
     }
+
+    function mostrarVistaCuentaCliente(user) {
+      const card = document.querySelector('.card');
+      const ultimaOrden = localStorage.getItem('tropicalia_last_order_id');
+      card.innerHTML = `
+        <div style="text-align: center;">
+          <div style="font-size: 2.5rem; margin-bottom: 8px;">👤</div>
+          <h3 style="margin: 0; color: var(--gold);">${user.user_metadata?.full_name || 'Cliente Tropicalia'}</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 18px 0;">${user.email}</p>
+          
+          ${ultimaOrden ? `
+            <a href="tracking.html?order_id=${ultimaOrden}" class="btn-primario" style="width: 100%; margin-bottom: 10px; background: #10b981;">
+              🛵 Ver mi Pedido en Curso
+            </a>
+          ` : ''}
+          
+          <a href="index.html" class="btn-primario" style="width: 100%; margin-bottom: 10px;">
+            🍔 Ir al Catálogo de Restaurantes
+          </a>
+          
+          <button onclick="cerrarSesionPortal()" class="btn-secundario" style="width: 100%; border-color: var(--red); color: #fca5a5; margin-top: 8px;">
+            Cerrar Sesión
+          </button>
+        </div>
+      `;
+    }
+
+    window.cerrarSesionPortal = async function() {
+      await db.auth.signOut();
+      window.location.reload();
+    };
+
+    // Verificar al cargar la página si ya hay sesión activa
+    (async () => {
+      const { data: { session } } = await db.auth.getSession();
+      if (session && session.user) {
+        await resolverRolYRedirigir(session.user, false);
+      }
+    })();
 
     document.getElementById('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -72,7 +136,7 @@
         btn.disabled = false;
         btn.innerText = 'Ingresar a mi Cuenta';
       } else if (data.user) {
-        redirigirPorRol(data.user);
+        await resolverRolYRedirigir(data.user, true);
       }
     });
   </script>

@@ -13,175 +13,167 @@ const formRegistro = document.getElementById('form-registro');
 const regMensaje = document.getElementById('reg-mensaje');
 const btnRegistrar = document.getElementById('btn-registrar');
 
+// Cambiar entre pestañas de rol (Cliente, Cocina, Repartidor)
 window.cambiarRol = function(rol) {
   rolSeleccionado = rol;
-  
+
   document.querySelectorAll('.btn-rol').forEach(b => {
     b.classList.toggle('activo', b.dataset.rol === rol);
   });
 
- if (rol === 'client') {
-    seccionCocina.style.display = 'none';
-    seccionDelivery.style.display = 'none';
-    textoTyc.innerHTML = 'Acepto los <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Términos para Clientes</a> (Tropicalia opera exclusivamente como intermediario tecnológico de pedidos y entregas).';
-    btnRegistrar.innerText = 'Crear Cuenta de Cliente';
+  if (rol === 'client') {
+    if (seccionCocina) seccionCocina.style.display = 'none';
+    if (seccionDelivery) seccionDelivery.style.display = 'none';
+    if (textoTyc) {
+      textoTyc.innerHTML = 'Acepto los <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Términos para Clientes</a> (Tropicalia opera exclusivamente como intermediario tecnológico de pedidos y entregas).';
+    }
+    if (btnRegistrar) btnRegistrar.innerText = 'Crear Cuenta de Cliente';
   } else if (rol === 'restaurant') {
-    seccionCocina.style.display = 'flex';
-    seccionDelivery.style.display = 'none';
-    textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Acuerdo Comercial para Locales</a> (Responsabilidad sanitaria y fiscal del local, 10% de comisión y cortes de caja diarios).';
-    btnRegistrar.innerText = 'Solicitar Registro de Restaurante';
+    if (seccionCocina) seccionCocina.style.display = 'flex';
+    if (seccionDelivery) seccionDelivery.style.display = 'none';
+    if (textoTyc) {
+      textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Acuerdo Comercial para Locales</a> (Responsabilidad sanitaria y fiscal del local, 10% de comisión y cortes de caja diarios).';
+    }
+    if (btnRegistrar) btnRegistrar.innerText = 'Solicitar Registro de Restaurante';
   } else if (rol === 'delivery') {
-    seccionCocina.style.display = 'none';
-    seccionDelivery.style.display = 'flex';
-    textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Contrato Mercantil Independiente</a> (Servicio autónomo sin subordinación bajo LOTTT, vehículo propio y tope de deuda de $20).';
-    btnRegistrar.innerText = 'Registrarse como Repartidor';
+    if (seccionCocina) seccionCocina.style.display = 'none';
+    if (seccionDelivery) seccionDelivery.style.display = 'flex';
+    if (textoTyc) {
+      textoTyc.innerHTML = 'Acepto el <a href="legal.html" target="_blank" style="color: #fbbf24; text-decoration: underline;">Contrato Mercantil Independiente</a> (Servicio autónomo sin subordinación bajo LOTTT, vehículo propio y tope de deuda de $20).';
+    }
+    if (btnRegistrar) btnRegistrar.innerText = 'Registrarse como Repartidor';
   }
 };
 
-async function subirDocumento(file, carpeta) {
-  if (!file) return null;
+// Función auxiliar para subir recaudos a Supabase Storage
+async function subirArchivoRecaudo(inputId, carpeta) {
+  const input = document.getElementById(inputId);
+  if (!input || !input.files || input.files.length === 0) return null;
+
+  const file = input.files[0];
   const ext = file.name.split('.').pop();
-  const ruta = `${carpeta}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-  
-  const { error } = await db.storage.from('receipts').upload(ruta, file);
-  if (error) throw new Error('Error al subir documento: ' + error.message);
-  
-  const { data } = db.storage.from('receipts').getPublicUrl(ruta);
+  const path = `${carpeta}/${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`;
+
+  const { error } = await db.storage.from('receipts').upload(path, file);
+  if (error) return null;
+
+  const { data } = db.storage.from('receipts').getPublicUrl(path);
   return data.publicUrl;
 }
 
+// Procesar el formulario de registro
 if (formRegistro) {
   formRegistro.addEventListener('submit', async (e) => {
     e.preventDefault();
-    regMensaje.style.display = 'none';
     btnRegistrar.disabled = true;
     btnRegistrar.innerText = 'Procesando registro...';
-
-    const nombreCompleto = document.getElementById('reg-nombre-completo').value.trim();
-    const telefono = document.getElementById('reg-telefono').value.trim();
-    const email = document.getElementById('reg-email').value.trim();
-    const password = document.getElementById('reg-password').value.trim();
-    const checkTyc = document.getElementById('reg-check-tyc').checked;
-
-    if (!checkTyc) {
-      alert('Debes aceptar los términos y condiciones correspondientes a tu rol.');
-      btnRegistrar.disabled = false;
-      return;
-    }
+    if (regMensaje) regMensaje.style.display = 'none';
 
     try {
-      // 1. Registro en Supabase Auth
-      const { data: authData, error: authError } = await db.auth.signUp({
-        email: email,
-        password: password,
+      const nombre = document.getElementById('reg-nombre').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const telefono = document.getElementById('reg-telefono').value.trim();
+      const password = document.getElementById('reg-password').value;
+
+      // 1. Crear usuario en Supabase Auth con su rol en user_metadata
+      const { data: authData, error: authErr } = await db.auth.signUp({
+        email,
+        password,
         options: {
           data: {
-            full_name: nombreCompleto,
-            phone: telefono,
-            role: rolSeleccionado
+            role: rolSeleccionado,
+            full_name: nombre,
+            phone: telefono
           }
         }
       });
 
-      if (authError) throw authError;
-      const user = authData.user;
-      if (!user) throw new Error('No se pudo crear la sesión del usuario.');
+      if (authErr) throw authErr;
+      const userId = authData.user?.id;
 
-      // 2. Lógica por rol
-      if (rolSeleccionado === 'restaurant') {
-        const restNombre = document.getElementById('reg-restaurante-nombre').value.trim();
-        const slug = (document.getElementById('reg-restaurante-slug').value.trim() || restNombre)
-          .toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-        const rif = document.getElementById('reg-restaurante-rif').value.trim();
+      // 2. Guardar datos específicos según el rol elegido
+      if (rolSeleccionado === 'client' && userId) {
+        await db.from('client_profiles').upsert([{
+          id: userId,
+          full_name: nombre,
+          phone: telefono,
+          terms_accepted: true
+        }]);
+        alert('¡Cuenta de cliente creada con éxito!');
+        window.location.href = 'index.html';
 
-        const fileId = document.getElementById('doc-cocina-id').files[0];
-        const fileSanitario = document.getElementById('doc-cocina-sanitario').files[0];
-        const fileLicores = document.getElementById('doc-cocina-licores').files[0];
+      } else if (rolSeleccionado === 'restaurant' && userId) {
+        const nombreLocal = document.getElementById('reg-local-nombre')?.value.trim() || `${nombre} Cocina`;
+        const categoriaLocal = document.getElementById('reg-local-categoria')?.value.trim() || 'Gastronomía';
+        const rifLocal = document.getElementById('reg-local-rif')?.value.trim() || 'J-00000000-0';
 
-        if (!fileId || !fileSanitario) {
-          throw new Error('Debes adjuntar Cédula/RIF y Certificado de Manipulación de Alimentos.');
-        }
-
-        btnRegistrar.innerText = 'Subiendo recaudos legales...';
-        const docIdUrl = await subirDocumento(fileId, 'verificaciones/cocinas');
-        const docSanitarioUrl = await subirDocumento(fileSanitario, 'verificaciones/cocinas');
-        const docLicoresUrl = fileLicores ? await subirDocumento(fileLicores, 'verificaciones/cocinas') : null;
-
-        // Crear el comercio en businesses
-        const { data: negocio, error: errNegocio } = await db
+        // Crear restaurante (inactivo hasta aprobación de admin o activo para pruebas)
+        const { data: nuevoNegocio, error: negErr } = await db
           .from('businesses')
           .insert([{
-            name: restNombre,
-            slug: slug,
+            owner_id: userId,
+            name: nombreLocal,
+            category: categoriaLocal,
             phone: telefono,
-            is_active: false // Inactivo hasta verificación administrativa
+            is_active: true
           }])
           .select()
           .single();
 
-        if (errNegocio) throw errNegocio;
+        if (!negErr && nuevoNegocio) {
+          const urlSanitario = await subirArchivoRecaudo('file-permiso-sanitario', 'verificaciones');
+          const urlManipulacion = await subirArchivoRecaudo('file-manipulacion', 'verificaciones');
+          const urlLicores = await subirArchivoRecaudo('file-licores', 'verificaciones');
 
-        // Vincular el perfil de cocina
-        await db.from('kitchen_profiles').insert([{
-          id: user.id,
-          business_id: negocio.id
-        }]);
-
-        // Registrar expediente de recaudos
-        await db.from('restaurant_verifications').insert([{
-          business_id: negocio.id,
-          rif: rif,
-          id_doc_url: docIdUrl,
-          health_permit_url: docSanitarioUrl,
-          liquor_license_url: docLicoresUrl,
-          status: 'pending_review'
-        }]);
-
-      } else if (rolSeleccionado === 'delivery') {
-        const cedula = document.getElementById('reg-delivery-ci').value.trim();
-        const tipoVehiculo = document.getElementById('reg-vehiculo-tipo').value;
-        const placa = document.getElementById('reg-vehiculo-placa').value.trim();
-
-        const fileCi = document.getElementById('doc-delivery-ci').files[0];
-        const fileLic = document.getElementById('doc-delivery-licencia').files[0];
-        const fileMed = document.getElementById('doc-delivery-medico').files[0];
-
-        if (!fileCi || !fileLic || !fileMed) {
-          throw new Error('Debes adjuntar Cédula, Licencia y Certificado Médico Vial.');
+          await db.from('restaurant_verifications').insert([{
+            business_id: nuevoNegocio.id,
+            rif: rifLocal,
+            sanitary_permit_url: urlSanitario,
+            food_handling_url: urlManipulacion,
+            liquor_license_url: urlLicores,
+            status: 'pending'
+          }]);
         }
 
-        btnRegistrar.innerText = 'Subiendo recaudos viales...';
-        await subirDocumento(fileCi, 'verificaciones/drivers');
-        await subirDocumento(fileLic, 'verificaciones/drivers');
-        await subirDocumento(fileMed, 'verificaciones/drivers');
+        alert('¡Restaurante registrado con éxito! Redirigiendo a tu panel de cocina.');
+        window.location.href = 'cocina.html';
 
-        // Inicializar billetera y control de deuda de efectivo
-        await db.from('delivery_wallets').insert([{
-          driver_id: user.id,
-          prepaid_balance: 0.00,
-          cash_debt: 0.00,
-          debt_ceiling: 15.00,
-          is_blocked: false
+      } else if (rolSeleccionado === 'delivery' && userId) {
+        const vehiculo = document.getElementById('reg-vehiculo-tipo')?.value || 'moto';
+        const placa = document.getElementById('reg-vehiculo-placa')?.value.trim() || 'S/P';
+
+        const urlCedula = await subirArchivoRecaudo('file-driver-cedula', 'choferes');
+        const urlLicencia = await subirArchivoRecaudo('file-driver-licencia', 'choferes');
+
+        await db.from('driver_profiles').upsert([{
+          id: userId,
+          full_name: nombre,
+          phone: telefono,
+          vehicle_type: vehiculo,
+          vehicle_plate: placa,
+          id_doc_url: urlCedula,
+          license_doc_url: urlLicencia,
+          cash_debt: 0,
+          is_online: true
         }]);
+
+        alert('¡Cuenta de repartidor creada con éxito! Redirigiendo a tu panel de entregas.');
+        window.location.href = 'delivery.html';
       }
 
-      regMensaje.style.background = '#065f46';
-      regMensaje.style.borderColor = '#047857';
-      regMensaje.innerText = '¡Registro completado con éxito! Redirigiendo al portal de acceso...';
-      regMensaje.style.display = 'block';
-
-      setTimeout(() => {
-        window.location.href = 'portal.html';
-      }, 1800);
-
     } catch (err) {
-      regMensaje.style.background = '#7f1d1d';
-      regMensaje.style.borderColor = '#991b1b';
-      regMensaje.innerText = 'Error al registrar: ' + err.message;
-      regMensaje.style.display = 'block';
-    } finally {
+      if (regMensaje) {
+        regMensaje.style.display = 'block';
+        regMensaje.style.color = '#fca5a5';
+        regMensaje.innerText = 'Error: ' + err.message;
+      } else {
+        alert('Error en el registro: ' + err.message);
+      }
       btnRegistrar.disabled = false;
-      cambiarRol(rolSeleccionado);
+      btnRegistrar.innerText = 'Reintentar Registro';
     }
   });
 }
+
+// Inicializar vista por defecto
+cambiarRol('client');

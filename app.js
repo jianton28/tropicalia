@@ -33,23 +33,41 @@ async function actualizarBotonAcceso() {
   if (!btnAuth) return;
 
   const { data: { session } } = await db.auth.getSession();
-  if (session && session.user) {
-    const rol = session.user.user_metadata?.role;
-    if (rol === 'restaurant') {
-      btnAuth.innerText = 'Panel Cocina';
-      btnAuth.href = 'cocina.html';
-    } else if (rol === 'delivery') {
-      btnAuth.innerText = 'Panel Delivery';
-      btnAuth.href = 'delivery.html';
-    } else if (rol === 'admin') {
-      btnAuth.innerText = 'Panel Admin';
-      btnAuth.href = 'admin.html';
-    } else {
-      btnAuth.innerText = `👤 ${session.user.user_metadata?.full_name?.split(' ')[0] || 'Mi Cuenta'}`;
-      btnAuth.href = 'portal.html';
-    }
-  } else {
+  if (!session || !session.user) {
     btnAuth.innerText = 'Iniciar Sesión';
+    btnAuth.href = 'portal.html';
+    return;
+  }
+
+  const user = session.user;
+  let rol = user.user_metadata?.role;
+
+  // Respaldo: si el usuario no tenía 'role' en metadata, inferirlo de las tablas o correo
+  if (!rol) {
+    if (user.email.includes('admin')) {
+      rol = 'admin';
+    } else {
+      const { data: neg } = await db.from('businesses').select('id').eq('owner_id', user.id).maybeSingle();
+      if (neg) rol = 'restaurant';
+      else {
+        const { data: drv } = await db.from('driver_profiles').select('id').eq('id', user.id).maybeSingle();
+        if (drv) rol = 'delivery';
+      }
+    }
+  }
+
+  if (rol === 'restaurant') {
+    btnAuth.innerText = '👨‍🍳 Panel Cocina';
+    btnAuth.href = 'cocina.html';
+  } else if (rol === 'delivery') {
+    btnAuth.innerText = '🛵 Panel Delivery';
+    btnAuth.href = 'delivery.html';
+  } else if (rol === 'admin') {
+    btnAuth.innerText = '🛡️ Panel Admin';
+    btnAuth.href = 'admin.html';
+  } else {
+    const nombre = user.user_metadata?.full_name?.split(' ')[0] || 'Mi Cuenta';
+    btnAuth.innerText = `👤 ${nombre}`;
     btnAuth.href = 'portal.html';
   }
 }
