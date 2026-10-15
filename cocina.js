@@ -8,6 +8,7 @@ let localActivo = null;
 let productosLocal = [];
 let insumosLocal = [];
 let comandasActivas = [];
+let miGraficoVentas = null;
 
 const gridComandas = document.getElementById('grid-comandas');
 const selectPlatoSalon = document.getElementById('select-plato-salon');
@@ -25,17 +26,24 @@ const tbodyInsumos = document.getElementById('tbody-insumos');
   await cargarCatalogoLocal();
   await cargarInventarioInsumos();
   await cargarComandasCocina();
+  await cargarEstadisticasFinancieras();
   suscribirComandasRealtime();
 })();
 
 async function cargarNegocioCocina(user) {
-  // Buscar negocio cuyo owner_id sea el usuario actual
-  let { data: neg } = await db.from('businesses').select('*').eq('owner_id', user.id).maybeSingle();
-  if (!neg) {
-    // Respaldo por si el usuario es administrador o prueba genérica
-    const { data: primero } = await db.from('businesses').select('*').limit(1).single();
-    neg = primero;
+  // Búsqueda estricta por el ID del propietario autenticado
+  let { data: neg, error } = await db
+    .from('businesses')
+    .select('*')
+    .eq('owner_id', user.id)
+    .maybeSingle();
+
+  if (error || !neg) {
+    alert('Esta cuenta no tiene ningún restaurante asociado. Contacta al administrador o vincula tu usuario en la base de datos.');
+    window.location.href = 'portal.html';
+    return;
   }
+
   localActivo = neg;
   document.getElementById('cocina-titulo').innerText = `${neg.name} - Operaciones`;
   actualizarBotonEstadoLocal();
@@ -294,6 +302,105 @@ window.cambiarEstadoComanda = async function(ordenId, nuevoEstado) {
   await cargarComandasCocina();
 };
 
+// ==========================================
+// ESTADÍSTICAS Y GRÁFICOS FINANCIEROS
+// ==========================================
+async function cargarEstadisticasFinancieras() {
+  const { data: ordenes, error } = await db
+    .from('orders')
+    .select('total, subtotal_food, created_at')
+    .eq('business_id', localActivo.id)
+    .eq('status', 'delivered');
+
+  if (error || !ordenes) return;
+
+  const ahora = new Date();
+  const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()).getTime();
+  
+  const primerDiaSemana = new Date(ahora);
+  primerDiaSemana.setDate(ahora.getDate() - ahora.getDay());
+  primerDiaSemana.setHours(0, 0, 0, 0);
+
+  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime();
+  const inicioAnio = new Date(ahora.getFullYear(), 0, 1).getTime();
+
+  let totalDia = 0;
+  let totalSemana = 0;
+  let totalMes = 0;
+  let totalAnio = 0;
+
+  const diasVentas = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(ahora.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    diasVentas[key] = 0;
+  }
+
+  ordenes.forEach(o => {
+    const monto = parseFloat(o.subtotal_food || o.total || 0);
+    const fechaOrden = new Date(o.created_at);
+    const tiempoOrden = fechaOrden.getTime();
+    const fechaKey = o.created_at.split('T')[0];
+
+    if (tiempoOrden >= inicioHoy) totalDia += monto;
+    if (tiempoOrden >= primerDiaSemana.getTime()) totalSemana += monto;
+    if (tiempoOrden >= inicioMes) totalMes += monto;
+    if (tiempoOrden >= inicioAnio) totalAnio += monto;
+
+    if (diasVentas[fechaKey] !== undefined) {
+      diasVentas[fechaKey] += monto;
+    }
+  });
+
+  document.getElementById('stat-dia').innerText = `$${totalDia.toFixed(2)}`;
+  document.getElementById('stat-semana').innerText = `$${totalSemana.toFixed(2)}`;
+  document.getElementById('stat-mes').innerText = `$${totalMes.toFixed(2)}`;
+  document.getElementById('stat-anio').innerText = `$${totalAnio.toFixed(2)}`;
+
+  const ctx = document.getElementById('chartVentas').getContext('2d');
+  const labels = Object.keys(diasVentas).map(f => {
+    const partes = f.split('-');
+    return `${partes[2]}/${partes[1]}`;
+  });
+  const valores = Object.values(diasVentas);
+
+  if (miGraficoVentas) {
+    miGraficoVentas.destroy();
+  }
+
+  miGraficoVentas = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Ventas USD ($)',
+        data: valores,
+        backgroundColor: '#fbbf24',
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: '#222' },
+          ticks: { color: '#9ca3af' }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#9ca3af' }
+        }
+      }
+    }
+  });
+}
+
 // VENTA EN SALÓN Y MERMA
 document.getElementById('form-venta-salon').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -372,6 +479,7 @@ function suscribirComandasRealtime() {
   db.channel('cocina-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
       cargarComandasCocina();
+      cargarEstadisticasFinancieras();
     })
     .subscribe();
 }
