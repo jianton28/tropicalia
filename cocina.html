@@ -209,5 +209,37 @@
         <canvas id="chartVentas"></canvas>
       </div>
     </section>
+    <!-- MODAL DE CONFIGURACIÓN DE RECETA -->
+<div id="modal-receta" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+  <div class="card" style="width: 90%; max-width: 500px; background: #1a1a1a; border: 1px solid var(--gold);">
+    <h3 id="modal-receta-titulo" style="margin-top: 0; color: var(--gold);">Configurar Receta</h3>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">Indica qué insumos y qué cantidad consume este plato al venderse.</p>
+
+    <form id="form-agregar-ingrediente" style="display: flex; gap: 8px; margin-bottom: 14px;">
+      <select id="select-insumo-receta" required style="margin:0; flex: 2;"></select>
+      <input type="number" step="0.01" id="input-cantidad-ingrediente" placeholder="Cantidad" required style="margin:0; flex: 1;" />
+      <button type="submit" class="btn-primario" style="background: #10b981;">+ Añadir</button>
+    </form>
+
+    <div style="max-height: 200px; overflow-y: auto; margin-bottom: 14px; border: 1px solid #333; border-radius: 6px; padding: 8px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <thead>
+          <tr style="color: var(--text-muted); border-bottom: 1px solid #333;">
+            <th style="text-align: left; padding: 4px;">Ingrediente</th>
+            <th style="text-align: left; padding: 4px;">Cantidad</th>
+            <th style="text-align: right; padding: 4px;">Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ingredientes-receta">
+          <tr><td colspan="3" style="text-align: center; color: #888; padding: 10px;">Selecciona un plato.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="text-align: right;">
+      <button type="button" onclick="cerrarModalReceta()" class="btn-secundario">Cerrar y Guardar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

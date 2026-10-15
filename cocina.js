@@ -9,6 +9,7 @@ let productosLocal = [];
 let insumosLocal = [];
 let comandasActivas = [];
 let miGraficoVentas = null;
+let platoSeleccionadoId = null;
 
 const gridComandas = document.getElementById('grid-comandas');
 const selectPlatoSalon = document.getElementById('select-plato-salon');
@@ -31,7 +32,6 @@ const tbodyInsumos = document.getElementById('tbody-insumos');
 })();
 
 async function cargarNegocioCocina(user) {
-  // Búsqueda estricta por el ID del propietario autenticado
   let { data: neg, error } = await db
     .from('businesses')
     .select('*')
@@ -93,6 +93,7 @@ function renderizarMenuCocina(lista) {
       <td style="padding: 10px;">${p.stock ?? 99} unds</td>
       <td style="padding: 10px;"><span class="badge ${p.is_available ? 'badge-on_the_way' : 'badge-pending'}">${p.is_available ? 'Disponible' : 'Pausado'}</span></td>
       <td style="padding: 10px; text-align: right;">
+        <button onclick="abrirModalReceta('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem; border-color: var(--gold); color: var(--gold);">⚙️ Receta</button>
         <button onclick="toggleDisponibilidadPlato('${p.id}', ${p.is_available})" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem;">${p.is_available ? 'Pausar' : 'Activar'}</button>
         <button onclick="eliminarPlatoMenu('${p.id}')" class="btn-secundario" style="padding: 4px 8px; font-size: 0.75rem; border-color: var(--red); color: #fca5a5;">Eliminar</button>
       </td>
@@ -142,8 +143,102 @@ window.eliminarPlatoMenu = async function(id) {
 };
 
 // ==========================================
-// GESTIÓN DE INVENTARIO E INSUMOS
+// GESTIÓN DE RECETAS E INVENTARIO
 // ==========================================
+window.abrirModalReceta = async function(platoId, platoNombre) {
+  platoSeleccionadoId = platoId;
+  document.getElementById('modal-receta-titulo').innerText = `Receta para: ${platoNombre}`;
+  document.getElementById('modal-receta').style.display = 'flex';
+
+  const selectInsumo = document.getElementById('select-insumo-receta');
+  selectInsumo.innerHTML = insumosLocal.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+
+  await cargarIngredientesReceta(platoId);
+};
+
+window.cerrarModalReceta = function() {
+  document.getElementById('modal-receta').style.display = 'none';
+  platoSeleccionadoId = null;
+};
+
+async function cargarIngredientesReceta(platoId) {
+  const tbody = document.getElementById('tbody-ingredientes-receta');
+  const { data, error } = await db
+    .from('product_recipes')
+    .select('*, inventory_items(name, unit)')
+    .eq('product_id', platoId);
+
+  if (error || !data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: #888; padding: 10px;">Sin ingredientes configurados.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(rec => `
+    <tr style="border-bottom: 1px solid #222;">
+      <td style="padding: 6px;">${rec.inventory_items?.name || 'Insumo'}</td>
+      <td style="padding: 6px; color: var(--gold);">${rec.quantity_required} ${rec.inventory_items?.unit || ''}</td>
+      <td style="padding: 6px; text-align: right;">
+        <button onclick="eliminarIngredienteReceta('${rec.id}', '${platoId}')" class="btn-secundario" style="padding: 2px 6px; font-size: 0.7rem; border-color: var(--red); color: #fca5a5;">X</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('form-agregar-ingrediente').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!platoSeleccionadoId) return;
+
+  const inventory_item_id = document.getElementById('select-insumo-receta').value;
+  const quantity_required = parseFloat(document.getElementById('input-cantidad-ingrediente').value);
+
+  const { error } = await db.from('product_recipes').insert([{
+    product_id: platoSeleccionadoId,
+    inventory_item_id,
+    quantity_required
+  }]);
+
+  if (!error) {
+    document.getElementById('input-cantidad-ingrediente').value = '';
+    await cargarIngredientesReceta(platoSeleccionadoId);
+  } else {
+    alert('Error al añadir ingrediente: ' + error.message);
+  }
+});
+
+window.eliminarIngredienteReceta = async function(recetaId, platoId) {
+  await db.from('product_recipes').delete().eq('id', recetaId);
+  await cargarIngredientesReceta(platoId);
+};
+
+async function descontarInsumosPorReceta(productoId, cantidadVendida) {
+  const { data: receta } = await db
+    .from('product_recipes')
+    .select('inventory_item_id, quantity_required')
+    .eq('product_id', productoId);
+
+  if (!receta || receta.length === 0) return;
+
+  for (const item of receta) {
+    const { data: insumo } = await db
+      .from('inventory_items')
+      .select('quantity')
+      .eq('id', item.inventory_item_id)
+      .single();
+
+    if (insumo) {
+      const stockActual = parseFloat(insumo.quantity || 0);
+      const consumoTotal = parseFloat(item.quantity_required) * cantidadVendida;
+      const nuevoStock = Math.max(0, stockActual - consumoTotal);
+
+      await db.from('inventory_items')
+        .update({ quantity: nuevoStock })
+        .eq('id', item.inventory_item_id);
+    }
+  }
+
+  await cargarInventarioInsumos();
+}
+
 async function cargarInventarioInsumos() {
   const { data } = await db.from('inventory_items').select('*').eq('business_id', localActivo.id).order('name', { ascending: true });
   insumosLocal = data || [];
@@ -297,7 +392,18 @@ window.cambiarEstadoComanda = async function(ordenId, nuevoEstado) {
   const payload = { status: nuevoEstado };
   if (nuevoEstado === 'on_the_way') {
     payload.delivery_status = 'on_the_way';
+    
+    // Al entregar al repartidor/salir en camino, descontar insumos por receta de cada item de la orden
+    const ordenObj = comandasActivas.find(o => o.id === ordenId);
+    if (ordenObj && ordenObj.items) {
+      for (const item of ordenObj.items) {
+        if (item.id) {
+          await descontarInsumosPorReceta(item.id, parseInt(item.quantity || 1));
+        }
+      }
+    }
   }
+
   await db.from('orders').update(payload).eq('id', ordenId);
   await cargarComandasCocina();
 };
@@ -411,6 +517,9 @@ document.getElementById('form-venta-salon').addEventListener('submit', async (e)
 
   const nuevoStock = Math.max(0, (prod.stock ?? 50) - cant);
   await db.from('products').update({ stock: nuevoStock }).eq('id', prod.id);
+
+  // Descontar insumos automáticamente por receta en venta de salón
+  await descontarInsumosPorReceta(prodId, cant);
 
   await db.from('kitchen_logs').insert([{
     business_id: localActivo.id,
