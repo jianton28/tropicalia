@@ -123,19 +123,31 @@ export default function Registro() {
   }
 
   return (
-    <div className="container" style={{ maxWidth: '540px', marginTop: '40px', marginBottom: '80px' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px' }}>
       
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <Link to="/portal" style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: '0.85rem' }}>
-          ← Ya tengo cuenta, ir a Iniciar Sesión
-        </Link>
-        <h1 style={{ fontSize: '1.8rem', margin: '8px 0 4px 0', color: '#fff' }}>Registro en Tropicalia</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+      {/* HEADER OFICIAL FIGMA */}
+      <header className="figma-header" style={{ marginBottom: '20px' }}>
+        <div className="figma-header-top" style={{ marginBottom: 0 }}>
+          <Link to="/portal" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ← Iniciar Sesión
+          </Link>
+        </div>
+        <h1 style={{ fontSize: '1.45rem', margin: '10px 0 0 0', color: '#ffffff' }}>
+          Registro en Tropicalia
+        </h1>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.85)' }}>
           Selecciona tu tipo de perfil para comenzar
         </p>
-      </div>
+      </header>
 
-      <div className="card">
+      <div style={{ padding: '0 20px' }}>
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '20px',
+          padding: '20px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+        }}>
         
         {/* SELECTOR DE ROL */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
@@ -351,6 +363,7 @@ export default function Registro() {
           </button>
 
         </form>
+        </div>
       </div>
 
     </div>

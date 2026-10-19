@@ -5,19 +5,24 @@ export default function Legal() {
   const [tab, setTab] = useState('clientes');
 
   return (
-    <div className="container" style={{ maxWidth: '920px', marginTop: '40px', marginBottom: '80px', lineHeight: 1.65 }}>
+    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px', lineHeight: 1.65 }}>
       
-      <header style={{ marginBottom: '25px' }}>
-        <Link to="/" style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: '0.85rem' }}>
-          ← Volver a la Tienda
-        </Link>
-        <h1 style={{ color: '#fff', fontSize: '2rem', margin: '10px 0 4px 0' }}>
-          Marco Legal y Condiciones del Servicio
+      {/* HEADER OFICIAL FIGMA */}
+      <header className="figma-header" style={{ marginBottom: '20px' }}>
+        <div className="figma-header-top" style={{ marginBottom: 0 }}>
+          <Link to="/" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ← Volver a la Tienda
+          </Link>
+        </div>
+        <h1 style={{ fontSize: '1.45rem', margin: '10px 0 0 0', color: '#ffffff' }}>
+          Marco Legal y Condiciones
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.85)' }}>
           Plataforma Tecnológica Tropicalia • República Bolivariana de Venezuela
         </p>
       </header>
+
+      <div style={{ padding: '0 20px' }}>
 
       {/* SELECTOR DE DOCUMENTOS */}
       <nav className="admin-nav" style={{ gap: '10px' }}>
@@ -115,6 +120,7 @@ export default function Legal() {
         </article>
       )}
 
+      </div>
     </div>
   );
 }

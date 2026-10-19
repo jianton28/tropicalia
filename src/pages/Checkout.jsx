@@ -239,67 +239,95 @@ export default function Checkout() {
   ];
 
   return (
-    <div className="container" style={{ maxWidth: '720px', marginTop: '28px', marginBottom: '80px' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '80px' }}>
       
-      {/* NAVEGACIÓN SUPERIOR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-        <Link to="/" className="btn-secundario">← Seguir comprando</Link>
-        <strong style={{ color: 'var(--gold)', fontSize: '1.1rem' }}>Finalizar Compra</strong>
-      </div>
-
-      {/* RESUMEN DEL CARRITO */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '12px' }}>
-          <h2 style={{ fontSize: '1.15rem', margin: 0 }}>🛒 Tu Carrito ({businessName})</h2>
-          <button type="button" onClick={clearCart} className="btn-secundario" style={{ fontSize: '0.75rem', padding: '4px 10px', color: '#fca5a5' }}>
-            Vaciar
-          </button>
+      {/* HEADER OFICIAL FIGMA */}
+      <header className="figma-header" style={{ marginBottom: '20px' }}>
+        <div className="figma-header-top" style={{ marginBottom: 0 }}>
+          <Link to="/" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ← Volver al Menú
+          </Link>
+          <span className="figma-cart-pill" style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
+            🛒 {cart.length} {cart.length === 1 ? 'plato' : 'platos'}
+          </span>
         </div>
+        <h1 style={{ fontSize: '1.45rem', margin: '10px 0 0 0', color: '#ffffff' }}>
+          Finalizar Compra
+        </h1>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.85)' }}>
+          {businessName} • Tasa oficial BCV: {formatBs(tasaBCV)}
+        </p>
+      </header>
 
-        <div>
-          {cart.map((item, idx) => (
-            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #242424' }}>
-              <div>
-                <strong>{item.quantity}x {item.name}</strong>
-                <small style={{ color: 'var(--text-muted)', display: 'block' }}>{formatUsd(item.price)} c/u</small>
+      <div style={{ padding: '0 20px' }}>
+
+        {/* RESUMEN DEL CARRITO */}
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '20px',
+          padding: '18px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--dark-amaranth)' }}>🛒 Tu Pedido</h2>
+            <button type="button" onClick={clearCart} style={{ background: 'none', border: 'none', color: 'var(--flag-red)', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+              Vaciar Carrito
+            </button>
+          </div>
+
+          <div>
+            {cart.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
+                <div>
+                  <strong style={{ fontSize: '0.9rem', color: '#1f2937' }}>{item.quantity}x {item.name}</strong>
+                  <small style={{ color: '#6b7280', display: 'block' }}>{formatUsd(item.price)} c/u</small>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong style={{ color: 'var(--dark-amaranth)' }}>{formatUsd(item.price * item.quantity)}</strong>
+                  <button type="button" onClick={() => changeQuantity(idx, -1)} style={{ width: '26px', height: '26px', borderRadius: '50%', border: '1px solid #d1d5db', background: '#f3f4f6', cursor: 'pointer' }}>-</button>
+                  <button type="button" onClick={() => changeQuantity(idx, 1)} style={{ width: '26px', height: '26px', borderRadius: '50%', border: '1px solid #d1d5db', background: '#f3f4f6', cursor: 'pointer' }}>+</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <strong>{formatUsd(item.price * item.quantity)}</strong>
-                <button type="button" onClick={() => changeQuantity(idx, -1)} className="btn-secundario" style={{ padding: '2px 8px' }}>-</button>
-                <button type="button" onClick={() => changeQuantity(idx, 1)} className="btn-secundario" style={{ padding: '2px 8px' }}>+</button>
-              </div>
+            ))}
+          </div>
+
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', marginTop: '12px', fontSize: '0.88rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={{ color: '#6b7280' }}>Subtotal Comida:</span>
+              <strong>{formatUsd(subtotalComida)}</strong>
             </div>
-          ))}
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px', fontSize: '0.9rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Subtotal Comida:</span>
-            <strong>{formatUsd(subtotalComida)}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>
-              Costo de Delivery <small style={{ color: '#fbbf24' }}>{modalidad === 'delivery' ? `(~${distanciaKm.toFixed(1)} km)` : '(Pickup Gratis)'}</small>:
-            </span>
-            <strong>{formatUsd(costoDelivery)}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Propina Repartidor:</span>
-            <strong>{formatUsd(propinaMotorizado)}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', color: 'var(--gold)', borderTop: '1px dashed #333', paddingTop: '8px' }}>
-            <strong>Total a Pagar:</strong>
-            <strong>{formatUsd(totalUsd)}</strong>
-          </div>
-          <div style={{ textAlign: 'right', color: '#34d399', fontSize: '0.85rem', fontWeight: 600 }}>
-            Monto en Bolívares (BCV): {formatBs(totalBs)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={{ color: '#6b7280' }}>
+                Costo de Delivery <small style={{ color: 'var(--golden-orange)', fontWeight: 700 }}>{modalidad === 'delivery' ? `(~${distanciaKm.toFixed(1)} km)` : '(Pickup Gratis)'}</small>:
+              </span>
+              <strong>{formatUsd(costoDelivery)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ color: '#6b7280' }}>Propina Repartidor:</span>
+              <strong>{formatUsd(propinaMotorizado)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', color: 'var(--dark-amaranth)', borderTop: '2px dashed #e5e7eb', paddingTop: '10px' }}>
+              <strong>Total a Pagar:</strong>
+              <strong>{formatUsd(totalUsd)}</strong>
+            </div>
+            <div style={{ textAlign: 'right', color: '#10b981', fontSize: '0.85rem', fontWeight: 800 }}>
+              Monto en Bolívares (BCV): {formatBs(totalBs)}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* FORMULARIO DE PAGO Y DESPACHO */}
-      <form onSubmit={handleSubmit} className="card">
-        <h3 style={{ marginTop: 0, color: 'var(--gold)', fontSize: '1.1rem' }}>1. Datos de Contacto y Entrega</h3>
+        {/* FORMULARIO DE PAGO Y DESPACHO */}
+        <form onSubmit={handleSubmit} style={{
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '20px',
+          padding: '20px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+          marginBottom: '20px'
+        }}>
+          <h3 style={{ marginTop: 0, color: 'var(--dark-amaranth)', fontSize: '1.1rem' }}>1. Datos de Contacto y Entrega</h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
           <div>
@@ -385,37 +413,41 @@ export default function Checkout() {
         </div>
 
         {/* 2. MÉTODO DE PAGO */}
-        <h3 style={{ marginTop: '24px', color: 'var(--gold)', fontSize: '1.1rem' }}>2. Método de Pago</h3>
+        <h3 style={{ marginTop: '24px', color: 'var(--dark-amaranth)', fontSize: '1.1rem' }}>2. Método de Pago</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', margin: '8px 0 16px 0' }}>
-          {metodosDisponibles.map(m => (
-            <div
-              key={m.id}
-              onClick={() => setMetodoPago(m.id)}
-              style={{
-                background: metodoPago === m.id ? 'rgba(251, 191, 36, 0.12)' : '#161616',
-                borderColor: metodoPago === m.id ? 'var(--gold)' : '#2e2e2e',
-                borderWidth: '1.5px',
-                borderStyle: 'solid',
-                borderRadius: '10px',
-                padding: '12px 8px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <span style={{ fontSize: '1.35rem' }}>{m.icon}</span>
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: metodoPago === m.id ? 'var(--gold)' : '#e5e7eb' }}>
-                {m.label}
-              </span>
-            </div>
-          ))}
+          {metodosDisponibles.map(m => {
+            const isSelected = metodoPago === m.id;
+            return (
+              <div
+                key={m.id}
+                onClick={() => setMetodoPago(m.id)}
+                style={{
+                  background: isSelected ? 'rgba(130, 19, 58, 0.08)' : '#f9fafb',
+                  borderColor: isSelected ? 'var(--dark-amaranth)' : '#e5e7eb',
+                  borderWidth: '2px',
+                  borderStyle: 'solid',
+                  borderRadius: '12px',
+                  padding: '12px 8px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.35rem' }}>{m.icon}</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: isSelected ? 'var(--dark-amaranth)' : '#374151' }}>
+                  {m.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         {/* CAMPOS DINÁMICOS POR MÉTODO */}
-        <div style={{ background: '#141414', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '16px', marginBottom: '18px' }}>
+        <div style={{ background: '#f8f9fb', border: '1px solid #e5e7eb', borderLeft: '4px solid var(--dark-amaranth)', borderRadius: '12px', padding: '16px', marginBottom: '18px' }}>
           {metodoPago === 'pago_movil' && (
             <div>
               <div style={{ background: 'rgba(251, 191, 36, 0.08)', borderLeft: '3px solid var(--gold)', padding: '10px 12px', borderRadius: '6px', marginBottom: '14px', fontSize: '0.83rem', color: '#d1d5db' }}>
@@ -571,6 +603,7 @@ export default function Checkout() {
           {submitting ? 'Procesando tu orden...' : `Confirmar y Enviar Pedido (${formatUsd(totalUsd)})`}
         </button>
       </form>
+      </div>
 
     </div>
   );

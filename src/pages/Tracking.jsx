@@ -140,114 +140,135 @@ export default function Tracking() {
   const phase = getStepPhase();
 
   return (
-    <div className="container" style={{ maxWidth: '720px', marginTop: '28px', marginBottom: '80px' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px' }}>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-        <Link to="/" className="btn-secundario">← Volver a la Tienda</Link>
-        <span style={{ color: 'var(--gold)', fontWeight: 700 }}>
-          {orderId ? `#ORD-${orderId.slice(0, 8)}` : ''}
-        </span>
-      </div>
-
-      {loading ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p style={{ color: 'var(--text-muted)' }}>Cargando estado del pedido...</p>
+      {/* HEADER OFICIAL FIGMA */}
+      <header className="figma-header" style={{ marginBottom: '20px' }}>
+        <div className="figma-header-top" style={{ marginBottom: 0 }}>
+          <Link to="/" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ← Volver a la Tienda
+          </Link>
+          <span style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', padding: '4px 12px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 800 }}>
+            {orderId ? `#ORD-${orderId.slice(0, 8)}` : ''}
+          </span>
         </div>
-      ) : !orden ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p style={{ color: '#fca5a5' }}>No se encontró la comanda solicitada.</p>
-          <Link to="/" className="btn-primario" style={{ marginTop: '12px' }}>Ir al Catálogo</Link>
-        </div>
-      ) : (
-        <div className="card">
-          
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <span className="badge badge-on_the_way" style={{ marginBottom: '8px' }}>
-              {orden.status === 'pending_payment_verification' && 'Validando Pago'}
-              {(orden.status === 'pending' || orden.status === 'cooking') && 'En Preparación'}
-              {orden.status === 'ready' && 'Listo para Despacho'}
-              {orden.status === 'on_the_way' && 'Conductor en Ruta'}
-              {orden.status === 'delivered' && 'Pedido Entregado'}
-            </span>
-            <h1 style={{ fontSize: '1.6rem', margin: '6px 0 2px 0', color: '#fff' }}>
-              {orden.status === 'pending_payment_verification' && 'Verificando Pago'}
-              {(orden.status === 'pending' || orden.status === 'cooking') && 'Tu comida está en la Cocina'}
-              {orden.status === 'ready' && '¡Pedido Empacado! Buscando Repartidor'}
-              {orden.status === 'on_the_way' && '¡El Repartidor va en camino!'}
-              {orden.status === 'delivered' && '🎉 ¡Pedido Entregado!'}
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-              {orden.businesses?.name || 'Restaurante Aliado'}
-            </p>
-          </div>
+        <h1 style={{ fontSize: '1.45rem', margin: '10px 0 0 0', color: '#ffffff' }}>
+          Seguimiento en Vivo
+        </h1>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.85)' }}>
+          {orden?.businesses?.name || 'Tropicalia Delivery Express'}
+        </p>
+      </header>
 
-          {/* STEPPER */}
-          <div className="stepper">
-            <div className={`step ${phase === 1 ? 'active' : ''} ${phase > 1 ? 'completed' : ''}`}>
-              <div className="step-icon">1</div>
-              <span className="step-title">Confirmado</span>
-            </div>
-            <div className={`step ${phase === 2 ? 'active' : ''} ${phase > 2 ? 'completed' : ''}`}>
-              <div className="step-icon">2</div>
-              <span className="step-title">En Cocina</span>
-            </div>
-            <div className={`step ${phase === 3 ? 'active' : ''} ${phase > 3 ? 'completed' : ''}`}>
-              <div className="step-icon">3</div>
-              <span className="step-title">En Camino</span>
-            </div>
-            <div className={`step ${phase === 4 ? 'active' : ''}`}>
-              <div className="step-icon">4</div>
-              <span className="step-title">Entregado</span>
-            </div>
-          </div>
+      <div style={{ padding: '0 20px' }}>
 
-          {/* CÓDIGO SEGURO DE ENTREGA (PIN) */}
-          {orden.status === 'on_the_way' && (
-            <div style={{
-              background: 'rgba(16, 185, 129, 0.12)',
-              border: '1.5px solid #10b981',
-              borderRadius: '10px',
-              padding: '16px',
-              textAlign: 'center',
-              marginBottom: '20px'
-            }}>
-              <strong style={{ color: '#34d399', fontSize: '0.9rem', display: 'block' }}>
-                🔑 CÓDIGO SEGURO DE ENTREGA
-              </strong>
-              <div style={{
-                fontSize: '2.2rem',
-                letterSpacing: '6px',
-                fontWeight: 900,
-                color: '#fff',
-                margin: '8px 0'
-              }}>
-                {orden.delivery_code || '4821'}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '50px 20px', background: '#f9fafb', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
+            <p style={{ color: 'var(--text-muted)' }}>Cargando estado del pedido...</p>
+          </div>
+        ) : !orden ? (
+          <div style={{ textAlign: 'center', padding: '50px 20px', background: '#f9fafb', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
+            <p style={{ color: '#b91c1c' }}>No se encontró la comanda solicitada.</p>
+            <Link to="/" className="btn-primario" style={{ marginTop: '12px' }}>Ir al Catálogo</Link>
+          </div>
+        ) : (
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #e5e7eb',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+          }}>
+            
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <span className="badge badge-on_the_way" style={{ marginBottom: '8px' }}>
+                {orden.status === 'pending_payment_verification' && 'Validando Pago'}
+                {(orden.status === 'pending' || orden.status === 'cooking') && 'En Preparación'}
+                {orden.status === 'ready' && 'Listo para Despacho'}
+                {orden.status === 'on_the_way' && 'Conductor en Ruta'}
+                {orden.status === 'delivered' && 'Pedido Entregado'}
+              </span>
+              <h2 style={{ fontSize: '1.35rem', margin: '6px 0 2px 0', color: 'var(--dark-amaranth)' }}>
+                {orden.status === 'pending_payment_verification' && 'Verificando Pago'}
+                {(orden.status === 'pending' || orden.status === 'cooking') && 'Tu comida está en la Cocina'}
+                {orden.status === 'ready' && '¡Pedido Empacado! Buscando Repartidor'}
+                {orden.status === 'on_the_way' && '¡El Repartidor va en camino!'}
+                {orden.status === 'delivered' && '🎉 ¡Pedido Entregado!'}
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                {orden.businesses?.name || 'Restaurante Aliado'}
+              </p>
+            </div>
+
+            {/* STEPPER */}
+            <div className="stepper" style={{ marginBottom: '24px' }}>
+              <div className={`step ${phase === 1 ? 'active' : ''} ${phase > 1 ? 'completed' : ''}`}>
+                <div className="step-icon">1</div>
+                <span className="step-title">Confirmado</span>
               </div>
-              <small style={{ color: '#a7f3d0' }}>
-                Dicta este código al repartidor ({driverName}) solo cuando tengas la bolsa sellada en tus manos.
-              </small>
+              <div className={`step ${phase === 2 ? 'active' : ''} ${phase > 2 ? 'completed' : ''}`}>
+                <div className="step-icon">2</div>
+                <span className="step-title">En Cocina</span>
+              </div>
+              <div className={`step ${phase === 3 ? 'active' : ''} ${phase > 3 ? 'completed' : ''}`}>
+                <div className="step-icon">3</div>
+                <span className="step-title">En Camino</span>
+              </div>
+              <div className={`step ${phase === 4 ? 'active' : ''}`}>
+                <div className="step-icon">4</div>
+                <span className="step-title">Entregado</span>
+              </div>
             </div>
-          )}
 
-          {/* MENSAJE EXPLICATIVO */}
-          <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '14px', marginBottom: '20px' }}>
-            <p style={{ margin: 0, fontSize: '0.86rem', color: '#ccc' }}>
-              {orden.status === 'pending_payment_verification' && '⏳ Tu comprobante de pago está siendo verificado. En cuanto sea confirmado, la cocina comenzará de inmediato.'}
-              {orden.status === 'pending' && '👨‍🍳 La orden fue recibida por la cocina e ingresó al tren de preparación.'}
-              {orden.status === 'cooking' && '🔥 Los cocineros están preparando tus platos con sello térmico de seguridad.'}
-              {orden.status === 'ready' && '📦 El pedido está sellado y listo en barra esperando la asignación o llegada del repartidor.'}
-              {orden.status === 'on_the_way' && `🛵 ${driverName} ya retiró tu comida y se desplaza hacia tu dirección.`}
-              {orden.status === 'delivered' && '🎉 Entrega completada exitosamente. ¡Gracias por preferir Tropicalia!'}
-            </p>
+            {/* CÓDIGO SEGURO DE ENTREGA (PIN) */}
+            {orden.status === 'on_the_way' && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1.5px solid #10b981',
+                borderRadius: '16px',
+                padding: '16px',
+                textAlign: 'center',
+                marginBottom: '20px'
+              }}>
+                <strong style={{ color: '#047857', fontSize: '0.88rem', display: 'block' }}>
+                  🔑 CÓDIGO SEGURO DE ENTREGA
+                </strong>
+                <div style={{
+                  fontSize: '2.2rem',
+                  letterSpacing: '6px',
+                  fontWeight: 900,
+                  color: 'var(--dark-amaranth)',
+                  margin: '8px 0'
+                }}>
+                  {orden.delivery_code || '4821'}
+                </div>
+                <small style={{ color: '#065f46' }}>
+                  Dicta este código al repartidor ({driverName}) solo cuando tengas la bolsa sellada en tus manos.
+                </small>
+              </div>
+            )}
+
+            {/* MENSAJE EXPLICATIVO */}
+            <div style={{ background: '#f8f9fb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
+              <p style={{ margin: 0, fontSize: '0.86rem', color: '#4b5563' }}>
+                {orden.status === 'pending_payment_verification' && '⏳ Tu comprobante de pago está siendo verificado. En cuanto sea confirmado, la cocina comenzará de inmediato.'}
+                {orden.status === 'pending' && '👨‍🍳 La orden fue recibida por la cocina e ingresó al tren de preparación.'}
+                {orden.status === 'cooking' && '🔥 Los cocineros están preparando tus platos con sello térmico de seguridad.'}
+                {orden.status === 'ready' && '📦 El pedido está sellado y listo en barra esperando la asignación o llegada del repartidor.'}
+                {orden.status === 'on_the_way' && `🛵 ${driverName} ya retiró tu comida y se desplaza hacia tu dirección.`}
+                {orden.status === 'delivered' && '🎉 Entrega completada exitosamente. ¡Gracias por preferir Tropicalia!'}
+              </p>
+            </div>
+
+            {/* MAPA DE SEGUIMIENTO */}
+            <div style={{ height: '320px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+            </div>
+
           </div>
+        )}
 
-          {/* MAPA DE SEGUIMIENTO */}
-          <div style={{ height: '320px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #333' }}>
-            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
-          </div>
-
-        </div>
-      )}
+      </div>
 
     </div>
   );

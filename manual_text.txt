@@ -1,0 +1,178 @@
+Manual de Marca 	oct. 2026
+Bar-Restaurant
+
+-- 1 of 18 --
+
+Índice
+ 
+1.1 Nuestra Historia
+1.2 Filosofía
+1.3 Personalidad y Tono
+1.0 La Marca
+3.1 Paleta Cromática
+3.0 Colores
+2.1 Logo
+2.2 Zona Segura
+2.3 Uso de Logo
+2.0 El Logo
+4.1 Tipografía
+4.0 Tipografía
+
+-- 2 of 18 --
+
+La Marca
+1.0 Apartado en el que hablamos de la historia y per-
+sonalidad de la empresa
+
+-- 3 of 18 --
+
+Nuestra Historia
+Tropicalia CRB nace de la visión de tres amigos venezolanos en la ciudad de
+Caracas que decidieron unir fuerzas para crear un
+proyecto gastronómico distinto. Concebido como un restaurante de comida
+fusión que mezcla lo mejor de la cocina internacional con los sabores
+vibrantes del trópico, operamos actualmente bajo la
+modalidad Pick-up. Tropicalia es el resultado de una aventura entre amigos
+que busca ofrecer experiencias de gran calidad, atrevidas y cercanas,
+directamente al hogar de nuestros clientes.
+1.1
+
+-- 4 of 18 --
+
+Filosofía
+Misión:
+Llevar a los hogares una propuesta de sabores innovadora a través de nuestra comida fusión,
+garantizando una experiencia eficiente, amigable y memorable.
+Visión: Convertirnos en el equipo gastronómico de mayor confianza y frescura en Caracas, preparando
+el terreno para nuestra futura expansión a un local físico.
+Valores:
+Atrevidos: Rompemos esquemas al fusionar sabores del mundo con la frescura del trópico.
+Amigables: Tratamos a cada cliente con la cercanía y calidez típica del caraqueño.
+Confiables: La calidad de nuestros ingredientes y la puntualidad en nuestras entregas son
+innegociables.
+1.2
+
+-- 5 of 18 --
+
+Personalidad y
+Tono de Voz
+Tropicalia CRB tiene una personalidad magnética. Somos el anfitrión perfecto: atrevidos
+para proponerte probar algo nuevo, amigables para que te sientas en casa desde el primer
+minuto, y confiables porque sabes que aquí siempre la vas a pasar bien y comerás increíble.
+El Tono: Cercano, jovial, entusiasta y seguro de sí mismo. Usamos expresiones locales
+caraqueñas con naturalidad, pero manteniendo siempre el respeto.
+1.3
+
+-- 6 of 18 --
+
+Logo
+2.0 Apartado en el que hablamos del logo,
+su zona segura y sus aplicaciones
+
+-- 7 of 18 --
+
+Aplicaciones cromáticas. La versión principal a color debe priorizarse siempre que
+el soporte lo permita. Las versiones monocromáticas en positivo (negro) y negativo
+(blanco) están estrictamente reservadas para fondos que comprometan la
+legibilidad, fotografías complejas o sistemas de impresión a una sola tinta.
+2.1 Logo
+
+-- 8 of 18 --
+
+
+
+-- 9 of 18 --
+
+Para asegurar la óptima legibilidad y el impacto visual del logotipo, se ha establecido un
+espacio seguro a su alrededor. Esta área mínima de respiro está definida por el valor "X"
+(altura de una letra). Ningún otro elemento gráfico,
+tipográfico o borde de página debe invadir este espacio.
+2.2 Zona Segura
+
+-- 10 of 18 --
+
+
+
+-- 11 of 18 --
+
+La identidad en acción. Esta sección demuestra cómo el logotipo de Tropicalia se adapta y mantiene su
+impacto visual al ser aplicado en diversos soportes físicos, conservando siempre la frescura de la marca.
+2.3 Uso de Logo
+
+-- 12 of 18 --
+
+x
+x
+x
+
+-- 13 of 18 --
+
+Colores
+3.0 Apartado en el que hablamos de los colores,
+sus funciones y jerarquía
+
+-- 14 of 18 --
+
+#82133a
+CYMK 0, 85, 55, 49
+RGB 130, 19, 58
+Dark Amaranth
+#cc1517
+CYMK 0, 90, 89, 20
+RGB 204, 21, 23
+Flag Red
+#ef9d24
+CYMK 0, 34, 85, 6
+RGB 239, 157, 36
+Golden Orange
+Primarios
+3.1 Paleta Cromática
+El color es un elemento fundamental para el reconocimiento de la marca.
+La identidad cromática se compone de una paleta principal (colores primarios) que debe
+predominar en todas las comunicaciones corporativas, y una paleta secundaria (colores
+complementarios) diseñada para aportar contraste, dinamismo y jerarquía en aplicaciones
+específicas. Para garantizar la consistencia visual, los colores deben reproducirse siempre
+utilizando los valores exactos especificados (HEX, RGB y CMYK)
+según el soporte de destino.
+
+-- 15 of 18 --
+
+#4a519e
+CYMK 53, 49, 0, 38
+RGB 74, 81, 158
+Ocean Twilight
+#ffffff
+CYMK 255, 255, 255
+RGB 0, 0, 0, 0
+Blanco
+#571846
+CYMK 0, 72, 20, 66
+RGB 87, 24, 70
+Crimson Violet
+Complementarios
+
+-- 16 of 18 --
+
+Tipografía
+4.0 Apartado en el que hablamos de las tipografías,
+sus funciones y jerarquía
+
+-- 17 of 18 --
+
+4.1 Tipografía
+Momo
+Trust Display
+Roboto
+Titulares, encabezados y mensajes de alto impacto.
+Descripción: Son las tipografías con mayor peso y personalidad de la marca. Su uso está
+reservado para textos cortos donde se busque captar la atención inmediatamente y transmitir
+el carácter fresco de la identidad.
+Cuerpos de texto, párrafos y diseño de interfaces.
+Descripción: Elegida por su excelente legibilidad en pantallas
+y formatos impresos. Al ser una fuente neutra y limpia, es la
+herramienta principal para bloques de información extensa y
+para toda la estructura funcional de la app web, creando un
+contraste perfecto con las tipografías principales.
+
+-- 18 of 18 --
+
