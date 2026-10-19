@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tropicalia | Pide a tus restaurantes favoritos</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- BARRA SUPERIOR -->
+  <nav class="navbar">
+    <div class="container navbar-content">
+      <div class="brand-box">
+        <a href="index.html" class="brand-title">Tropicalia</a>
+        <span id="tasa-bcv-texto" class="bcv-pill">💵 BCV: Cargando...</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a href="portal.html" id="btn-nav-auth" class="btn-secundario">Iniciar Sesión</a>
+        <a href="checkout.html" class="btn-primario" style="padding: 8px 14px;">
+          🛒 (<span id="nav-cart-count">0</span>)
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container" style="margin-top: 24px; margin-bottom: 100px;">
+    
+    <!-- BANNER DE PEDIDO EN CURSO (SI TIENE UNO ACTIVO) -->
+    <div id="banner-orden-activa" class="card" style="display: none; border-color: #10b981; background: #13221c; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <strong style="color: #34d399;">🛵 Tienes un pedido en curso</strong>
+          <p id="texto-orden-activa" style="margin: 2px 0 0 0; font-size: 0.85rem; color: #a7f3d0;">Haz clic para ver el mapa y tu código de entrega.</p>
+        </div>
+        <a id="link-orden-activa" href="tracking.html" class="btn-primario" style="background: #10b981;">Ver Seguimiento</a>
+      </div>
+    </div>
+
+    <!-- SELECTOR DE RESTAURANTES -->
+    <section>
+      <h2 style="font-size: 1.25rem; margin-bottom: 12px;">🏪 Elige un Restaurante</h2>
+      <div id="lista-restaurantes" class="grid-cards">
+        <p style="color: var(--text-muted);">Cargando locales disponibles...</p>
+      </div>
+    </section>
+
+    <!-- MENÚ DEL RESTAURANTE SELECCIONADO -->
+    <section id="seccion-menu" style="margin-top: 32px; display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 16px;">
+        <div>
+          <h2 id="menu-titulo-local" style="font-size: 1.4rem; color: var(--gold); margin: 0;">Menú</h2>
+          <small id="menu-subtitulo-local" style="color: var(--text-muted);">Selecciona tus platos</small>
+        </div>
+      </div>
+
+      <div id="grid-productos" class="grid-cards"></div>
+    </section>
+
+  </main>
+
+  <!-- BARRA FLOTANTE PARA IR AL CHECKOUT -->
+  <div id="barra-carrito-flotante" class="floating-cart-bar" style="display: none;" onclick="window.location.href='checkout.html'">
+    <div>
+      <span id="floating-count">0 ítems</span> • <span id="floating-total">$0.00</span>
+      <small id="floating-bs" style="display: block; font-weight: 500; font-size: 0.75rem; opacity: 0.85;">Bs. 0.00</small>
+    </div>
+    <span>Ir a Pagar →</span>
+  </div>
+
+  <footer style="text-align: center; padding: 25px 15px; border-top: 1px solid #222; font-size: 0.8rem; color: #737373;">
+    <p style="margin: 0 0 6px 0;">Tropicalia © 2026 • Plataforma de Intermediación Gastronómica</p>
+    <p style="margin: 0;">
+      Consulta nuestros <a href="legal.html" target="_blank" style="color: var(--gold); text-decoration: underline;">Términos y Condiciones de Servicio</a>
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
