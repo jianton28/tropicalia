@@ -30,6 +30,7 @@ export default function Checkout() {
   const { user } = useAuth();
 
   const [tasaBCV, setTasaBCV] = useState(875.65);
+  const [restauranteInfo, setRestauranteInfo] = useState(null);
   const [coordsRestaurante, setCoordsRestaurante] = useState({ lat: 10.4806, lng: -66.9036 });
   const [distanciaKm, setDistanciaKm] = useState(1.5);
   const [fleteUsd, setFleteUsd] = useState(1.50);
@@ -68,19 +69,22 @@ export default function Checkout() {
 
     fetchTasaBCV().then(r => setTasaBCV(r));
 
-    // Cargar coordenadas del restaurante
+    // Cargar datos y coordenadas del restaurante
     async function cargarRestaurante() {
       const { data: neg } = await supabase
         .from('businesses')
-        .select('name, lat, lng')
+        .select('name, phone, lat, lng')
         .eq('id', businessId)
         .maybeSingle();
 
-      if (neg && neg.lat && neg.lng) {
-        setCoordsRestaurante({
-          lat: parseFloat(neg.lat),
-          lng: parseFloat(neg.lng)
-        });
+      if (neg) {
+        setRestauranteInfo(neg);
+        if (neg.lat && neg.lng) {
+          setCoordsRestaurante({
+            lat: parseFloat(neg.lat),
+            lng: parseFloat(neg.lng)
+          });
+        }
       }
     }
     cargarRestaurante();
@@ -298,16 +302,29 @@ export default function Checkout() {
               <span style={{ color: '#6b7280' }}>Subtotal Comida:</span>
               <strong>{formatUsd(subtotalComida)}</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-              <span style={{ color: '#6b7280' }}>
-                Costo de Delivery <small style={{ color: 'var(--golden-orange)', fontWeight: 700 }}>{modalidad === 'delivery' ? `(~${distanciaKm.toFixed(1)} km)` : '(Pickup Gratis)'}</small>:
-              </span>
-              <strong>{formatUsd(costoDelivery)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ color: '#6b7280' }}>Propina Repartidor:</span>
-              <strong>{formatUsd(propinaMotorizado)}</strong>
-            </div>
+
+            {modalidad === 'delivery' ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ color: '#6b7280' }}>
+                    Costo de Delivery <small style={{ color: 'var(--golden-orange)', fontWeight: 700 }}>(~{distanciaKm.toFixed(1)} km)</small>:
+                  </span>
+                  <strong>{formatUsd(costoDelivery)}</strong>
+                </div>
+                {propinaMotorizado > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#6b7280' }}>Propina Repartidor:</span>
+                    <strong>{formatUsd(propinaMotorizado)}</strong>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#6b7280' }}>Modalidad de Entrega:</span>
+                <span style={{ color: '#10b981', fontWeight: 800 }}>🥡 Retiro en Barra (Gratis)</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', color: 'var(--dark-amaranth)', borderTop: '2px dashed #e5e7eb', paddingTop: '10px' }}>
               <strong>Total a Pagar:</strong>
               <strong>{formatUsd(totalUsd)}</strong>
@@ -327,90 +344,175 @@ export default function Checkout() {
           boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
           marginBottom: '20px'
         }}>
-          <h3 style={{ marginTop: 0, color: 'var(--dark-amaranth)', fontSize: '1.1rem' }}>1. Datos de Contacto y Entrega</h3>
+          <h3 style={{ marginTop: 0, color: 'var(--dark-amaranth)', fontSize: '1.1rem' }}>
+            1. Modalidad y Datos de Contacto
+          </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-          <div>
-            <label>Nombre y Apellido:</label>
-            <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required placeholder="Ej: Jimmie Hamilton" />
-          </div>
-          <div>
-            <label>Teléfono (WhatsApp activo):</label>
-            <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} required placeholder="Ej: 04141234567" />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginTop: '6px' }}>
-          <div>
-            <label>Tipo de Pedido:</label>
-            <select value={modalidad} onChange={e => setModalidad(e.target.value)}>
-              <option value="delivery">🛵 Delivery a Domicilio</option>
-              <option value="pickup">🥡 Retiro en el Local (Pickup)</option>
-            </select>
-          </div>
-          {modalidad === 'delivery' && (
-            <div>
-              <label>Distancia Estimada de Entrega:</label>
-              <select value={distanciaKm.toString()} onChange={e => handleManualDistance(e.target.value)}>
-                <option value="1.0">0 a 1 km (Tarifa Mínima $1.00)</option>
-                <option value="1.5">1.5 km (~$1.25)</option>
-                <option value="2.5">2.5 km (~$1.75)</option>
-                <option value="4.0">4.0 km (~$2.50)</option>
-                <option value="6.0">6.0 km (~$3.50)</option>
-                <option value="9.0">9.0 km o más ($5.00)</option>
-              </select>
-            </div>
-          )}
-        </div>
-
-        {modalidad === 'delivery' && (
-          <div style={{ marginTop: '6px' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+          {/* SELECTOR SEGMENTADO DEL TIPO DE PEDIDO */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 700, color: '#374151' }}>
+              ¿Cómo deseas recibir tu comida?
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button
                 type="button"
-                onClick={handleCapturarGPS}
-                className="btn-secundario"
-                disabled={gpsLoading}
-                style={{ fontSize: '0.82rem' }}
+                onClick={() => setModalidad('delivery')}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: modalidad === 'delivery' ? '2px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                  background: modalidad === 'delivery' ? 'var(--dark-amaranth)' : '#f9fafb',
+                  color: modalidad === 'delivery' ? '#ffffff' : '#374151',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
               >
-                {gpsLoading ? '⏳ Calculando GPS...' : (gpsStatus || '📍 Calcular con mi GPS actual')}
+                🛵 Delivery a Domicilio
               </button>
-              <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>
-                🛵 Flete: {formatUsd(fleteUsd)}
-              </span>
+              <button
+                type="button"
+                onClick={() => setModalidad('pickup')}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: modalidad === 'pickup' ? '2px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                  background: modalidad === 'pickup' ? 'var(--dark-amaranth)' : '#f9fafb',
+                  color: modalidad === 'pickup' ? '#ffffff' : '#374151',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                🥡 Retiro en Local (Pickup)
+              </button>
             </div>
-            <label>Dirección exacta / Punto de referencia:</label>
-            <input
-              type="text"
-              value={direccion}
-              onChange={e => setDireccion(e.target.value)}
-              required={modalidad === 'delivery'}
-              placeholder="Ej: Urb. Las Mercedes, Calle París, Edif. Altamira, Apto 4-B"
-            />
           </div>
-        )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-          <div>
-            <label>Propina voluntaria al repartidor:</label>
-            <select value={propina} onChange={e => setPropina(parseFloat(e.target.value))}>
-              <option value="0">Sin propina ($0.00)</option>
-              <option value="0.5">Propina $0.50 (Bs. {toBs(0.5, tasaBCV).toFixed(2)})</option>
-              <option value="1.0">Propina $1.00 (Bs. {toBs(1.0, tasaBCV).toFixed(2)})</option>
-              <option value="2.0">Propina $2.00 (Bs. {toBs(2.0, tasaBCV).toFixed(2)})</option>
-              <option value="3.0">Excelente servicio $3.00</option>
-            </select>
+          {/* TARJETA INFORMATIVA DE RETIRO EN LOCAL */}
+          {modalidad === 'pickup' && (
+            <div style={{
+              background: '#fffbeb',
+              border: '1.5px solid var(--golden-orange)',
+              borderRadius: '14px',
+              padding: '14px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '1.3rem' }}>🏪</span>
+                <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.95rem' }}>
+                  Punto de Retiro: {restauranteInfo?.name || businessName}
+                </strong>
+              </div>
+              <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#4b5563' }}>
+                {restauranteInfo?.phone ? `📞 Contacto directo: ${restauranteInfo.phone}` : 'Atención al cliente en barra'}
+              </p>
+              <div style={{ background: '#ffffff', borderRadius: '8px', padding: '8px 10px', border: '1px solid #fde68a', fontSize: '0.78rem', color: '#1f2937', marginBottom: '8px' }}>
+                ⏱️ <strong>Tiempo estimado:</strong> 15 a 25 minutos.<br />
+                💡 <strong>Instrucciones:</strong> Al llegar, muestra tu nombre o código en barra para retirar tu orden sellada.
+              </div>
+              {coordsRestaurante.lat && coordsRestaurante.lng && (
+                <a
+                  href={`https://www.google.com/maps?q=${coordsRestaurante.lat},${coordsRestaurante.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.8rem',
+                    color: 'var(--ocean-twilight)',
+                    fontWeight: 700,
+                    textDecoration: 'none'
+                  }}
+                >
+                  🗺️ Ver cómo llegar en Google Maps →
+                </a>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            <div>
+              <label>Nombre y Apellido:</label>
+              <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required placeholder="Ej: Jimmie Hamilton" />
+            </div>
+            <div>
+              <label>Teléfono (WhatsApp activo para avisarte):</label>
+              <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} required placeholder="Ej: 04141234567" />
+            </div>
           </div>
-          <div>
-            <label>Instrucciones de cocina o entrega:</label>
+
+          {modalidad === 'delivery' && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '8px' }}>
+                <div>
+                  <label>Distancia Estimada de Entrega:</label>
+                  <select value={distanciaKm.toString()} onChange={e => handleManualDistance(e.target.value)}>
+                    <option value="1.0">0 a 1 km (Tarifa Mínima $1.00)</option>
+                    <option value="1.5">1.5 km (~$1.25)</option>
+                    <option value="2.5">2.5 km (~$1.75)</option>
+                    <option value="4.0">4.0 km (~$2.50)</option>
+                    <option value="6.0">6.0 km (~$3.50)</option>
+                    <option value="9.0">9.0 km o más ($5.00)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Propina voluntaria al repartidor:</label>
+                  <select value={propina} onChange={e => setPropina(parseFloat(e.target.value))}>
+                    <option value="0">Sin propina ($0.00)</option>
+                    <option value="0.5">Propina $0.50 (Bs. {toBs(0.5, tasaBCV).toFixed(2)})</option>
+                    <option value="1.0">Propina $1.00 (Bs. {toBs(1.0, tasaBCV).toFixed(2)})</option>
+                    <option value="2.0">Propina $2.00 (Bs. {toBs(2.0, tasaBCV).toFixed(2)})</option>
+                    <option value="3.0">Excelente servicio $3.00</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleCapturarGPS}
+                  className="btn-secundario"
+                  disabled={gpsLoading}
+                  style={{ fontSize: '0.82rem' }}
+                >
+                  {gpsLoading ? '⏳ Calculando GPS...' : (gpsStatus || '📍 Calcular con mi GPS actual')}
+                </button>
+                <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700 }}>
+                  🛵 Flete: {formatUsd(fleteUsd)}
+                </span>
+              </div>
+              <label>Dirección exacta / Punto de referencia:</label>
+              <input
+                type="text"
+                value={direccion}
+                onChange={e => setDireccion(e.target.value)}
+                required={modalidad === 'delivery'}
+                placeholder="Ej: Urb. Las Mercedes, Calle París, Edif. Altamira, Apto 4-B"
+              />
+            </div>
+          )}
+
+          <div style={{ marginTop: '10px' }}>
+            <label>Instrucciones especiales para cocina o empaque (Opcional):</label>
             <input
               type="text"
               value={notas}
               onChange={e => setNotas(e.target.value)}
-              placeholder="Ej: Sin cebolla, tocar timbre 4B"
+              placeholder="Ej: Sin cebolla, salsas aparte, cubiertos biodegradables"
             />
           </div>
-        </div>
 
         {/* 2. MÉTODO DE PAGO */}
         <h3 style={{ marginTop: '24px', color: 'var(--dark-amaranth)', fontSize: '1.1rem' }}>2. Método de Pago</h3>

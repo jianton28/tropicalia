@@ -151,7 +151,7 @@ export default function Delivery() {
       .select('*, businesses(name, phone)')
       .eq('delivery_type', 'delivery')
       .is('driver_id', null)
-      .in('status', ['pending', 'cooking', 'on_the_way'])
+      .in('status', ['pending', 'cooking', 'ready', 'on_the_way'])
       .order('created_at', { ascending: true });
 
     setPedidosDisponibles(pedidos || []);

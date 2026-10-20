@@ -52,7 +52,16 @@ export default function Home({ onTriggerSearch, searchOpen }) {
     fetchTasaBCV().then(r => setTasaBCV(r));
 
     const lastId = localStorage.getItem('tropicalia_last_order_id');
-    if (lastId) setUltimaOrdenId(lastId);
+    if (lastId) {
+      supabase.from('orders').select('status').eq('id', lastId).maybeSingle().then(({ data }) => {
+        if (data && !['delivered', 'cancelled', 'rejected'].includes(data.status)) {
+          setUltimaOrdenId(lastId);
+        } else {
+          localStorage.removeItem('tropicalia_last_order_id');
+          setUltimaOrdenId(null);
+        }
+      });
+    }
 
     cargarRestaurantes();
   }, []);

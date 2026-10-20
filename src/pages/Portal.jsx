@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export default function Portal() {
   const navigate = useNavigate();
@@ -22,7 +23,26 @@ export default function Portal() {
   });
   const [tempAddress, setTempAddress] = useState(savedAddress);
 
-  const ultimaOrdenId = localStorage.getItem('tropicalia_last_order_id');
+  const [ultimaOrdenId, setUltimaOrdenId] = useState(null);
+
+  useEffect(() => {
+    const lastId = localStorage.getItem('tropicalia_last_order_id');
+    if (lastId) {
+      supabase
+        .from('orders')
+        .select('status')
+        .eq('id', lastId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data && !['delivered', 'cancelled', 'rejected'].includes(data.status)) {
+            setUltimaOrdenId(lastId);
+          } else {
+            localStorage.removeItem('tropicalia_last_order_id');
+            setUltimaOrdenId(null);
+          }
+        });
+    }
+  }, []);
 
   async function handleLogin(e) {
     e.preventDefault();

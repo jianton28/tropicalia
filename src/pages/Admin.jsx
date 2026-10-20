@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
+import { cancelarOrdenConReversion } from '../services/inventoryService';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -103,18 +104,29 @@ export default function Admin() {
   }
 
   async function rechazarPago(ordenId) {
-    const motivo = prompt('Motivo del rechazo de pago:');
+    const motivo = prompt('Motivo del rechazo de pago y cancelación de comanda:');
     if (!motivo) return;
 
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'cancelled',
-        notes: `Pago rechazado por administración: ${motivo}`
-      })
-      .eq('id', ordenId);
+    try {
+      await cancelarOrdenConReversion(ordenId, `Pago rechazado por administración: ${motivo}`, 'administrador');
+      alert('Pago rechazado y comanda cancelada. Los artículos fueron devueltos al stock.');
+      recargarTodoAdmin();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
 
-    if (!error) recargarTodoAdmin();
+  async function cancelarOrdenAdmin(ordenId) {
+    const motivo = prompt('Indica el motivo de cancelación administrativa:');
+    if (!motivo) return;
+
+    try {
+      const res = await cancelarOrdenConReversion(ordenId, motivo, 'administrador');
+      alert(`Orden cancelada exitosamente. Se reintegraron ${res.reversionCount || 0} artículos al inventario.`);
+      recargarTodoAdmin();
+    } catch (err) {
+      alert('Error al cancelar la orden: ' + err.message);
+    }
   }
 
   async function liquidarCorte(corteId) {
@@ -440,6 +452,7 @@ export default function Admin() {
                   <th>Total</th>
                   <th>Método</th>
                   <th>Estado</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -448,12 +461,34 @@ export default function Admin() {
                     <td><strong>#ORD-{o.id.slice(0, 8)}</strong></td>
                     <td>{o.businesses?.name || 'Local'}</td>
                     <td>{o.customer_name}</td>
-                    <td style={{ color: '#34d399', fontWeight: 'bold' }}>{formatUsd(o.total)}</td>
+                    <td style={{ color: '#10b981', fontWeight: 'bold' }}>{formatUsd(o.total)}</td>
                     <td>{(o.payment_method || 'Digital').toUpperCase()}</td>
                     <td>
                       <span className={`badge badge-${o.status}`}>
                         {o.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td>
+                      {!['delivered', 'cancelled'].includes(o.status) ? (
+                        <button
+                          type="button"
+                          onClick={() => cancelarOrdenAdmin(o.id)}
+                          style={{
+                            background: '#fee2e2',
+                            color: '#b91c1c',
+                            border: '1px solid #fca5a5',
+                            padding: '3px 8px',
+                            borderRadius: '999px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✕ Cancelar
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Cerrada</span>
+                      )}
                     </td>
                   </tr>
                 ))}
