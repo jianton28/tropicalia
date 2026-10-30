@@ -94,6 +94,17 @@ export default function Cocina() {
   const [salonProdId, setSalonProdId] = useState('');
   const [salonCant, setSalonCant] = useState(1);
 
+  // Libro de Menú (Platos & Recetas)
+  const [busquedaMenu, setBusquedaMenu] = useState('');
+  const [nuevoPlatoNombre, setNuevoPlatoNombre] = useState('');
+  const [nuevoPlatoPrecio, setNuevoPlatoPrecio] = useState('');
+  const [nuevoPlatoFoto, setNuevoPlatoFoto] = useState('');
+  const [nuevoPlatoStock, setNuevoPlatoStock] = useState('50');
+  const [nuevoPlatoIngredientes, setNuevoPlatoIngredientes] = useState([]);
+  const [selectedIngredienteId, setSelectedIngredienteId] = useState('');
+  const [selectedIngredienteCant, setSelectedIngredienteCant] = useState('');
+  const [guardandoPlato, setGuardandoPlato] = useState(false);
+
   // Notificación toast de acción
   const [toastMsg, setToastMsg] = useState('');
 
@@ -459,6 +470,115 @@ export default function Cocina() {
       .eq('id', p.id);
 
     await cargarProductosYRecetas(local.id);
+  }
+
+  // ==============================================================================
+  // GESTIÓN DEL LIBRO DE MENÚ: AGREGAR PLATO CON RECETA Y ELIMINAR
+  // ==============================================================================
+  function handleAgregarIngredienteAReceta() {
+    const ingId = selectedIngredienteId || (insumos[0]?.id ?? '');
+    const ing = insumos.find(i => i.id === ingId);
+    if (!ing) {
+      alert('Selecciona un ingrediente de la lista desplegable.');
+      return;
+    }
+    const qty = parseFloat(selectedIngredienteCant);
+    if (isNaN(qty) || qty <= 0) {
+      alert('Ingresa una cantidad mayor a 0 para el ingrediente.');
+      return;
+    }
+
+    setNuevoPlatoIngredientes(prev => {
+      const sinEste = prev.filter(p => p.ingredientId !== ing.id);
+      return [...sinEste, {
+        ingredientId: ing.id,
+        ingredientName: ing.name,
+        quantity: qty,
+        unit: ing.unit || 'unidades'
+      }];
+    });
+
+    setSelectedIngredienteCant('');
+  }
+
+  function handleQuitarIngredienteDeReceta(ingId) {
+    setNuevoPlatoIngredientes(prev => prev.filter(p => p.ingredientId !== ingId));
+  }
+
+  async function handleCrearPlatoConReceta(e) {
+    e.preventDefault();
+    if (!local) return;
+    const precioNum = parseFloat(nuevoPlatoPrecio);
+    if (isNaN(precioNum) || precioNum <= 0) {
+      alert('Por favor ingresa un precio válido mayor a 0');
+      return;
+    }
+
+    setGuardandoPlato(true);
+    try {
+      // 1. Insertar el producto
+      const { data: newProd, error: prodErr } = await supabase
+        .from('products')
+        .insert([{
+          business_id: local.id,
+          name: nuevoPlatoNombre.trim(),
+          price: precioNum,
+          stock: parseInt(nuevoPlatoStock) || 50,
+          image_url: nuevoPlatoFoto.trim() || null,
+          is_available: true
+        }])
+        .select()
+        .single();
+
+      if (prodErr) throw prodErr;
+
+      // 2. Insertar ingredientes en la receta
+      if (nuevoPlatoIngredientes.length > 0 && newProd) {
+        const recipesPayload = nuevoPlatoIngredientes.map(ing => ({
+          product_id: newProd.id,
+          inventory_item_id: ing.ingredientId,
+          quantity_required: parseFloat(ing.quantity)
+        }));
+
+        const { error: recErr } = await supabase
+          .from('product_recipes')
+          .insert(recipesPayload);
+
+        if (recErr) console.warn('Error asociando receta:', recErr);
+      }
+
+      showNotification(`📖 Plato "${nuevoPlatoNombre}" agregado exitosamente a la carta.`);
+      setNuevoPlatoNombre('');
+      setNuevoPlatoPrecio('');
+      setNuevoPlatoFoto('');
+      setNuevoPlatoIngredientes([]);
+      setSelectedIngredienteCant('');
+
+      await cargarProductosYRecetas(local.id);
+    } catch (err) {
+      console.error('Error creando plato:', err);
+      alert('Error al crear plato: ' + err.message);
+    } finally {
+      setGuardandoPlato(false);
+    }
+  }
+
+  async function handleEliminarPlato(plato) {
+    if (!window.confirm(`¿Seguro que deseas eliminar "${plato.name}" de la carta?\nSe eliminará de la base de datos y se borrarán sus recetas asociadas.`)) {
+      return;
+    }
+
+    try {
+      await supabase.from('product_recipes').delete().eq('product_id', plato.id);
+      const { error } = await supabase.from('products').delete().eq('id', plato.id);
+      if (error) throw error;
+
+      showNotification(`🗑️ Plato "${plato.name}" eliminado de la carta.`);
+      await cargarProductosYRecetas(local.id);
+    } catch (err) {
+      console.error('Error eliminando plato:', err);
+      alert('Error eliminando plato: ' + err.message);
+    }
   }
 
   async function handleVentaSalon(e) {
@@ -1320,47 +1440,320 @@ export default function Cocina() {
         )}
 
         {/* ==============================================================================
-            5. MENÚ DE PLATOS
+            5. MENÚ DE PLATOS (LIBRO DE CARTA & ALTA DE PLATOS)
            ============================================================================== */}
         {tab === 'menu' && (
-          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)' }}>
-            <h3 style={{ margin: '0 0 14px 0', color: 'var(--dark-amaranth)' }}>Platos del Menú</h3>
-            <div className="tabla-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nombre del Plato</th>
-                    <th>Precio USD</th>
-                    <th>Estado en Tienda</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productos.map(p => (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 600 }}>{p.name}</td>
-                      <td>{formatUsd(p.price)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePlato(p)}
-                          style={{
-                            background: p.is_available ? '#ecfdf5' : '#fef2f2',
-                            color: p.is_available ? '#065f46' : '#b91c1c',
-                            border: `1px solid ${p.is_available ? '#a7f3d0' : '#fca5a5'}`,
-                            padding: '4px 12px',
-                            borderRadius: '999px',
-                            fontWeight: 700,
-                            fontSize: '0.78rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {p.is_available ? '🟢 Disponible' : '🔴 Pausado'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="menu-book-container">
+            {/* Espina central del libro abierto */}
+            <div className="menu-book-spine" />
+
+            {/* PÁGINA IZQUIERDA: CARTA DEL RESTAURANTE */}
+            <div className="menu-book-page page-left">
+              <div className="menu-book-header">
+                <h3 className="menu-book-title">📖 Nuestra Carta</h3>
+                <div className="menu-book-subtitle">Tropicalia CRB • Menú Principal</div>
+              </div>
+
+              {/* Buscador de platos */}
+              <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar plato en la carta..."
+                  value={busquedaMenu}
+                  onChange={e => setBusquedaMenu(e.target.value)}
+                  className="form-input-figma"
+                  style={{ margin: 0, padding: '8px 12px', fontSize: '0.85rem' }}
+                />
+                <span style={{ fontSize: '0.78rem', color: '#78716c', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                  {productos.filter(p => p.name.toLowerCase().includes(busquedaMenu.toLowerCase())).length} platos
+                </span>
+              </div>
+
+              {/* Lista compacta con scroll interior para no alargar la página */}
+              <div className="menu-dishes-scroll">
+                {productos.filter(p => p.name.toLowerCase().includes(busquedaMenu.toLowerCase())).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px 14px', color: '#a8a29e' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🍽️</div>
+                    <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay platos que coincidan con la búsqueda.</p>
+                  </div>
+                ) : (
+                  productos
+                    .filter(p => p.name.toLowerCase().includes(busquedaMenu.toLowerCase()))
+                    .map(p => {
+                      const recsDelPlato = recetas.filter(r => r.product_id === p.id);
+                      const ingredientesTexto = recsDelPlato.map(r => {
+                        const ins = insumos.find(i => i.id === r.inventory_item_id);
+                        return ins ? `${ins.name} (${r.quantity_required} ${ins.unit})` : null;
+                      }).filter(Boolean).join(' • ');
+
+                      return (
+                        <div key={p.id} className="menu-dish-item">
+                          {/* Miniatura / Foto */}
+                          <div className="menu-dish-thumb">
+                            {p.image_url ? (
+                              <img
+                                src={p.image_url}
+                                alt={p.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              getIngredientEmoji(p.name)
+                            )}
+                          </div>
+
+                          {/* Detalles del Plato */}
+                          <div className="menu-dish-details">
+                            <div className="menu-dish-heading">
+                              <span className="menu-dish-name">{p.name}</span>
+                              <span className="menu-dish-leader" />
+                              <span className="menu-dish-price">{formatUsd(p.price)}</span>
+                            </div>
+
+                            {/* Ingredientes de la receta */}
+                            <div className="menu-dish-recipe">
+                              {ingredientesTexto ? (
+                                <span>📋 <em>{ingredientesTexto}</em></span>
+                              ) : (
+                                <span style={{ color: '#a8a29e', fontStyle: 'italic' }}>Sin receta de insumos asociada</span>
+                              )}
+                            </div>
+
+                            {/* Acciones */}
+                            <div className="menu-dish-actions">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePlato(p)}
+                                style={{
+                                  background: p.is_available ? '#ecfdf5' : '#fef2f2',
+                                  color: p.is_available ? '#065f46' : '#b91c1c',
+                                  border: `1px solid ${p.is_available ? '#a7f3d0' : '#fca5a5'}`,
+                                  padding: '3px 10px',
+                                  borderRadius: '999px',
+                                  fontWeight: 700,
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {p.is_available ? '🟢 Disponible' : '🔴 Pausado'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarPlato(p)}
+                                style={{
+                                  background: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5',
+                                  padding: '3px 8px',
+                                  borderRadius: '999px',
+                                  fontWeight: 700,
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="Eliminar plato de la carta"
+                              >
+                                🗑️ Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+
+            {/* PÁGINA DERECHA: PANEL PARA AGREGAR NUEVOS PLATOS */}
+            <div className="menu-book-page page-right">
+              <div className="menu-book-header">
+                <h3 className="menu-book-title" style={{ color: 'var(--golden-orange)' }}>✨ Nuevo Plato</h3>
+                <div className="menu-book-subtitle">Panel de Creación & Receta de Insumos</div>
+              </div>
+
+              <form onSubmit={handleCrearPlatoConReceta} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* 1. Nombre y Precio */}
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', display: 'block', marginBottom: '3px' }}>
+                      Nombre del Plato *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Hamburguesa Tropical Suprema"
+                      value={nuevoPlatoNombre}
+                      onChange={e => setNuevoPlatoNombre(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '8px 10px', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', display: 'block', marginBottom: '3px' }}>
+                      Precio ($ USD) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="8.50"
+                      value={nuevoPlatoPrecio}
+                      onChange={e => setNuevoPlatoPrecio(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '8px 10px', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Foto del Plato (URL con presets rápidos) */}
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', display: 'block', marginBottom: '3px' }}>
+                    Foto del Plato (URL)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/... o pega enlace"
+                      value={nuevoPlatoFoto}
+                      onChange={e => setNuevoPlatoFoto(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '8px 10px', fontSize: '0.85rem', flex: 1 }}
+                    />
+                    {nuevoPlatoFoto && (
+                      <div style={{ width: '38px', height: '38px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb', flexShrink: 0 }}>
+                        <img src={nuevoPlatoFoto} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                      </div>
+                    )}
+                  </div>
+                  {/* Píldoras de presets rápidos */}
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {[
+                      { label: '🍔 Burger', url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80' },
+                      { label: '🍕 Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80' },
+                      { label: '🥗 Ensalada', url: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80' },
+                      { label: '🍟 Papas', url: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?w=500&auto=format&fit=crop&q=80' },
+                      { label: '🥤 Bebida', url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=500&auto=format&fit=crop&q=80' },
+                      { label: '🍰 Postre', url: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80' }
+                    ].map(p => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => setNuevoPlatoFoto(p.url)}
+                        style={{
+                          background: '#f3f4f6',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          color: '#374151'
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Ingredientes y Cantidades (Receta) */}
+                <div style={{ background: '#fdfbf7', border: '1px dashed #d6cbbe', borderRadius: '12px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--dark-amaranth)', display: 'block', marginBottom: '2px' }}>
+                    📦 Ingredientes de la Receta
+                  </label>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '0.72rem', color: '#78716c' }}>
+                    Selecciona los ingredientes registrados y anota cuánto consume 1 plato:
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '6px', alignItems: 'center' }}>
+                    <select
+                      value={selectedIngredienteId || (insumos[0]?.id ?? '')}
+                      onChange={e => setSelectedIngredienteId(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '7px 8px', fontSize: '0.82rem' }}
+                    >
+                      {insumos.length === 0 ? (
+                        <option value="">No hay insumos registrados</option>
+                      ) : (
+                        insumos.map(i => (
+                          <option key={i.id} value={i.id}>
+                            {i.name} ({i.unit})
+                          </option>
+                        ))
+                      )}
+                    </select>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="Cant."
+                        value={selectedIngredienteCant}
+                        onChange={e => setSelectedIngredienteCant(e.target.value)}
+                        className="form-input-figma"
+                        style={{ margin: 0, padding: '7px 8px', fontSize: '0.82rem', width: '100%' }}
+                      />
+                      <span style={{ fontSize: '0.74rem', color: '#78716c', fontWeight: 700, minWidth: '22px' }}>
+                        {insumos.find(i => i.id === (selectedIngredienteId || (insumos[0]?.id ?? '')))?.unit || ''}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAgregarIngredienteAReceta}
+                      className="btn-primario"
+                      style={{ padding: '7px 12px', fontSize: '0.8rem', background: '#10b981', color: '#fff', borderRadius: '8px' }}
+                    >
+                      + Añadir
+                    </button>
+                  </div>
+
+                  {/* Chips de ingredientes agregados */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                    {nuevoPlatoIngredientes.length === 0 ? (
+                      <span style={{ fontSize: '0.74rem', color: '#a8a29e', fontStyle: 'italic' }}>
+                        Aún no has añadido ingredientes a la receta.
+                      </span>
+                    ) : (
+                      nuevoPlatoIngredientes.map((ing) => (
+                        <span key={ing.ingredientId} className="recipe-chip-tag">
+                          {ing.ingredientName}: {ing.quantity} {ing.unit}
+                          <button
+                            type="button"
+                            onClick={() => handleQuitarIngredienteDeReceta(ing.ingredientId)}
+                            className="recipe-chip-remove"
+                            title="Quitar de la receta"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Botón Guardar Plato */}
+                <button
+                  type="submit"
+                  disabled={guardandoPlato}
+                  className="btn-primario"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '0.92rem',
+                    fontWeight: 800,
+                    borderRadius: '10px',
+                    marginTop: '4px',
+                    boxShadow: '0 4px 14px rgba(239, 157, 36, 0.3)'
+                  }}
+                >
+                  {guardandoPlato ? 'Guardando en Carta...' : '📖 Guardar Plato en la Carta'}
+                </button>
+              </form>
             </div>
           </div>
         )}

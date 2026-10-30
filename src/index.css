@@ -767,3 +767,200 @@ h1, h2, h3, h4, .brand-title {
   font-family: var(--font-display);
 }
 
+
+/* ==============================================================================
+   LIBRO DE MENÚ DE RESTAURANTE (CARTA & NUEVO PLATO)
+   ============================================================================== */
+.menu-book-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: #ffffff;
+  border: 2px solid var(--dark-amaranth);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(87, 24, 70, 0.15), 0 4px 12px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  position: relative;
+  min-height: 560px;
+}
+
+@media (max-width: 900px) {
+  .menu-book-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.menu-book-spine {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .menu-book-spine {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 22px;
+    transform: translateX(-50%);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.08) 0%, rgba(239, 157, 36, 0.3) 50%, rgba(0, 0, 0, 0.08) 100%);
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    z-index: 10;
+  }
+}
+
+.menu-book-page {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.menu-book-page.page-left {
+  background: linear-gradient(135deg, #fdfbf7 0%, #faf6ef 100%);
+  border-right: 1px solid #e7ded4;
+}
+
+.menu-book-page.page-right {
+  background: linear-gradient(135deg, #ffffff 0%, #fbf9f6 100%);
+}
+
+.menu-book-header {
+  text-align: center;
+  border-bottom: 2px solid var(--golden-orange);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.menu-book-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--dark-amaranth);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.menu-book-subtitle {
+  font-size: 0.78rem;
+  color: #78716c;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.menu-dishes-scroll {
+  flex: 1;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.menu-dishes-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.menu-dishes-scroll::-webkit-scrollbar-thumb {
+  background: #d6cbbe;
+  border-radius: 4px;
+}
+
+.menu-dish-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 6px;
+  border-bottom: 1px dashed #e2d9cd;
+  transition: background 0.15s ease;
+}
+
+.menu-dish-item:last-child {
+  border-bottom: none;
+}
+
+.menu-dish-thumb {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #f5ede1;
+  border: 1px solid #e2d7c5;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  overflow: hidden;
+}
+
+.menu-dish-details {
+  flex: 1;
+}
+
+.menu-dish-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-dish-name {
+  font-weight: 800;
+  color: var(--dark-amaranth);
+  font-size: 0.96rem;
+}
+
+.menu-dish-leader {
+  flex: 1;
+  border-bottom: 1px dotted rgba(239, 157, 36, 0.6);
+  margin: 0 4px;
+  min-width: 15px;
+}
+
+.menu-dish-price {
+  font-weight: 900;
+  color: var(--golden-orange);
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.menu-dish-recipe {
+  font-size: 0.76rem;
+  color: #6b7280;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.menu-dish-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.recipe-chip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.recipe-chip-remove {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}

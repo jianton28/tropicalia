@@ -1008,43 +1008,225 @@ async function revertirInsumosPorReceta(platoId, cantPlato) {
 }
 
 // ==========================================
-// 10. MENÚ, RECETAS Y VENTA EN SALÓN
+// 10. MENÚ, RECETAS Y VENTA EN SALÓN (LIBRO DE CARTA)
 // ==========================================
+let nuevoPlatoIngredientesMemoria = [];
+
+window.actualizarSelectorIngredientesNuevoPlato = function() {
+  const sel = document.getElementById('nuevo-plato-ingrediente-select');
+  if (!sel) return;
+
+  if (insumosLocal.length === 0) {
+    sel.innerHTML = '<option value="">Sin insumos registrados</option>';
+  } else {
+    sel.innerHTML = insumosLocal.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+  }
+  actualizarUnidadIngredienteSeleccionado();
+};
+
+window.actualizarUnidadIngredienteSeleccionado = function() {
+  const sel = document.getElementById('nuevo-plato-ingrediente-select');
+  const unitLabel = document.getElementById('nuevo-plato-ingrediente-unit');
+  if (!sel || !unitLabel) return;
+
+  const ins = insumosLocal.find(i => i.id === sel.value);
+  unitLabel.innerText = ins ? ins.unit : '';
+};
+
+window.setPresetFotoNuevoPlato = function(url) {
+  const input = document.getElementById('nuevo-plato-foto');
+  if (input) {
+    input.value = url;
+    actualizarPreviewFotoNuevoPlato();
+  }
+};
+
+window.actualizarPreviewFotoNuevoPlato = function() {
+  const input = document.getElementById('nuevo-plato-foto');
+  const previewBox = document.getElementById('nuevo-plato-foto-preview');
+  const previewImg = document.getElementById('nuevo-plato-foto-img');
+  if (!input || !previewBox || !previewImg) return;
+
+  const val = input.value.trim();
+  if (val) {
+    previewImg.src = val;
+    previewBox.style.display = 'block';
+  } else {
+    previewBox.style.display = 'none';
+  }
+};
+
+window.agregarIngredienteARecetaNuevoPlato = function() {
+  const sel = document.getElementById('nuevo-plato-ingrediente-select');
+  const cantInput = document.getElementById('nuevo-plato-ingrediente-cant');
+  if (!sel || !cantInput) return;
+
+  const ins = insumosLocal.find(i => i.id === sel.value);
+  if (!ins) {
+    alert('Selecciona un ingrediente válido de la lista desplegable.');
+    return;
+  }
+
+  const cant = parseFloat(cantInput.value);
+  if (isNaN(cant) || cant <= 0) {
+    alert('Ingresa una cantidad mayor a 0 para el ingrediente.');
+    return;
+  }
+
+  // Filtrar si ya existía para actualizarlo
+  nuevoPlatoIngredientesMemoria = nuevoPlatoIngredientesMemoria.filter(item => item.ingredientId !== ins.id);
+  nuevoPlatoIngredientesMemoria.push({
+    ingredientId: ins.id,
+    ingredientName: ins.name,
+    quantity: cant,
+    unit: ins.unit || 'unidades'
+  });
+
+  cantInput.value = '';
+  renderizarChipsRecetaNuevoPlato();
+};
+
+window.quitarIngredienteDeRecetaNuevoPlato = function(ingId) {
+  nuevoPlatoIngredientesMemoria = nuevoPlatoIngredientesMemoria.filter(item => item.ingredientId !== ingId);
+  renderizarChipsRecetaNuevoPlato();
+};
+
+function renderizarChipsRecetaNuevoPlato() {
+  const cont = document.getElementById('nuevo-plato-chips-receta');
+  if (!cont) return;
+
+  if (nuevoPlatoIngredientesMemoria.length === 0) {
+    cont.innerHTML = `<span style="font-size: 0.74rem; color: #777; font-style: italic;">Aún no has añadido ingredientes a la receta.</span>`;
+    return;
+  }
+
+  cont.innerHTML = nuevoPlatoIngredientesMemoria.map(ing => `
+    <span class="recipe-chip-tag">
+      ${ing.ingredientName}: ${ing.quantity} ${ing.unit}
+      <button type="button" onclick="quitarIngredienteDeRecetaNuevoPlato('${ing.ingredientId}')" class="recipe-chip-remove" title="Quitar de la receta">✕</button>
+    </span>
+  `).join('');
+}
+
+window.crearPlatoConRecetaCompleto = async function(e) {
+  e.preventDefault();
+  if (!localActivo) return;
+
+  const name = document.getElementById('nuevo-plato-nombre').value.trim();
+  const price = parseFloat(document.getElementById('nuevo-plato-precio').value);
+  const foto = (document.getElementById('nuevo-plato-foto')?.value || '').trim();
+
+  if (isNaN(price) || price <= 0) {
+    alert('Ingresa un precio válido mayor a 0');
+    return;
+  }
+
+  const btn = document.getElementById('btn-submit-nuevo-plato');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Guardando en Carta...';
+  }
+
+  try {
+    // 1. Guardar producto
+    const { data: newProd, error: errProd } = await db.from('products').insert([{
+      business_id: localActivo.id,
+      name,
+      price,
+      image_url: foto || null,
+      stock: 50,
+      is_available: true
+    }]).select().single();
+
+    if (errProd) throw errProd;
+
+    // 2. Asociar ingredientes de la receta
+    if (nuevoPlatoIngredientesMemoria.length > 0 && newProd) {
+      const payloadRecetas = nuevoPlatoIngredientesMemoria.map(ing => ({
+        product_id: newProd.id,
+        inventory_item_id: ing.ingredientId,
+        quantity_required: ing.quantity
+      }));
+      await db.from('product_recipes').insert(payloadRecetas);
+    }
+
+    showToast(`📖 Plato "${name}" guardado exitosamente en la carta.`);
+
+    // Resetear formulario
+    e.target.reset();
+    nuevoPlatoIngredientesMemoria = [];
+    renderizarChipsRecetaNuevoPlato();
+    actualizarPreviewFotoNuevoPlato();
+
+    await recargarTodoInventarioYMenu();
+  } catch (err) {
+    console.error('Error creando plato:', err);
+    alert('Error al crear plato: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '📖 Guardar Plato en la Carta';
+    }
+  }
+};
+
 function renderizarMenuCocina() {
   const cont = document.getElementById('lista-menu-compacta');
   if (!cont) return;
   const query = (document.getElementById('buscador-menu')?.value || '').toLowerCase().trim();
   const filtrados = productosLocal.filter(p => p.name.toLowerCase().includes(query));
 
+  const contPlatosEl = document.getElementById('contador-platos-carta');
+  if (contPlatosEl) {
+    contPlatosEl.innerText = `${filtrados.length} plato${filtrados.length === 1 ? '' : 's'}`;
+  }
+
   if (filtrados.length === 0) {
-    cont.innerHTML = `<p style="padding: 14px; color: #888; text-align: center; margin: 0;">No se encontraron platos.</p>`;
+    cont.innerHTML = `<div style="text-align: center; padding: 36px 14px; color: #a8a29e;">
+      <div style="font-size: 2rem; margin-bottom: 8px;">🍽️</div>
+      <p style="margin: 0; font-size: 0.9rem;">No hay platos que coincidan con la búsqueda.</p>
+    </div>`;
     return;
   }
 
   cont.innerHTML = filtrados.map(p => {
-    const cantIngredientes = recetasLocal.filter(r => r.product_id === p.id).length;
+    const recsDelPlato = recetasLocal.filter(r => r.product_id === p.id);
+    const ingredientesTexto = recsDelPlato.map(r => {
+      const ins = insumosLocal.find(i => i.id === r.inventory_item_id);
+      return ins ? `${ins.name} (${r.quantity_required} ${ins.unit})` : null;
+    }).filter(Boolean).join(' • ');
+
     let badgeEstado = '';
     if (p._sinInsumos) {
-      badgeEstado = `<span class="shopping-card-status status-out">🚫 Falta: ${p._faltantes.slice(0, 2).join(', ')}</span>`;
+      badgeEstado = `<span class="shopping-card-status status-out" style="font-size:0.7rem; padding: 2px 7px;">🚫 Falta: ${p._faltantes.slice(0, 2).join(', ')}</span>`;
     } else if (p.is_available) {
-      badgeEstado = `<span class="shopping-card-status status-ok">Disponible</span>`;
+      badgeEstado = `<span class="shopping-card-status status-ok" style="font-size:0.7rem; padding: 2px 7px;">Disponible</span>`;
     } else {
-      badgeEstado = `<span class="shopping-card-status status-low">Pausado</span>`;
+      badgeEstado = `<span class="shopping-card-status status-low" style="font-size:0.7rem; padding: 2px 7px;">Pausado</span>`;
     }
 
+    const thumbHtml = p.image_url
+      ? `<img src="${p.image_url}" alt="${p.name}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'" />`
+      : getIngredientEmoji(p.name);
+
     return `
-      <div class="item-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--brand-border); gap: 10px; flex-wrap: wrap;">
-        <div>
-          <strong style="color: #fff; font-size: 0.95rem;">${p.name}</strong>
-          <div style="font-size: 0.78rem; color: #9ca3af; margin-top: 2px;">
-            <span style="color: var(--brand-accent); font-weight: 700;">$${parseFloat(p.price).toFixed(2)}</span> • Stock: ${p.stock ?? 99} • Receta: ${cantIngredientes} insumos
+      <div class="menu-dish-item">
+        <div class="menu-dish-thumb">${thumbHtml}</div>
+        <div class="menu-dish-details">
+          <div class="menu-dish-heading">
+            <span class="menu-dish-name">${p.name}</span>
+            <span class="menu-dish-leader"></span>
+            <span class="menu-dish-price">$${parseFloat(p.price).toFixed(2)}</span>
           </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          ${badgeEstado}
-          <button type="button" onclick="abrirModalReceta('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="btn-secundario" style="padding: 4px 10px; font-size: 0.76rem; border-color: var(--brand-accent); color: var(--brand-accent);">⚙️ Receta</button>
-          <button type="button" onclick="toggleDisponibilidadPlato('${p.id}', ${p.is_available})" class="btn-secundario" style="padding: 4px 10px; font-size: 0.76rem;">${p.is_available ? 'Pausar' : 'Activar'}</button>
-          <button type="button" onclick="eliminarPlatoMenu('${p.id}')" class="btn-secundario" style="padding: 4px 10px; font-size: 0.76rem; border-color: var(--brand-red); color: #fca5a5;">🗑️</button>
+          <div class="menu-dish-recipe">
+            ${ingredientesTexto ? `📋 <em>${ingredientesTexto}</em>` : `<span style="color:#777; font-style:italic;">Sin receta de insumos asociada</span>`}
+          </div>
+          <div class="menu-dish-actions">
+            ${badgeEstado}
+            <button type="button" onclick="abrirModalReceta('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="btn-secundario" style="padding: 2px 8px; font-size: 0.72rem; border-color: var(--brand-accent); color: var(--brand-accent);">⚙️ Receta</button>
+            <button type="button" onclick="toggleDisponibilidadPlato('${p.id}', ${p.is_available})" class="btn-secundario" style="padding: 2px 8px; font-size: 0.72rem;">${p.is_available ? 'Pausar' : 'Activar'}</button>
+            <button type="button" onclick="eliminarPlatoMenu('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="btn-secundario" style="padding: 2px 8px; font-size: 0.72rem; border-color: var(--brand-red); color: #fca5a5;">🗑️ Eliminar</button>
+          </div>
         </div>
       </div>
     `;
@@ -1065,36 +1247,15 @@ window.toggleDisponibilidadPlato = async function(id, estadoActual) {
   await recargarTodoInventarioYMenu();
 };
 
-window.eliminarPlatoMenu = async function(id) {
-  if (confirm('¿Seguro que deseas eliminar este plato del menú?')) {
+window.eliminarPlatoMenu = async function(id, nombre) {
+  const displayNombre = nombre || 'este plato';
+  if (confirm(`¿Seguro que deseas eliminar "${displayNombre}" de la carta?\nSe borrará de la base de datos junto con su receta.`)) {
+    await db.from('product_recipes').delete().eq('product_id', id);
     await db.from('products').delete().eq('id', id);
+    showToast(`🗑️ Plato "${displayNombre}" eliminado de la carta.`);
     await recargarTodoInventarioYMenu();
   }
 };
-
-document.getElementById('box-nuevo-plato')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const name = document.getElementById('nuevo-plato-nombre').value.trim();
-  const price = parseFloat(document.getElementById('nuevo-plato-precio').value);
-  const stock = parseInt(document.getElementById('nuevo-plato-stock').value);
-
-  const { error } = await db.from('products').insert([{
-    business_id: localActivo.id,
-    name,
-    price,
-    stock,
-    is_available: true
-  }]);
-
-  if (!error) {
-    e.target.reset();
-    e.target.style.display = 'none';
-    showToast(`✅ Plato "${name}" creado exitosamente.`);
-    await recargarTodoInventarioYMenu();
-  } else {
-    alert('Error al agregar plato: ' + error.message);
-  }
-});
 
 // Modal de Configurar Receta
 window.abrirModalReceta = function(platoId, platoNombre) {
@@ -1188,6 +1349,8 @@ function actualizarSelectoresVentaYMerma() {
       return `<option value="${i.id}">${i.name} (Disp: ${parseFloat(i.quantity).toFixed(1).replace(/\.0$/, '')} ${i.unit})</option>`;
     }).join('');
   }
+
+  actualizarSelectorIngredientesNuevoPlato();
 }
 
 // Venta en mostrador (Salón)

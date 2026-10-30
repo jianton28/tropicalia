@@ -334,6 +334,201 @@
       display: none;
       animation: shoppingCardIn 0.3s ease;
     }
+    /* ==============================================================================
+       LIBRO DE MENÚ DE RESTAURANTE (CARTA & NUEVO PLATO)
+       ============================================================================== */
+    .menu-book-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      background: #171118;
+      border: 2px solid var(--brand-primary);
+      border-radius: 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(239, 157, 36, 0.15);
+      overflow: hidden;
+      position: relative;
+      min-height: 560px;
+    }
+
+    @media (max-width: 900px) {
+      .menu-book-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .menu-book-spine {
+      display: none;
+    }
+
+    @media (min-width: 901px) {
+      .menu-book-spine {
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 20px;
+        transform: translateX(-50%);
+        background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 0%, rgba(239, 157, 36, 0.25) 50%, rgba(0, 0, 0, 0.6) 100%);
+        box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+        z-index: 10;
+      }
+    }
+
+    .menu-book-page {
+      padding: 24px 26px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .menu-book-page.page-left {
+      background: radial-gradient(circle at top left, #261c2b, #1d1620);
+      border-right: 1px solid #332230;
+    }
+
+    .menu-book-page.page-right {
+      background: radial-gradient(circle at top right, #241a27, #1b141e);
+    }
+
+    .menu-book-header {
+      text-align: center;
+      border-bottom: 2px solid var(--brand-accent);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+
+    .menu-book-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--brand-accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+
+    .menu-book-subtitle {
+      font-size: 0.78rem;
+      color: var(--brand-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .menu-dishes-scroll {
+      flex: 1;
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .menu-dishes-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .menu-dishes-scroll::-webkit-scrollbar-thumb {
+      background: #4a2f42;
+      border-radius: 4px;
+    }
+
+    .menu-dish-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 6px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+      transition: background 0.15s ease;
+    }
+
+    .menu-dish-item:last-child {
+      border-bottom: none;
+    }
+
+    .menu-dish-thumb {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: #2a1f2d;
+      border: 1px solid rgba(239, 157, 36, 0.3);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      overflow: hidden;
+    }
+
+    .menu-dish-details {
+      flex: 1;
+    }
+
+    .menu-dish-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .menu-dish-name {
+      font-weight: 800;
+      color: #fff;
+      font-size: 0.96rem;
+    }
+
+    .menu-dish-leader {
+      flex: 1;
+      border-bottom: 1px dotted rgba(239, 157, 36, 0.5);
+      margin: 0 4px;
+      min-width: 15px;
+    }
+
+    .menu-dish-price {
+      font-weight: 900;
+      color: var(--brand-accent);
+      font-size: 1.05rem;
+      white-space: nowrap;
+    }
+
+    .menu-dish-recipe {
+      font-size: 0.76rem;
+      color: var(--brand-muted);
+      margin-top: 3px;
+      line-height: 1.35;
+    }
+
+    .menu-dish-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .recipe-chip-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239, 157, 36, 0.15);
+      border: 1px solid rgba(239, 157, 36, 0.4);
+      color: #fde68a;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .recipe-chip-remove {
+      background: none;
+      border: none;
+      color: #fca5a5;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
@@ -555,37 +750,98 @@
       </div>
     </section>
 
-    <!-- SECCIÓN 5: MENÚ Y RECETAS INTELIGENTES -->
+    <!-- SECCIÓN 5: LIBRO DE MENÚ DE RESTAURANTE (CARTA & NUEVO PLATO) -->
     <section id="sec-menu" class="seccion-cocina" style="display: none;">
-      <div class="card-cocina">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
-          <div>
-            <h2 style="font-size: 1.25rem; margin: 0; color: var(--brand-accent);">🍔 Platos y Configuración de Recetas</h2>
-            <small style="color: var(--brand-muted);">Los platos se desactivan automáticamente si se agota algún insumo de su receta.</small>
+      <div class="menu-book-container">
+        <!-- Espina central del libro -->
+        <div class="menu-book-spine"></div>
+
+        <!-- PÁGINA IZQUIERDA: CARTA DEL RESTAURANTE -->
+        <div class="menu-book-page page-left">
+          <div class="menu-book-header">
+            <h3 class="menu-book-title">📖 Nuestra Carta</h3>
+            <div class="menu-book-subtitle">Tropicalia CRB • Menú Principal</div>
           </div>
-          <button type="button" onclick="document.getElementById('box-nuevo-plato').style.display = document.getElementById('box-nuevo-plato').style.display === 'none' ? 'grid' : 'none'" class="btn-secundario" style="padding: 6px 12px; font-size: 0.8rem;">+ Nuevo Plato</button>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 14px;">
+            <input type="text" id="buscador-menu" placeholder="🔍 Buscar plato en la carta..." oninput="filtrarMenuCocina()" style="margin: 0; padding: 8px 12px; font-size: 0.85rem; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff; flex: 1;" />
+            <span id="contador-platos-carta" style="font-size: 0.78rem; color: var(--brand-muted); white-space: nowrap; font-weight: 700;">0 platos</span>
+          </div>
+
+          <!-- Lista con scroll interior para no alargar la página -->
+          <div id="lista-menu-compacta" class="menu-dishes-scroll">
+            <p style="padding: 12px; color: #888; margin: 0; text-align: center;">Cargando carta...</p>
+          </div>
         </div>
 
-        <form id="box-nuevo-plato" style="display: none; background: #231c25; padding: 12px; border-radius: 8px; margin-bottom: 14px; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: flex-end; border: 1px dashed var(--brand-border);">
-          <div>
-            <label style="font-size: 0.75rem;">Nombre:</label>
-            <input type="text" id="nuevo-plato-nombre" required placeholder="Ej: Pizza Tropical" style="margin:0; padding:6px;" />
+        <!-- PÁGINA DERECHA: PANEL PARA AGREGAR NUEVOS PLATOS -->
+        <div class="menu-book-page page-right">
+          <div class="menu-book-header">
+            <h3 class="menu-book-title" style="color: var(--brand-accent);">✨ Nuevo Plato</h3>
+            <div class="menu-book-subtitle">Panel de Creación & Receta de Insumos</div>
           </div>
-          <div>
-            <label style="font-size: 0.75rem;">Precio ($):</label>
-            <input type="number" step="0.01" id="nuevo-plato-precio" required placeholder="8.50" style="margin:0; padding:6px;" />
-          </div>
-          <div>
-            <label style="font-size: 0.75rem;">Stock:</label>
-            <input type="number" id="nuevo-plato-stock" value="50" required style="margin:0; padding:6px;" />
-          </div>
-          <button type="submit" class="btn-primario" style="padding: 8px 14px; background: #10b981; color: #fff;">Crear</button>
-        </form>
 
-        <input type="text" id="buscador-menu" placeholder="🔍 Buscar plato en la carta..." oninput="filtrarMenuCocina()" style="margin-bottom: 12px; width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
+          <form id="form-crear-plato-completo" onsubmit="crearPlatoConRecetaCompleto(event)" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Nombre y Precio -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 0.78rem; font-weight: 700; color: #f3f4f6; display: block; margin-bottom: 3px;">Nombre del Plato *</label>
+                <input type="text" id="nuevo-plato-nombre" required placeholder="Ej: Hamburguesa Tropical Suprema" style="margin: 0; padding: 8px 10px; font-size: 0.85rem; width: 100%; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
+              </div>
+              <div>
+                <label style="font-size: 0.78rem; font-weight: 700; color: #f3f4f6; display: block; margin-bottom: 3px;">Precio ($ USD) *</label>
+                <input type="number" step="0.01" min="0.01" id="nuevo-plato-precio" required placeholder="8.50" style="margin: 0; padding: 8px 10px; font-size: 0.85rem; width: 100%; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
+              </div>
+            </div>
 
-        <div id="lista-menu-compacta" class="scroll-box" style="background: #121013; border: 1px solid var(--brand-border); border-radius: 8px; max-height: 380px;">
-          <p style="padding: 12px; color: #888; margin: 0;">Cargando platos...</p>
+            <!-- Foto del Plato con presets rápidos -->
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #f3f4f6; display: block; margin-bottom: 3px;">Foto del Plato (URL)</label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="url" id="nuevo-plato-foto" placeholder="https://images.unsplash.com/... o pega enlace" oninput="actualizarPreviewFotoNuevoPlato()" style="margin: 0; padding: 8px 10px; font-size: 0.85rem; flex: 1; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
+                <div id="nuevo-plato-foto-preview" style="width: 38px; height: 38px; border-radius: 8px; overflow: hidden; border: 1px solid var(--brand-border); flex-shrink: 0; display: none;">
+                  <img id="nuevo-plato-foto-img" src="" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;" />
+                </div>
+              </div>
+              <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🍔 Burger</button>
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🍕 Pizza</button>
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🥗 Ensalada</button>
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1576107232684-1279f3908594?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🍟 Papas</button>
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🥤 Bebida</button>
+                <button type="button" onclick="setPresetFotoNuevoPlato('https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80')" class="preset-pill-btn" style="padding: 2px 8px; font-size: 0.72rem;">🍰 Postre</button>
+              </div>
+            </div>
+
+            <!-- Ingredientes y Cantidades de la Receta -->
+            <div style="background: #231c25; border: 1px dashed var(--brand-border); border-radius: 12px; padding: 12px;">
+              <label style="font-size: 0.8rem; font-weight: 800; color: var(--brand-accent); display: block; margin-bottom: 2px;">
+                📦 Ingredientes de la Receta
+              </label>
+              <p style="margin: 0 0 8px 0; font-size: 0.74rem; color: var(--brand-muted);">
+                Selecciona los ingredientes registrados y anota cuánto consume 1 plato:
+              </p>
+
+              <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 6px; align-items: center;">
+                <select id="nuevo-plato-ingrediente-select" onchange="actualizarUnidadIngredienteSeleccionado()" style="margin: 0; padding: 7px 8px; font-size: 0.82rem; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;"></select>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <input type="number" step="0.01" min="0.01" id="nuevo-plato-ingrediente-cant" placeholder="Cant." style="margin: 0; padding: 7px 8px; font-size: 0.82rem; width: 100%; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
+                  <span id="nuevo-plato-ingrediente-unit" style="font-size: 0.74rem; color: var(--brand-muted); font-weight: 700; min-width: 22px;"></span>
+                </div>
+                <button type="button" onclick="agregarIngredienteARecetaNuevoPlato()" class="btn-primario" style="padding: 7px 12px; font-size: 0.8rem; background: #10b981; color: #fff; border-radius: 8px;">+ Añadir</button>
+              </div>
+
+              <!-- Chips de ingredientes agregados a la receta -->
+              <div id="nuevo-plato-chips-receta" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                <span style="font-size: 0.74rem; color: #777; font-style: italic;">Aún no has añadido ingredientes a la receta.</span>
+              </div>
+            </div>
+
+            <!-- Botón Guardar Plato -->
+            <button type="submit" id="btn-submit-nuevo-plato" class="btn-primario" style="width: 100%; padding: 12px; font-size: 0.92rem; font-weight: 800; border-radius: 10px; margin-top: 4px; background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); color: #fff;">
+              📖 Guardar Plato en la Carta
+            </button>
+          </form>
         </div>
       </div>
     </section>
