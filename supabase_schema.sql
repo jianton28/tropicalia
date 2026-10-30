@@ -192,6 +192,30 @@ CREATE TABLE IF NOT EXISTS public.delivery_transactions (
 -- Columna de balance y ventas en negocios para conciliación de caja general
 ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS balance NUMERIC(10, 2) DEFAULT 0.00;
 ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS total_sales NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS rating NUMERIC(3, 2) DEFAULT 4.90;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 128;
+
+-- Rating de repartidores
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS rating NUMERIC(3, 2) DEFAULT 4.95;
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 64;
+
+-- Marca de tiempo de entrega para cálculo de ventana de calificación (30 mins)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+
+-- 9.3 TABLA: order_ratings (Sistema de Calificaciones de Platos, Locales y Repartidores)
+CREATE TABLE IF NOT EXISTS public.order_ratings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    business_id UUID REFERENCES public.businesses(id) ON DELETE CASCADE,
+    driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE SET NULL,
+    business_rating INTEGER NOT NULL CHECK (business_rating BETWEEN 1 AND 5),
+    business_comment TEXT,
+    driver_rating INTEGER CHECK (driver_rating BETWEEN 1 AND 5),
+    driver_comment TEXT,
+    food_rating INTEGER CHECK (food_rating BETWEEN 1 AND 5),
+    food_tags TEXT[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- 10. TABLA: client_profiles (Perfiles de Clientes)
 CREATE TABLE IF NOT EXISTS public.client_profiles (

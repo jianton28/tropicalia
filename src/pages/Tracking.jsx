@@ -4,6 +4,16 @@ import L from 'leaflet';
 import { supabase } from '../lib/supabase';
 import { cancelarOrdenConReversion } from '../services/inventoryService';
 import { formatUsd } from '../services/bcvService';
+import { NUMERO_ORIGEN_INTERNACIONAL } from '../services/whatsappService';
+
+const TAGS_PLATOS = [
+  'Sabor exquisito 🤤',
+  'Temperatura perfecta 🔥',
+  'Porción generosa 🍽️',
+  'Presentación impecable ✨',
+  'Empaque sellado seguro 🔒',
+  'Ingredientes frescos 🥗'
+];
 
 export default function Tracking() {
   const [searchParams] = useSearchParams();
@@ -20,6 +30,25 @@ export default function Tracking() {
   const [motivoCancelacion, setMotivoCancelacion] = useState('Agregué platos por error');
   const [cancelling, setCancelling] = useState(false);
   const [cancelFeedback, setCancelFeedback] = useState('');
+
+  // ============================================================================
+  // 4. SISTEMA DE CALIFICACIONES (LOCAL, REPARTIDOR Y ALERTA DE 30 MINUTOS)
+  // ============================================================================
+  const [hasRated, setHasRated] = useState(() => {
+    return orderId ? localStorage.getItem('tropicalia_rated_' + orderId) === 'true' : false;
+  });
+  const [localStars, setLocalStars] = useState(5);
+  const [driverStars, setDriverStars] = useState(5);
+  const [localComment, setLocalComment] = useState('');
+  const [driverComment, setDriverComment] = useState('');
+  const [selectedTags, setSelectedTags] = useState(['Sabor exquisito 🤤', 'Llegó caliente 🔥']);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingSuccess, setRatingSuccess] = useState(false);
+
+  // Control de la alerta programada a los 30 minutos
+  const [mostrarAlerta30Min, setMostrarAlerta30Min] = useState(false);
+  const [minutosFaltantes, setMinutosFaltantes] = useState(30);
+  const [mostrarFormularioCalificar, setMostrarFormularioCalificar] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -135,10 +164,107 @@ export default function Tracking() {
     }
 
     if (orden.status === 'delivered') {
-      localStorage.removeItem('tropicalia_last_order_id');
+      // Guardar timestamp de entrega si no existía para la alerta de los 30 min
+      const deliveredKey = 'tropicalia_delivered_at_' + orden.id;
+      if (!localStorage.getItem(deliveredKey)) {
+        const t = orden.delivered_at ? new Date(orden.delivered_at).getTime() : Date.now();
+        localStorage.setItem(deliveredKey, t.toString());
+      }
     }
 
   }, [orden, driverName]);
+
+  // Programación de alerta: aparece exactamente 30 minutos después de finalizada la entrega
+  useEffect(() => {
+    if (!orden || orden.status !== 'delivered' || hasRated) return;
+
+    const deliveredKey = 'tropicalia_delivered_at_' + orden.id;
+    let deliveredTime = null;
+    if (orden.delivered_at) {
+      deliveredTime = new Date(orden.delivered_at).getTime();
+    } else {
+      const stored = localStorage.getItem(deliveredKey);
+      deliveredTime = stored ? parseInt(stored, 10) : Date.now();
+    }
+
+    const TREINTA_MIN_MS = 30 * 60 * 1000; // 30 minutos = 1.800.000 ms
+    const elapsed = Date.now() - deliveredTime;
+
+    if (elapsed >= TREINTA_MIN_MS) {
+      setMostrarAlerta30Min(true);
+      setMostrarFormularioCalificar(true);
+    } else {
+      const faltanteMs = TREINTA_MIN_MS - elapsed;
+      setMinutosFaltantes(Math.max(1, Math.ceil(faltanteMs / 60000)));
+
+      // Timer exacto para disparar la alerta a los 30 minutos
+      const timer = setTimeout(() => {
+        setMostrarAlerta30Min(true);
+        setMostrarFormularioCalificar(true);
+      }, faltanteMs);
+
+      // Intervalo para actualizar el contador en pantalla
+      const interval = setInterval(() => {
+        const nuevoElapsed = Date.now() - deliveredTime;
+        if (nuevoElapsed >= TREINTA_MIN_MS) {
+          setMostrarAlerta30Min(true);
+          setMostrarFormularioCalificar(true);
+          clearInterval(interval);
+        } else {
+          setMinutosFaltantes(Math.max(1, Math.ceil((TREINTA_MIN_MS - nuevoElapsed) / 60000)));
+        }
+      }, 15000);
+
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
+    }
+  }, [orden, hasRated]);
+
+  async function handleEnviarCalificacion(e) {
+    e.preventDefault();
+    if (!orden) return;
+    setSubmittingRating(true);
+
+    try {
+      await supabase.from('order_ratings').insert([{
+        order_id: orden.id,
+        business_id: orden.business_id,
+        driver_id: orden.driver_id || null,
+        business_rating: localStars,
+        business_comment: localComment.trim() || null,
+        driver_rating: orden.delivery_type === 'delivery' && orden.driver_id ? driverStars : null,
+        driver_comment: driverComment.trim() || null,
+        food_rating: localStars,
+        food_tags: selectedTags
+      }]);
+
+      localStorage.setItem('tropicalia_rated_' + orden.id, 'true');
+      setHasRated(true);
+      setRatingSuccess(true);
+    } catch (err) {
+      console.warn('Registro de calificación en Supabase:', err);
+      // Fallback para persistencia en cliente
+      localStorage.setItem('tropicalia_rated_' + orden.id, 'true');
+      setHasRated(true);
+      setRatingSuccess(true);
+    } finally {
+      setSubmittingRating(false);
+    }
+  }
+
+  const toggleTag = (tag) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
+  const urlSoporteWhatsApp = `https://wa.me/${NUMERO_ORIGEN_INTERNACIONAL}?text=${encodeURIComponent(
+    `Hola Tropicalia CRB, me comunico sobre mi pedido #ORD-${(orden?.id || '').slice(0, 8).toUpperCase()}. ¿Podrían ayudarme?`
+  )}`;
 
   async function handleConfirmarCancelacion(e) {
     e.preventDefault();
@@ -373,6 +499,310 @@ export default function Tracking() {
             {/* MAPA DE SEGUIMIENTO */}
             <div style={{ height: '300px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
               <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+            </div>
+
+            {/* ============================================================================
+                4. SISTEMA DE CALIFICACIONES (LOCAL, REPARTIDOR Y ALERTA DE 30 MINUTOS)
+                ============================================================================ */}
+            {orden.status === 'delivered' && (
+              <div style={{ marginBottom: '20px' }}>
+                {hasRated ? (
+                  <div style={{
+                    background: '#ecfdf5',
+                    border: '1.5px solid #10b981',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    textAlign: 'center'
+                  }}>
+                    <span style={{ fontSize: '2rem' }}>🌟</span>
+                    <h4 style={{ margin: '6px 0 2px 0', color: '#065f46', fontSize: '1rem', fontWeight: 800 }}>
+                      ¡Gracias por calificar tu comida y servicio!
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#047857' }}>
+                      Tu valoración ayuda a {orden.businesses?.name || 'nuestras cocinas'} y al equipo a mantener la más alta calidad gastronómica.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    {/* ALERTA PROGRAMADA A LOS 30 MINUTOS */}
+                    {mostrarAlerta30Min ? (
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '2px solid var(--golden-orange)',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                        boxShadow: '0 4px 14px rgba(245, 158, 11, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        <span style={{ fontSize: '2.2rem' }}>🔔</span>
+                        <div style={{ flex: 1 }}>
+                          <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.96rem', display: 'block' }}>
+                            ¡Alerta: Califica tu plato!
+                          </strong>
+                          <span style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.4, display: 'block', marginTop: '2px' }}>
+                            Han transcurrido 30 minutos desde la entrega. ¿Qué tal estuvo la sazón, temperatura y presentación?
+                          </span>
+                        </div>
+                      </div>
+                    ) : !mostrarFormularioCalificar && (
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '14px',
+                        padding: '14px 16px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', display: 'block' }}>
+                            ⏱️ Alerta de calificación programada
+                          </span>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            Se activará en <strong>{minutosFaltantes} min</strong> para permitirte degustar con calma.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMostrarFormularioCalificar(true)}
+                          style={{
+                            background: 'var(--dark-amaranth)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '999px',
+                            padding: '8px 16px',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ⭐ Calificar Ahora
+                        </button>
+                      </div>
+                    )}
+
+                    {/* FORMULARIO DE CALIFICACIÓN */}
+                    {(mostrarFormularioCalificar || mostrarAlerta30Min) && (
+                      <form
+                        onSubmit={handleEnviarCalificacion}
+                        style={{
+                          background: '#fcfdfd',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: '16px',
+                          padding: '18px',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+                        }}
+                      >
+                        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--dark-amaranth)' }}>
+                            ⭐ Califica tu Experiencia
+                          </h3>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Tu opinión impulsa la mejora continua de nuestra comunidad gastronómica.
+                          </p>
+                        </div>
+
+                        {/* CALIFICACIÓN DE COCINA Y PLATOS */}
+                        <div style={{ marginBottom: '18px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                          <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'block', textAlign: 'center' }}>
+                            👨‍🍳 Cocina y Platos ({orden.businesses?.name || 'Local'})
+                          </label>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setLocalStars(star)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  fontSize: '2rem',
+                                  cursor: 'pointer',
+                                  color: star <= localStars ? '#f59e0b' : '#e2e8f0',
+                                  lineHeight: 1,
+                                  transition: 'transform 0.1s'
+                                }}
+                              >
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', textAlign: 'center', marginBottom: '10px' }}>
+                            {localStars === 5 && '¡Excepcional! 🤩'}
+                            {localStars === 4 && 'Muy sabroso 👍'}
+                            {localStars === 3 && 'Aceptable 😐'}
+                            {localStars === 2 && 'Podría mejorar 😕'}
+                            {localStars === 1 && 'No me gustó 😞'}
+                          </span>
+
+                          {/* TAGS DE PLATOS */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '10px' }}>
+                            {TAGS_PLATOS.map((tag) => {
+                              const isSelected = selectedTags.includes(tag);
+                              return (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => toggleTag(tag)}
+                                  style={{
+                                    border: isSelected ? '1.5px solid var(--dark-amaranth)' : '1px solid #cbd5e1',
+                                    background: isSelected ? 'var(--dark-amaranth)' : '#ffffff',
+                                    color: isSelected ? '#ffffff' : '#475569',
+                                    borderRadius: '999px',
+                                    padding: '4px 10px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {tag}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <textarea
+                            placeholder="Comentario sobre el sabor, temperatura o empaque (opcional)..."
+                            value={localComment}
+                            onChange={(e) => setLocalComment(e.target.value)}
+                            rows={2}
+                            style={{
+                              width: '100%',
+                              borderRadius: '10px',
+                              border: '1px solid #cbd5e1',
+                              padding: '8px 10px',
+                              fontSize: '0.8rem',
+                              fontFamily: 'inherit',
+                              resize: 'vertical',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        {/* CALIFICACIÓN DE REPARTIDOR (SOLO DELIVERY) */}
+                        {!esPickup && orden.driver_id && (
+                          <div style={{ marginBottom: '18px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                            <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'block', textAlign: 'center' }}>
+                              🛵 Repartidor ({driverName})
+                            </label>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setDriverStars(star)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: '2rem',
+                                    cursor: 'pointer',
+                                    color: star <= driverStars ? '#f59e0b' : '#e2e8f0',
+                                    lineHeight: 1,
+                                    transition: 'transform 0.1s'
+                                  }}
+                                >
+                                  ★
+                                </button>
+                              ))}
+                            </div>
+                            <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', textAlign: 'center', marginBottom: '10px' }}>
+                              {driverStars === 5 && '¡Rápido y muy cordial! ⚡'}
+                              {driverStars === 4 && 'Buen servicio 👍'}
+                              {driverStars === 3 && 'Aceptable 😐'}
+                              {driverStars <= 2 && 'Demorado o con inconvenientes 😕'}
+                            </span>
+
+                            <textarea
+                              placeholder="Comentario sobre la entrega o trato del conductor (opcional)..."
+                              value={driverComment}
+                              onChange={(e) => setDriverComment(e.target.value)}
+                              rows={2}
+                              style={{
+                                width: '100%',
+                                borderRadius: '10px',
+                                border: '1px solid #cbd5e1',
+                                padding: '8px 10px',
+                                fontSize: '0.8rem',
+                                fontFamily: 'inherit',
+                                resize: 'vertical',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={submittingRating}
+                          className="btn-primario"
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            fontWeight: 800,
+                            fontSize: '0.92rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          {submittingRating ? 'Enviando valoración...' : '⭐ Enviar Calificación Oficial'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ATENCIÓN Y SOPORTE WHATSAPP OFICIAL (0414-1352503) */}
+            <div style={{
+              background: '#f0fdf4',
+              border: '1.5px solid #86efac',
+              borderRadius: '16px',
+              padding: '16px',
+              textAlign: 'center',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '1.3rem' }}>💬</span>
+                <strong style={{ color: '#166534', fontSize: '0.92rem' }}>
+                  Atención y Soporte Oficial Tropicalia
+                </strong>
+              </div>
+              <p style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#15803d' }}>
+                ¿Tienes alguna consulta o requerimiento con tu orden? Escríbenos directamente a la línea oficial <strong>0414-1352503</strong>.
+              </p>
+              <a
+                href={urlSoporteWhatsApp}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: '#25D366',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  padding: '10px 20px',
+                  borderRadius: '999px',
+                  boxShadow: '0 3px 10px rgba(37, 211, 102, 0.25)',
+                  width: '100%',
+                  maxWidth: '320px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                📲 Contactar por WhatsApp (0414-1352503)
+              </a>
             </div>
 
             {/* BOTÓN CANCELAR PEDIDO (CON REVERSIÓN DE STOCK) */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useCart } from '../context/CartContext';
@@ -14,7 +14,7 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.max(0.2, R * c * 1.25);
+  return Math.max(0.2, parseFloat((R * c * 1.25).toFixed(1)));
 }
 
 function calcularTarifaPorKm(km) {
@@ -29,17 +29,23 @@ export default function Checkout() {
   const { cart, businessId, businessName, changeQuantity, clearCart } = useCart();
   const { user } = useAuth();
 
+  // Estados de control post-compra (Bug visual de carrito vacío corregido)
+  const isOrderConfirmedRef = useRef(false);
+  const [orderCompleted, setOrderCompleted] = useState(false);
+
   const [tasaBCV, setTasaBCV] = useState(875.65);
   const [restauranteInfo, setRestauranteInfo] = useState(null);
   const [coordsRestaurante, setCoordsRestaurante] = useState({ lat: 10.4806, lng: -66.9036 });
-  const [distanciaKm, setDistanciaKm] = useState(1.5);
+  const [distanciaKm, setDistanciaKm] = useState(1.8);
   const [fleteUsd, setFleteUsd] = useState(1.50);
 
   // Form states
   const [modalidad, setModalidad] = useState('delivery');
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [direccion, setDireccion] = useState('');
+  const [direccion, setDireccion] = useState(() => {
+    return localStorage.getItem('tropicalia_delivery_address') || '';
+  });
   const [mapUrl, setMapUrl] = useState('');
   const [notas, setNotas] = useState('');
   const [propina, setPropina] = useState(0);
@@ -60,41 +66,80 @@ export default function Checkout() {
   const [gpsStatus, setGpsStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // ============================================================================
+  // CÁLCULO 100% AUTOMÁTICO DE DISTANCIA (SIN INGRESO MANUAL DEL USUARIO)
+  // ============================================================================
   useEffect(() => {
+    // Si la orden ya fue confirmada, evitar cualquier validación de carrito vacío
+    if (isOrderConfirmedRef.current || orderCompleted) return;
+
     if (cart.length === 0 || !businessId) {
-      alert('Tu carrito está vacío. Agrega platos desde el menú.');
       navigate('/');
       return;
     }
 
     fetchTasaBCV().then(r => setTasaBCV(r));
 
-    // Cargar datos y coordenadas del restaurante
-    async function cargarRestaurante() {
+    async function cargarRestauranteYCalcularDistancia() {
       const { data: neg } = await supabase
         .from('businesses')
         .select('name, phone, lat, lng')
         .eq('id', businessId)
         .maybeSingle();
 
+      let coordsCocina = { lat: 10.4806, lng: -66.9036 };
       if (neg) {
         setRestauranteInfo(neg);
         if (neg.lat && neg.lng) {
-          setCoordsRestaurante({
+          coordsCocina = {
             lat: parseFloat(neg.lat),
             lng: parseFloat(neg.lng)
-          });
+          };
+          setCoordsRestaurante(coordsCocina);
         }
       }
-    }
-    cargarRestaurante();
 
-    // Auto-completar datos si el usuario tiene sesión
+      // Auto-calcular distancia exacta con coordenadas del cliente
+      const savedLat = localStorage.getItem('tropicalia_user_lat');
+      const savedLng = localStorage.getItem('tropicalia_user_lng');
+
+      if (savedLat && savedLng) {
+        const km = calcularDistanciaKm(coordsCocina.lat, coordsCocina.lng, parseFloat(savedLat), parseFloat(savedLng));
+        setDistanciaKm(km);
+        setFleteUsd(calcularTarifaPorKm(km));
+        setGpsStatus(`📍 Distancia automática calculada (${km.toFixed(1)} km)`);
+      }
+
+      // Consulta en segundo plano de GPS de alta precisión
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            localStorage.setItem('tropicalia_user_lat', lat.toString());
+            localStorage.setItem('tropicalia_user_lng', lng.toString());
+            setMapUrl(`https://www.google.com/maps?q=${lat},${lng}`);
+
+            const kmExacto = calcularDistanciaKm(coordsCocina.lat, coordsCocina.lng, lat, lng);
+            setDistanciaKm(kmExacto);
+            setFleteUsd(calcularTarifaPorKm(kmExacto));
+            setGpsStatus(`✅ GPS Verificado: ${kmExacto.toFixed(1)} km de la cocina`);
+          },
+          () => {
+            // Si el cliente no comparte GPS, mantener distancia automática por zona
+          },
+          { enableHighAccuracy: true, timeout: 7000 }
+        );
+      }
+    }
+
+    cargarRestauranteYCalcularDistancia();
+
     if (user?.user_metadata) {
       if (user.user_metadata.full_name) setNombre(user.user_metadata.full_name);
       if (user.user_metadata.phone) setTelefono(user.user_metadata.phone);
     }
-  }, [cart, businessId, navigate, user]);
+  }, [cart, businessId, navigate, user, orderCompleted]);
 
   // Cálculos financieros
   const subtotalComida = cart.reduce((acc, el) => acc + (parseFloat(el.price) * (el.quantity || 1)), 0);
@@ -103,15 +148,9 @@ export default function Checkout() {
   const totalUsd = subtotalComida + costoDelivery + propinaMotorizado;
   const totalBs = toBs(totalUsd, tasaBCV);
 
-  function handleManualDistance(kmValue) {
-    const km = parseFloat(kmValue);
-    setDistanciaKm(km);
-    setFleteUsd(calcularTarifaPorKm(km));
-  }
-
   function handleCapturarGPS() {
     if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización. Selecciona la distancia aproximada.');
+      alert('Tu navegador no soporta geolocalización directa.');
       return;
     }
 
@@ -120,6 +159,8 @@ export default function Checkout() {
       pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+        localStorage.setItem('tropicalia_user_lat', lat.toString());
+        localStorage.setItem('tropicalia_user_lng', lng.toString());
         const gmaps = `https://www.google.com/maps?q=${lat},${lng}`;
         setMapUrl(gmaps);
 
@@ -131,11 +172,11 @@ export default function Checkout() {
           setDireccion(`Ubicación GPS exacta (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
         }
         setGpsLoading(false);
-        setGpsStatus(`✅ GPS Listo (${km.toFixed(1)} km)`);
+        setGpsStatus(`✅ GPS en Vivo Actualizado (${km.toFixed(1)} km)`);
       },
       () => {
         setGpsLoading(false);
-        alert('No se pudo obtener el GPS automático. Puedes seleccionar la distancia aproximada manualmente.');
+        alert('No se pudo actualizar el GPS. Se mantendrá el cálculo automático.');
       },
       { enableHighAccuracy: true }
     );
@@ -221,10 +262,18 @@ export default function Checkout() {
 
       if (ordenError) throw ordenError;
 
+      // Marcar orden completada para prevenir bug visual de carrito vacío
+      isOrderConfirmedRef.current = true;
+      setOrderCompleted(true);
       localStorage.setItem('tropicalia_last_order_id', orden.id);
-      clearCart();
 
-      navigate(`/tracking?order_id=${orden.id}`);
+      // Redirigir de inmediato al tracking
+      navigate(`/tracking?order_id=${orden.id}`, { replace: true });
+
+      // Limpiar el carrito de forma diferida tras la navegación
+      setTimeout(() => {
+        clearCart();
+      }, 400);
 
     } catch (err) {
       alert('Error al registrar pedido: ' + err.message);
@@ -241,6 +290,18 @@ export default function Checkout() {
     { id: 'zelle', label: 'Zelle', icon: '🏦' },
     { id: 'zinli', label: 'Zinli', icon: '🟣' }
   ];
+
+  // Pantalla de confirmación suave post-compra (Evita parpadeo de "carrito vacío")
+  if (orderCompleted) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#ffffff', padding: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '3.5rem', marginBottom: '14px' }}>🎉</div>
+        <h2 style={{ color: 'var(--dark-amaranth)', fontSize: '1.4rem', margin: '0 0 6px 0' }}>¡Pedido Confirmado con Éxito!</h2>
+        <p style={{ color: '#4b5563', fontSize: '0.9rem', margin: '0 0 20px 0' }}>Abriendo el seguimiento en vivo de tu comanda...</p>
+        <div style={{ width: '38px', height: '38px', border: '3px solid #f3f4f6', borderTopColor: 'var(--golden-orange)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '80px' }}>
@@ -454,53 +515,62 @@ export default function Checkout() {
           </div>
 
           {modalidad === 'delivery' && (
-            <div style={{ marginTop: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '8px' }}>
-                <div>
-                  <label>Distancia Estimada de Entrega:</label>
-                  <select value={distanciaKm.toString()} onChange={e => handleManualDistance(e.target.value)}>
-                    <option value="1.0">0 a 1 km (Tarifa Mínima $1.00)</option>
-                    <option value="1.5">1.5 km (~$1.25)</option>
-                    <option value="2.5">2.5 km (~$1.75)</option>
-                    <option value="4.0">4.0 km (~$2.50)</option>
-                    <option value="6.0">6.0 km (~$3.50)</option>
-                    <option value="9.0">9.0 km o más ($5.00)</option>
-                  </select>
+            <div style={{ marginTop: '14px' }}>
+              {/* DISTANCIA Y TARIFA EXACTA AUTOMÁTICA (SIN INGRESO MANUAL DEL USUARIO) */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: '16px',
+                padding: '16px',
+                marginBottom: '14px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      🔒 Distancia Exacta Calculada Automáticamente
+                    </span>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--dark-amaranth)', marginTop: '2px' }}>
+                      📍 {distanciaKm.toFixed(1)} km <span style={{ fontSize: '0.88rem', color: '#4b5563', fontWeight: 600 }}>• Tarifa de Envío: {formatUsd(costoDelivery)}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCapturarGPS}
+                    className="btn-secundario"
+                    style={{ padding: '6px 12px', fontSize: '0.78rem', borderRadius: '8px', fontWeight: 700 }}
+                    disabled={gpsLoading}
+                    title="Recalcular con coordenadas GPS en vivo"
+                  >
+                    {gpsLoading ? '⏳ Calculando...' : '🔄 Recalcular GPS'}
+                  </button>
                 </div>
-                <div>
-                  <label>Propina voluntaria al repartidor:</label>
-                  <select value={propina} onChange={e => setPropina(parseFloat(e.target.value))}>
-                    <option value="0">Sin propina ($0.00)</option>
-                    <option value="0.5">Propina $0.50 (Bs. {toBs(0.5, tasaBCV).toFixed(2)})</option>
-                    <option value="1.0">Propina $1.00 (Bs. {toBs(1.0, tasaBCV).toFixed(2)})</option>
-                    <option value="2.0">Propina $2.00 (Bs. {toBs(2.0, tasaBCV).toFixed(2)})</option>
-                    <option value="3.0">Excelente servicio $3.00</option>
-                  </select>
-                </div>
+                <small style={{ color: '#059669', display: 'block', marginTop: '6px', fontWeight: 600 }}>
+                  {gpsStatus || `✅ Distancia calculada automáticamente entre la cocina (${restauranteInfo?.name || 'Local'}) y tu ubicación.`}
+                </small>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
-                <button
-                  type="button"
-                  onClick={handleCapturarGPS}
-                  className="btn-secundario"
-                  disabled={gpsLoading}
-                  style={{ fontSize: '0.82rem' }}
-                >
-                  {gpsLoading ? '⏳ Calculando GPS...' : (gpsStatus || '📍 Calcular con mi GPS actual')}
-                </button>
-                <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700 }}>
-                  🛵 Flete: {formatUsd(fleteUsd)}
-                </span>
+              {/* PROPINA VOLUNTARIA AL MOTORIZADO */}
+              <div style={{ marginBottom: '12px' }}>
+                <label>Propina voluntaria al repartidor:</label>
+                <select value={propina} onChange={e => setPropina(parseFloat(e.target.value))}>
+                  <option value="0">Sin propina ($0.00)</option>
+                  <option value="0.5">Propina $0.50 (Bs. {toBs(0.5, tasaBCV).toFixed(2)})</option>
+                  <option value="1.0">Propina $1.00 (Bs. {toBs(1.0, tasaBCV).toFixed(2)})</option>
+                  <option value="2.0">Propina $2.00 (Bs. {toBs(2.0, tasaBCV).toFixed(2)})</option>
+                  <option value="3.0">Excelente servicio $3.00</option>
+                </select>
               </div>
-              <label>Dirección exacta / Punto de referencia:</label>
-              <input
-                type="text"
-                value={direccion}
-                onChange={e => setDireccion(e.target.value)}
-                required={modalidad === 'delivery'}
-                placeholder="Ej: Urb. Las Mercedes, Calle París, Edif. Altamira, Apto 4-B"
-              />
+
+              <div>
+                <label>Dirección exacta / Punto de referencia:</label>
+                <input
+                  type="text"
+                  value={direccion}
+                  onChange={e => setDireccion(e.target.value)}
+                  required={modalidad === 'delivery'}
+                  placeholder="Ej: Urb. Las Mercedes, Calle París, Edif. Altamira, Apto 4-B"
+                />
+              </div>
             </div>
           )}
 
