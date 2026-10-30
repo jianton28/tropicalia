@@ -553,3 +553,217 @@ h1, h2, h3, h4, .brand-title {
   font-weight: 800;
   text-transform: uppercase;
 }
+
+/* ==============================================================================
+   LISTA DE COMPRAS / INVENTARIO ANIMADA (KDS COCINA)
+   ============================================================================== */
+.shopping-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.shopping-card-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: shoppingCardIn 0.3s ease-out both;
+}
+
+.shopping-card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(130, 19, 58, 0.08);
+  border-color: #cbd5e1;
+}
+
+@keyframes shoppingCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.shopping-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fdf2f4;
+  color: var(--dark-amaranth);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.shopping-card-info {
+  flex: 1;
+  margin: 0 12px;
+}
+
+.shopping-card-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  margin: 0 0 2px 0;
+  line-height: 1.25;
+}
+
+.shopping-card-qty {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-weight: 700;
+}
+
+.shopping-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-add-stock {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--dark-amaranth);
+  color: #ffffff;
+  border: none;
+  font-size: 1.3rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 3px 8px rgba(130, 19, 58, 0.3);
+}
+
+.btn-add-stock:hover {
+  background: var(--flag-red);
+  transform: scale(1.08);
+}
+
+.btn-add-stock:active {
+  transform: scale(0.95);
+}
+
+.btn-delete-item {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-item:hover {
+  background: #dc2626;
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+/* ==============================================================================
+   TECLADO NUMÉRICO TÁCTIL (MODAL)
+   ============================================================================== */
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.keypad-btn {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  user-select: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.keypad-btn:active {
+  background: #e5e7eb;
+  transform: scale(0.95);
+}
+
+.keypad-btn.action-btn {
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 1.1rem;
+}
+
+.preset-pill-btn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-pill-btn:hover {
+  background: #fde68a;
+  transform: scale(1.04);
+}
+
+/* ==============================================================================
+   GRÁFICOS DE GANANCIAS & REPORTES
+   ============================================================================== */
+.chart-box-container {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-stat-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  text-align: center;
+}
+
+.kpi-stat-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.kpi-stat-value {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--dark-amaranth);
+  font-family: var(--font-display);
+}
+

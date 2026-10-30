@@ -84,7 +84,7 @@ export async function revertirStockDeOrden(order) {
     }
 
     // 5. Registrar en la bitácora de cocina (kitchen_logs)
-    await supabase.from('kitchen_logs').insert([{
+    const { error: logErr } = await supabase.from('kitchen_logs').insert([{
       business_id: businessId,
       log_type: 'reversion_cancelacion',
       item_name: `Orden #${order.id.slice(0, 8)}`,
@@ -92,6 +92,18 @@ export async function revertirStockDeOrden(order) {
       amount_usd: parseFloat(order.total || 0),
       notes: `Reversión automática de insumos devueltos al stock (${revertedCount} items/ingredientes restaurados)`
     }]);
+
+    if (logErr) {
+      // Fallback si la restricción CHECK de PostgreSQL en kitchen_logs aún no incluye 'reversion_cancelacion'
+      await supabase.from('kitchen_logs').insert([{
+        business_id: businessId,
+        log_type: 'merma',
+        item_name: `Devolución Orden #${order.id.slice(0, 8)}`,
+        quantity: items.length,
+        amount_usd: parseFloat(order.total || 0),
+        notes: `[REVERSIÓN DE STOCK] Insumos devueltos al stock por cancelación (${revertedCount} items/ingredientes restaurados)`
+      }]);
+    }
 
     return { success: true, count: revertedCount };
   } catch (error) {
