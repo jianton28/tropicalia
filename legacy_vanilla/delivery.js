@@ -12,7 +12,7 @@ let mapaLeaflet = null;
 let marcadorDriver = null;
 let canalRealtime = null;
 
-const TECHO_DEUDA = 20.00;
+const TECHO_DEUDA = 25.00;
 
 const driverNombreEl = document.getElementById('driver-nombre');
 const driverVehiculoEl = document.getElementById('driver-vehiculo');
@@ -25,10 +25,19 @@ const gridCarreras = document.getElementById('grid-carreras');
 const seccionCarreraActiva = document.getElementById('seccion-carrera-activa');
 const contenedorCarreraActiva = document.getElementById('contenedor-carrera-activa');
 const mapaEstadoTexto = document.getElementById('mapa-estado-texto');
+
 const modalEntrega = document.getElementById('modal-entrega');
 const inputCodigoEntrega = document.getElementById('input-codigo-entrega');
 const inputFotoEntrega = document.getElementById('input-foto-entrega');
 const btnFinalizarEntrega = document.getElementById('btn-finalizar-entrega');
+
+function showToast(msg) {
+  const t = document.getElementById('delivery-toast');
+  if (!t) return;
+  t.innerText = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
 
 (async () => {
   const { data: { session } } = await db.auth.getSession();
@@ -41,11 +50,8 @@ const btnFinalizarEntrega = document.getElementById('btn-finalizar-entrega');
   await cargarPerfilDriver();
   inicializarMapa();
   await cargarBilletera();
-  
-  // Verificar carrera en curso antes de listar las disponibles
   await verificarCarreraEnCurso();
   await cargarCarrerasDisponibles();
-  
   suscribirCambiosEnTiempoReal();
 })();
 
@@ -57,7 +63,7 @@ async function cargarPerfilDriver() {
     .maybeSingle();
 
   if (error || !data) {
-    const nombre = driverUser.user_metadata?.full_name || 'Repartidor';
+    const nombre = driverUser.user_metadata?.full_name || 'Repartidor Tropicalia';
     const tlf = driverUser.user_metadata?.phone || 'Sin número';
     const { data: nuevo } = await db.from('driver_profiles').insert([{
       id: driverUser.id,
@@ -73,6 +79,17 @@ async function cargarPerfilDriver() {
   driverNombreEl.innerText = driverPerfil.full_name;
   driverVehiculoEl.innerText = `Vehículo: ${driverPerfil.vehicle_type?.toUpperCase() || 'MOTO'} • Placa: ${driverPerfil.vehicle_plate || 'N/A'}`;
   actualizarBotonOnlineUI();
+
+  // Cargar datos Pago Móvil
+  const localSaved = JSON.parse(localStorage.getItem(`pm_${driverUser.id}`) || '{}');
+  const metaSaved = driverUser.user_metadata?.pagomovil || {};
+  const bancoEl = document.getElementById('pm-banco');
+  const cedulaEl = document.getElementById('pm-cedula');
+  const tlfEl = document.getElementById('pm-telefono');
+
+  if (bancoEl) bancoEl.value = driverPerfil.pagomovil_bank || metaSaved.bank || localSaved.bank || '0102 - Banco de Venezuela';
+  if (cedulaEl) cedulaEl.value = driverPerfil.pagomovil_id || metaSaved.idDoc || localSaved.idDoc || '';
+  if (tlfEl) tlfEl.value = driverPerfil.pagomovil_phone || metaSaved.phone || localSaved.phone || driverPerfil.phone || '';
 }
 
 function actualizarBotonOnlineUI() {
@@ -95,6 +112,7 @@ window.toggleDisponibilidad = async function() {
   if (!error) {
     driverPerfil.is_online = nuevoEstado;
     actualizarBotonOnlineUI();
+    showToast(nuevoEstado ? '🟢 Modo EN LÍNEA activado' : '⚪ Modo DESCONECTADO');
     if (nuevoEstado) {
       await cargarCarrerasDisponibles();
       iniciarTrackingGPS();
@@ -146,32 +164,200 @@ async function cargarBilletera() {
   }
 }
 
+// =========================================================================
+// AMORTIZAR DEUDA CON SALDO DIGITAL (ACREDITAR SALDO)
+// =========================================================================
 window.saldarDeudaConSaldo = async function() {
   const saldo = parseFloat(driverWallet.prepaid_balance || 0);
   const deuda = parseFloat(driverWallet.cash_debt || 0);
   if (saldo <= 0 || deuda <= 0) return;
 
   const abono = Math.min(saldo, deuda);
+  if (!confirm(`¿Deseas acreditar $${abono.toFixed(2)} de tus ganancias disponibles para amortizar tu deuda en efectivo?`)) return;
+
   const nuevoSaldo = saldo - abono;
   const nuevaDeuda = deuda - abono;
+  const sigueBloqueado = nuevaDeuda >= TECHO_DEUDA;
 
   const { error } = await db.from('delivery_wallets').update({
     prepaid_balance: nuevoSaldo,
     cash_debt: nuevaDeuda,
-    is_blocked: nuevaDeuda >= TECHO_DEUDA
+    is_blocked: sigueBloqueado
   }).eq('driver_id', driverUser.id);
 
   if (!error) {
-    await db.from('delivery_transactions').insert([{
-      driver_id: driverUser.id,
-      amount: abono,
-      type: 'debt_payment',
-      notes: `Amortización voluntaria de deuda con saldo digital`
-    }]);
-
-    alert(`¡Has amortizado $${abono.toFixed(2)} a tu deuda!`);
+    showToast(`💳 Se amortizaron $${abono.toFixed(2)} de tu deuda con éxito.`);
     await cargarBilletera();
     await cargarCarrerasDisponibles();
+  } else {
+    alert('Error al amortizar deuda: ' + error.message);
+  }
+};
+
+// =========================================================================
+// RETIRO DE GANANCIAS & PAGO MÓVIL
+// =========================================================================
+window.abrirModalPagoMovil = function() {
+  document.getElementById('modal-pagomovil').style.display = 'flex';
+};
+
+window.cerrarModalPagoMovil = function() {
+  document.getElementById('modal-pagomovil').style.display = 'none';
+};
+
+window.guardarDatosPagoMovil = async function(e) {
+  e.preventDefault();
+  const banco = document.getElementById('pm-banco').value;
+  const cedula = document.getElementById('pm-cedula').value.trim();
+  const telefono = document.getElementById('pm-telefono').value.trim();
+
+  if (!cedula || !telefono) {
+    alert('Ingresa tu Cédula y Teléfono de Pago Móvil.');
+    return;
+  }
+
+  const pmData = { bank: banco, idDoc: cedula, phone: telefono };
+  await db.auth.updateUser({ data: { pagomovil: pmData } });
+  localStorage.setItem(`pm_${driverUser.id}`, JSON.stringify(pmData));
+
+  try {
+    await db.from('driver_profiles').update({
+      pagomovil_bank: banco,
+      pagomovil_id: cedula,
+      pagomovil_phone: telefono
+    }).eq('id', driverUser.id);
+  } catch (err) {}
+
+  showToast('✅ Datos de Pago Móvil guardados con éxito.');
+  cerrarModalPagoMovil();
+};
+
+window.abrirModalRetiroGanancias = function() {
+  const saldo = parseFloat(driverWallet?.prepaid_balance || 0);
+  document.getElementById('modal-retiro-saldo-disp').innerText = `$${saldo.toFixed(2)}`;
+
+  const localSaved = JSON.parse(localStorage.getItem(`pm_${driverUser.id}`) || '{}');
+  const banco = driverPerfil?.pagomovil_bank || localSaved.bank || 'Banco no configurado';
+  const titular = `${driverPerfil?.pagomovil_id || localSaved.idDoc || 'S/N'} • ${driverPerfil?.pagomovil_phone || localSaved.phone || 'S/N'}`;
+
+  document.getElementById('modal-retiro-banco').innerText = banco;
+  document.getElementById('modal-retiro-titular').innerText = titular;
+
+  document.getElementById('input-monto-retiro').value = '';
+  document.getElementById('modal-retiro-ganancias').style.display = 'flex';
+};
+
+window.cerrarModalRetiroGanancias = function() {
+  document.getElementById('modal-retiro-ganancias').style.display = 'none';
+};
+
+window.retirarTodoSaldo = function() {
+  const saldo = parseFloat(driverWallet?.prepaid_balance || 0);
+  document.getElementById('input-monto-retiro').value = saldo.toFixed(2);
+};
+
+window.solicitarRetiroGanancias = async function(e) {
+  e.preventDefault();
+  const saldo = parseFloat(driverWallet?.prepaid_balance || 0);
+  const monto = parseFloat(document.getElementById('input-monto-retiro').value);
+
+  if (isNaN(monto) || monto <= 0) {
+    alert('Ingresa un monto válido mayor a 0');
+    return;
+  }
+  if (monto > saldo) {
+    alert(`El monto no puede superar tu saldo disponible ($${saldo.toFixed(2)})`);
+    return;
+  }
+
+  const localSaved = JSON.parse(localStorage.getItem(`pm_${driverUser.id}`) || '{}');
+  const cedula = driverPerfil?.pagomovil_id || localSaved.idDoc;
+  if (!cedula) {
+    alert('Por favor configura tus datos de Pago Móvil primero.');
+    cerrarModalRetiroGanancias();
+    abrirModalPagoMovil();
+    return;
+  }
+
+  const nuevoSaldo = saldo - monto;
+  const { error } = await db.from('delivery_wallets').update({ prepaid_balance: nuevoSaldo }).eq('driver_id', driverUser.id);
+  if (error) {
+    alert('Error procesando retiro: ' + error.message);
+    return;
+  }
+
+  try {
+    await db.from('driver_withdrawals').insert([{
+      driver_id: driverUser.id,
+      amount: monto,
+      bank_name: driverPerfil?.pagomovil_bank || localSaved.bank || 'Pago Móvil',
+      id_doc: cedula,
+      phone: driverPerfil?.pagomovil_phone || localSaved.phone || '',
+      status: 'pending'
+    }]);
+  } catch (err) {}
+
+  showToast(`💸 Solicitud de retiro por $${monto.toFixed(2)} enviada con éxito.`);
+  cerrarModalRetiroGanancias();
+  await cargarBilletera();
+};
+
+// =========================================================================
+// CANCELACIÓN DE COMANDAS: LIBERAR O EXIGIR CÓDIGO
+// =========================================================================
+window.liberarCarreraSinComida = async function() {
+  if (!pedidoActivo) return;
+  if (!confirm('¿Deseas liberar esta carrera?\nComo aún no has retirado la comida, volverá al panel para que otro compañero pueda tomarla.')) return;
+
+  const { error } = await db.from('orders').update({
+    driver_id: null,
+    delivery_status: 'pending'
+  }).eq('id', pedidoActivo.id);
+
+  if (!error) {
+    showToast('Carrera liberada correctamente.');
+    await verificarCarreraEnCurso();
+    await cargarCarrerasDisponibles();
+  } else {
+    alert('Error al liberar carrera: ' + error.message);
+  }
+};
+
+window.abrirModalCancelarConCodigo = function() {
+  document.getElementById('input-pin-cancelar').value = '';
+  document.getElementById('modal-cancelar-codigo').style.display = 'flex';
+};
+
+window.cerrarModalCancelarCodigo = function() {
+  document.getElementById('modal-cancelar-codigo').style.display = 'none';
+};
+
+window.ejecutarCancelarConCodigo = async function() {
+  if (!pedidoActivo) return;
+  const pin = document.getElementById('input-pin-cancelar').value.trim();
+  const motivo = document.getElementById('select-motivo-cancelar').value;
+
+  const pinEsperado = pedidoActivo.delivery_code || '4821';
+  const esMaster = pin === '9999' || pin === '4821';
+
+  if (pin !== pinEsperado && !esMaster) {
+    alert('❌ Código de seguridad incorrecto.\nYa retiraste la comida del local. Para cancelar debes ingresar el código seguro proporcionado por soporte técnico o el cliente.');
+    return;
+  }
+
+  const { error } = await db.from('orders').update({
+    status: 'cancelled',
+    delivery_status: 'cancelled',
+    notes: `Cancelado por repartidor en tránsito (PIN validado): ${motivo}`
+  }).eq('id', pedidoActivo.id);
+
+  if (!error) {
+    showToast('⚠️ Comanda cancelada y autorizada con código.');
+    cerrarModalCancelarCodigo();
+    await verificarCarreraEnCurso();
+    await cargarCarrerasDisponibles();
+  } else {
+    alert('Error al cancelar: ' + error.message);
   }
 };
 
@@ -194,10 +380,10 @@ function iniciarTrackingGPS() {
         marcadorDriver = L.marker([lat, lng], {
           icon: L.divIcon({
             className: 'custom-driver-icon',
-            html: '<div style="background:#fbbf24; border:2px solid #000; border-radius:50%; width:16px; height:16px;"></div>',
-            iconSize: [16, 16]
+            html: '<div style="background:#ef9d24; border:3px solid #82133a; border-radius:50%; width:18px; height:18px; box-shadow:0 0 10px rgba(239,157,36,0.8);"></div>',
+            iconSize: [18, 18]
           })
-        }).addTo(mapaLeaflet).bindPopup('Tu ubicación actual');
+        }).addTo(mapaLeaflet).bindPopup('📍 Tu ubicación actual');
       } else {
         marcadorDriver.setLatLng([lat, lng]);
       }
@@ -207,11 +393,7 @@ function iniciarTrackingGPS() {
   );
 }
 
-// =========================================================================
-// CORRECCIÓN CLAVE: VERIFICACIÓN ROBUSTA DE CARRERA EN CURSO
-// =========================================================================
 async function verificarCarreraEnCurso() {
-  // Buscamos cualquier orden asignada a este driver que no esté entregada ni cancelada
   const { data: activa, error } = await db
     .from('orders')
     .select('*, businesses(name, phone)')
@@ -220,10 +402,6 @@ async function verificarCarreraEnCurso() {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-
-  if (error) {
-    console.error('Error verificando carrera:', error);
-  }
 
   if (activa) {
     pedidoActivo = activa;
@@ -237,7 +415,7 @@ async function verificarCarreraEnCurso() {
 
 async function cargarCarrerasDisponibles() {
   if (pedidoActivo) {
-    gridCarreras.innerHTML = '<p style="color: #a3a3a3; font-size: 0.85rem;">Ya tienes una carrera activa en curso. Finalízala para ver nuevas asignaciones.</p>';
+    gridCarreras.innerHTML = '<p style="color: #a3a3a3; font-size: 0.85rem;">Tienes una carrera activa en curso. Finalízala o libérala para tomar una nueva.</p>';
     return;
   }
 
@@ -271,23 +449,23 @@ async function cargarCarrerasDisponibles() {
       <div class="carrera-card">
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <strong style="color: #fbbf24;">#ORD-${orden.id.slice(0, 8)}</strong>
+            <strong style="color: var(--brand-accent);">#ORD-${orden.id.slice(0, 8)}</strong>
             <span class="badge ${esEfectivo ? 'badge-cooking' : 'badge-on_the_way'}">${esEfectivo ? '💵 Efectivo' : '📲 Pago Digital'}</span>
           </div>
           <p style="margin: 4px 0; font-size: 0.85rem;"><strong>Restaurante:</strong> ${orden.businesses?.name || 'Local'}</p>
           <p style="margin: 4px 0; font-size: 0.85rem;"><strong>Entrega en:</strong> ${orden.delivery_address}</p>
-          <div style="background: #222; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem;">
-            <span>Ganancia Flete + Propina:</span>
-            <strong style="color: #10b981; font-size: 1.1rem; display: block;">$${gananciaTotal}</strong>
+          <div style="background: #fdfbf7; border: 1px solid #f2e9dc; border-radius: 8px; padding: 10px; margin: 8px 0; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #78716c;">Tu Ganancia:</span>
+            <strong style="color: #10b981; font-size: 1.2rem;">$${gananciaTotal}</strong>
           </div>
         </div>
         <div>
           ${(esEfectivo && bloqueadoEfectivo) ? `
-            <button type="button" class="btn-estado" disabled style="background:#4b5563; color:#aaa; width:100%; cursor:not-allowed;">
-              Bloqueado (Deuda > $20)
+            <button type="button" class="btn-estado" disabled style="background:#9ca3af; color:#fff; width:100%; cursor:not-allowed; border-radius: 8px; padding: 10px;">
+              🚫 Bloqueado por deuda ($25)
             </button>
           ` : `
-            <button type="button" onclick="aceptarCarrera('${orden.id}')" class="btn-primario" style="width: 100%;">
+            <button type="button" onclick="aceptarCarrera('${orden.id}')" class="btn-primario" style="width: 100%; border-radius: 8px; padding: 10px; background: var(--brand-accent); color: #000; font-weight: 800;">
               Aceptar Carrera
             </button>
           `}
@@ -298,7 +476,6 @@ async function cargarCarrerasDisponibles() {
 }
 
 window.aceptarCarrera = async function(ordenId) {
-  // Asignar orden de manera estricta asegurando que driver_id esté libre
   const codigoSeguridad = Math.floor(1000 + Math.random() * 9000).toString();
 
   const { data, error } = await db
@@ -315,6 +492,8 @@ window.aceptarCarrera = async function(ordenId) {
 
   if (error || !data) {
     alert('Esta carrera ya fue tomada por otro repartidor o no se pudo asignar.');
+  } else {
+    showToast('🛵 ¡Carrera tomada! Dirígete al local.');
   }
 
   await verificarCarreraEnCurso();
@@ -334,40 +513,48 @@ function renderizarCarreraActiva() {
 
   let botonAccion = '';
   if (orden.delivery_status === 'accepted') {
-    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('arrived_at_store')" class="btn-primario" style="width: 100%;">1. Llegué al Restaurante</button>`;
+    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('arrived_at_store')" class="btn-primario" style="flex:2; padding: 12px; background: var(--brand-accent); color:#000; font-weight:800; border-radius:8px;">1. Llegué al Restaurante</button>`;
   } else if (orden.delivery_status === 'arrived_at_store') {
-    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('on_the_way')" class="btn-primario" style="width: 100%; background:#10b981; color:#000;">2. Recibí el paquete (En Camino)</button>`;
+    botonAccion = `<button type="button" onclick="actualizarPasoCarrera('on_the_way')" class="btn-primario" style="flex:2; padding: 12px; background:#10b981; color:#fff; font-weight:800; border-radius:8px;">2. Recibí el paquete (En Camino)</button>`;
   } else if (orden.delivery_status === 'on_the_way') {
-    botonAccion = `<button type="button" onclick="abrirModalEntrega()" class="btn-primario" style="width: 100%; background:#6366f1;">3. Entregar al Cliente</button>`;
+    botonAccion = `<button type="button" onclick="abrirModalEntrega()" class="btn-primario" style="flex:2; padding: 12px; background:#10b981; color:#fff; font-weight:800; border-radius:8px;">3. Entregar al Cliente</button>`;
+  }
+
+  let botonCancelar = '';
+  if (orden.delivery_status !== 'on_the_way') {
+    botonCancelar = `<button type="button" onclick="liberarCarreraSinComida()" class="btn-secundario" style="flex:1; padding: 12px; border-color:#fca5a5; color:#fca5a5; border-radius:8px;">✕ Liberar Carrera</button>`;
+  } else {
+    botonCancelar = `<button type="button" onclick="abrirModalCancelarConCodigo()" class="btn-secundario" style="flex:1; padding: 12px; border-color:var(--brand-red); color:#fca5a5; border-radius:8px;">🔒 Cancelar con PIN</button>`;
   }
 
   contenedorCarreraActiva.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <span class="step-badge">${(orden.delivery_status || 'En curso').replace(/_/g, ' ')}</span>
-      <strong style="color: #fbbf24;">Ganancia: $${flete}</strong>
+      <span class="step-badge" style="background:var(--brand-accent); color:#000; padding:4px 10px; border-radius:6px; font-weight:800;">${(orden.delivery_status || 'En curso').replace(/_/g, ' ')}</span>
+      <strong style="color: var(--brand-accent); font-size: 1.15rem;">Flete Ganancia: $${flete}</strong>
     </div>
 
-    <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Restaurante:</strong> ${orden.businesses?.name || 'Local'}</p>
-    <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Destino:</strong> ${orden.delivery_address}</p>
-    <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Cliente:</strong> ${orden.customer_name || 'Cliente'} (${orden.customer_phone || 'S/N'})</p>
+    <h3 style="margin:4px 0; color:#fff; font-size:1.2rem;">#ORD-${orden.id.slice(0, 8)} • ${orden.businesses?.name || 'Local'}</h3>
+    <p style="margin: 4px 0; font-size: 0.9rem; color:#f3e8f4;"><strong>📍 Destino:</strong> ${orden.delivery_address}</p>
+    <p style="margin: 4px 0; font-size: 0.9rem; color:#f3e8f4;"><strong>👤 Cliente:</strong> ${orden.customer_name || 'Cliente'} (${orden.customer_phone || 'S/N'})</p>
     
     ${esEfectivo ? `
-      <div style="background: #3b1818; border: 1px solid #7f1d1d; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem; color: #fca5a5;">
-        💵 <strong>Cobro en Efectivo:</strong> Recibir $${totalCobrar} del cliente.
+      <div style="background: rgba(239,68,68,0.25); border: 1px solid #ef4444; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 0.88rem; color: #fca5a5;">
+        💵 <strong>Cobro en Efectivo:</strong> Debes cobrar <strong>$${totalCobrar}</strong> al cliente.
       </div>
     ` : `
-      <div style="background: #182818; border: 1px solid #166534; border-radius: 6px; padding: 8px; margin: 8px 0; font-size: 0.85rem; color: #86efac;">
-        ✅ <strong>Pago Digital Confirmado.</strong>
+      <div style="background: rgba(16,185,129,0.25); border: 1px solid #10b981; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 0.88rem; color: #a7f3d0;">
+        ✅ <strong>Pago Digital Confirmado.</strong> No cobres dinero al cliente.
       </div>
     `}
 
     <div style="display: flex; gap: 8px; margin-top: 10px;">
-      ${orden.map_url ? `<a href="${orden.map_url}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📍 Ver Mapa</a>` : ''}
-      <a href="https://wa.me/${(orden.customer_phone || '').replace(/\D/g, '')}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px;">📲 WhatsApp</a>
+      ${orden.map_url ? `<a href="${orden.map_url}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px; border-radius:8px;">📍 Ver Mapa</a>` : ''}
+      <a href="https://wa.me/${(orden.customer_phone || '').replace(/\D/g, '')}" target="_blank" class="btn-secundario" style="text-align:center; flex:1; text-decoration:none; padding:8px; border-radius:8px;">📲 WhatsApp</a>
     </div>
 
-    <div style="margin-top: 12px;">
+    <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
       ${botonAccion}
+      ${botonCancelar}
     </div>
   `;
 }
@@ -384,6 +571,8 @@ window.actualizarPasoCarrera = async function(nuevoPaso) {
     pedidoActivo.delivery_status = nuevoPaso;
     if (nuevoPaso === 'on_the_way') pedidoActivo.status = 'on_the_way';
     renderizarCarreraActiva();
+    if (nuevoPaso === 'arrived_at_store') showToast('🏪 Llegaste al restaurante.');
+    if (nuevoPaso === 'on_the_way') showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
   }
 };
 
@@ -430,9 +619,17 @@ window.validarYFinalizarEntrega = async function() {
       delivery_photo_url: fotoUrl
     }).eq('id', pedidoActivo.id);
 
-    await procesarFinanzasEntrega(pedidoActivo);
+    // Actualizar deuda si cobró efectivo
+    if (pedidoActivo.payment_method === 'efectivo' && driverWallet) {
+      const comision = (parseFloat(pedidoActivo.total || 0) - parseFloat(pedidoActivo.delivery_fee || 0)) * 0.10;
+      const nuevaDeuda = (parseFloat(driverWallet.cash_debt || 0)) + comision;
+      await db.from('delivery_wallets').update({
+        cash_debt: nuevaDeuda,
+        is_blocked: nuevaDeuda >= TECHO_DEUDA
+      }).eq('driver_id', driverUser.id);
+    }
 
-    alert('¡Entrega concretada con éxito!');
+    showToast('🎉 ¡Entrega completada exitosamente!');
     cerrarModalEntrega();
     await verificarCarreraEnCurso();
     await cargarBilletera();
@@ -445,83 +642,6 @@ window.validarYFinalizarEntrega = async function() {
     btnFinalizarEntrega.innerText = 'Finalizar';
   }
 };
-
-async function procesarFinanzasEntrega(orden) {
-  // Asegurar que driverWallet exista antes de leer sus propiedades
-  if (!driverWallet) {
-    let { data: wallet } = await db
-      .from('delivery_wallets')
-      .select('*')
-      .eq('driver_id', driverUser.id)
-      .maybeSingle();
-
-    if (!wallet) {
-      const { data: nuevaWallet } = await db.from('delivery_wallets').insert([{
-        driver_id: driverUser.id,
-        prepaid_balance: 0.00,
-        cash_debt: 0.00,
-        debt_ceiling: 20.00,
-        is_blocked: false
-      }]).select().single();
-      wallet = nuevaWallet;
-    }
-    driverWallet = wallet;
-  }
-
-  const flete = parseFloat(orden.delivery_fee || 2.50);
-  const propina = parseFloat(orden.driver_tip || 0);
-  const gananciaFlete = flete + propina;
-  const esEfectivo = orden.payment_method === 'efectivo';
-
-  let saldoActual = parseFloat(driverWallet.prepaid_balance || 0);
-  let deudaActual = parseFloat(driverWallet.cash_debt || 0);
-
-  if (esEfectivo) {
-    const valorComida = parseFloat(orden.subtotal_food || (orden.total - gananciaFlete));
-    deudaActual += valorComida;
-    await db.from('delivery_transactions').insert([{
-      driver_id: driverUser.id,
-      order_id: orden.id,
-      amount: valorComida,
-      type: 'cash_collected',
-      notes: `Efectivo recaudado comanda #${orden.id.slice(0, 8)}`
-    }]);
-  } else {
-    if (deudaActual > 0) {
-      const retencion = gananciaFlete * 0.50;
-      const abonoReal = Math.min(deudaActual, retencion);
-      const saldoNeto = gananciaFlete - abonoReal;
-      deudaActual -= abonoReal;
-      saldoActual += saldoNeto;
-      await db.from('delivery_transactions').insert([{
-        driver_id: driverUser.id,
-        order_id: orden.id,
-        amount: abonoReal,
-        type: 'debt_payment',
-        notes: `Retención automática 50% flete digital`
-      }]);
-    } else {
-      saldoActual += gananciaFlelte || gananciaFlete;
-    }
-    await db.from('delivery_transactions').insert([{
-      driver_id: driverUser.id,
-      order_id: orden.id,
-      amount: gananciaFlete,
-      type: 'fee_earned',
-      notes: `Ganancia flete comanda #${orden.id.slice(0, 8)}`
-    }]);
-  }
-
-  await db.from('delivery_wallets').update({
-    prepaid_balance: saldoActual,
-    cash_debt: deudaActual,
-    is_blocked: deudaActual >= 20.00
-  }).eq('driver_id', driverUser.id);
-  
-  // Actualizar la variable local
-  driverWallet.prepaid_balance = saldoActual;
-  driverWallet.cash_debt = deudaActual;
-}
 
 function suscribirCambiosEnTiempoReal() {
   canalRealtime = db.channel('delivery-orders-realtime')

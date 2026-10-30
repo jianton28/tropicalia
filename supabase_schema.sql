@@ -140,8 +140,16 @@ CREATE TABLE IF NOT EXISTS public.driver_profiles (
     vehicle_type TEXT DEFAULT 'moto',
     vehicle_plate TEXT,
     is_online BOOLEAN DEFAULT FALSE,
+    pagomovil_bank TEXT,
+    pagomovil_id TEXT,
+    pagomovil_phone TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Si la tabla driver_profiles ya existía sin las columnas de Pago Móvil:
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_bank TEXT;
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_id TEXT;
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_phone TEXT;
 
 -- 9. TABLA: delivery_wallets (Billetera y Techo de Deuda del Repartidor)
 CREATE TABLE IF NOT EXISTS public.delivery_wallets (
@@ -149,8 +157,24 @@ CREATE TABLE IF NOT EXISTS public.delivery_wallets (
     driver_id UUID UNIQUE NOT NULL REFERENCES public.driver_profiles(id) ON DELETE CASCADE,
     prepaid_balance NUMERIC(10, 2) DEFAULT 0.00,
     cash_debt NUMERIC(10, 2) DEFAULT 0.00,
-    debt_ceiling NUMERIC(10, 2) DEFAULT 20.00,
+    debt_ceiling NUMERIC(10, 2) DEFAULT 25.00,
     is_blocked BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Si la tabla delivery_wallets ya existía:
+ALTER TABLE public.delivery_wallets ALTER COLUMN debt_ceiling SET DEFAULT 25.00;
+
+-- 9.1 TABLA: driver_withdrawals (Solicitudes de Retiro de Ganancias)
+CREATE TABLE IF NOT EXISTS public.driver_withdrawals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    driver_id UUID NOT NULL REFERENCES public.driver_profiles(id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL,
+    bank_name TEXT NOT NULL,
+    id_doc TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    status TEXT DEFAULT 'pending', -- 'pending', 'settled', 'rejected'
+    settlement_reference TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

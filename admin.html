@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consola Administrativa | Tropicalia CRB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #ef9d24;
+      --primary-hover: #d98a1a;
+      --dark-amaranth: #82133a;
+      --crimson-violet: #571846;
+      --bg-dark: #0e0d12;
+      --card-bg: #16151d;
+      --card-hover: #1c1a24;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-gold: rgba(239, 157, 36, 0.25);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+      --info: #38bdf8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dark);
+      background-image: radial-gradient(circle at 10% 20%, rgba(130, 19, 58, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(87, 24, 70, 0.12) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    .admin-container {
+      max-width: 1240px;
+      margin: 24px auto 80px auto;
+      padding: 0 16px;
+    }
+
+    /* HEADER */
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(87, 24, 70, 0.4) 0%, rgba(22, 21, 29, 0.95) 100%);
+      border: 1px solid var(--border-gold);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--dark-amaranth), var(--primary));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      box-shadow: 0 4px 16px rgba(239, 157, 36, 0.3);
+    }
+    .header-titles h1 {
+      font-size: 1.45rem;
+      font-weight: 800;
+      margin: 0;
+      background: linear-gradient(90deg, #fff, var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header-titles p {
+      margin: 3px 0 0 0;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* BOTONES */
+    .btn-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #e68d18);
+      color: #000;
+      border: none;
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-danger-outline {
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .btn-danger-outline:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--danger);
+    }
+
+    /* KPI GRID */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 18px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-gold);
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 4px;
+      background: var(--accent-bar, var(--primary));
+    }
+    .kpi-card small {
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .kpi-card h3 {
+      margin: 0;
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* TABS */
+    .admin-nav {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 22px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .btn-tab {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 10px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.84rem;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+    }
+    .btn-tab:hover {
+      color: #fff;
+      background: var(--card-hover);
+    }
+    .btn-tab.activo {
+      background: linear-gradient(135deg, var(--dark-amaranth), var(--crimson-violet));
+      color: #fff;
+      border-color: var(--primary);
+      box-shadow: 0 4px 14px rgba(130, 19, 58, 0.4);
+    }
+    .contador-pill {
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-weight: 800;
+    }
+    .contador-pill-gold {
+      background: var(--primary);
+      color: #000;
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-weight: 800;
+    }
+
+    .seccion-tab { display: none; }
+    .seccion-tab.activa { display: block; animation: fadeIn 0.25s ease; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* CARD CONTENEDOR */
+    .admin-section-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 0;
+      color: #fff;
+    }
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      margin: 4px 0 0 0;
+    }
+
+    /* TABLAS */
+    .tabla-wrapper {
+      overflow-x: auto;
+      background: rgba(10, 10, 14, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    .tabla-admin {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      text-align: left;
+    }
+    .tabla-admin th {
+      background: #111016;
+      color: var(--primary);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.6px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+    .tabla-admin td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 12px 14px;
+      vertical-align: middle;
+    }
+    .tabla-admin tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    /* BADGES */
+    .badge-estado {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .badge-pendiente { background: rgba(239, 157, 36, 0.15); color: #fbbf24; border: 1px solid rgba(239, 157, 36, 0.3); }
+    .badge-aprobado { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-rechazado { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-cocina { background: rgba(130, 19, 58, 0.25); color: #f472b6; border: 1px solid rgba(130, 19, 58, 0.5); }
+    .badge-reparto { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+    /* BOTONES MINI ACCIÓN */
+    .btn-accion-mini {
+      padding: 6px 11px;
+      border-radius: 7px;
+      border: none;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .btn-aprobar { background: var(--success); color: #042f1a; }
+    .btn-aprobar:hover { background: #059669; color: #fff; }
+    .btn-rechazar { background: var(--danger); color: #fff; }
+    .btn-rechazar:hover { background: #dc2626; }
+    .btn-cerrar-entregada {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+    .btn-cerrar-entregada:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+    .btn-cerrar-cancelada {
+      background: linear-gradient(135deg, #ef4444, #991b1b);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+    .btn-cerrar-cancelada:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+    .btn-ver-doc {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--primary);
+      border: 1px solid var(--border-gold);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+    }
+    .btn-ver-doc:hover { background: rgba(239, 157, 36, 0.15); }
+
+    /* FILTROS */
+    .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .pill-btn:hover { color: #fff; }
+    .pill-btn.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* TOAST */
+    .toast-popup {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: linear-gradient(135deg, var(--dark-amaranth), var(--crimson-violet));
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      border: 1px solid var(--primary);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 9999;
+      display: none;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toast-popup" id="toast-notif"></div>
+
+  <div class="admin-container">
+    
+    <!-- CABECERA DE MARCA -->
+    <header class="admin-header">
+      <div class="header-brand">
+        <div class="header-logo">🌴</div>
+        <div class="header-titles">
+          <h1>Consola Administrativa Tropicalia CRB</h1>
+          <p>Control maestro de comandas activas, conciliación, liquidaciones y flota</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="index.html" class="btn-action">👀 Tienda</a>
+        <button type="button" onclick="recargarTodoAdmin()" class="btn-action">🔄 Refrescar Todo</button>
+        <button type="button" onclick="cerrarSesionAdmin()" class="btn-action btn-danger-outline">🚪 Salir</button>
+      </div>
+    </header>
+
+    <!-- TARJETAS KPI GLOBALES -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--accent-bar: #ef4444;">
+        <small>🔥 Comandas Activas</small>
+        <h3 id="kpi-comandas-activas" style="color: #f87171;">0</h3>
+      </div>
+      <div class="kpi-card" style="--accent-bar: #10b981;">
+        <small>Volumen Bruto Entregado</small>
+        <h3 id="kpi-volumen-bruto">$0.00</h3>
+      </div>
+      <div class="kpi-card" style="--accent-bar: var(--primary);">
+        <small>Ganancia Plataforma (10%)</small>
+        <h3 id="kpi-comision-admin" style="color: var(--primary);">$0.00</h3>
+      </div>
+      <div class="kpi-card" style="--accent-bar: #38bdf8;">
+        <small>Pagos por Conciliar</small>
+        <h3 id="kpi-pagos-pendientes">0</h3>
+      </div>
+      <div class="kpi-card" style="--accent-bar: #f43f5e;">
+        <small>Deuda Total Flota (Máx $25)</small>
+        <h3 id="kpi-deuda-drivers" style="color: #fda4af;">$0.00</h3>
+      </div>
+    </div>
+
+    <!-- NAVEGACIÓN POR PESTAÑAS -->
+    <nav class="admin-nav">
+      <button type="button" class="btn-tab activo" data-tab="tab-activas" onclick="cambiarTab('tab-activas')">
+        🔥 Comandas Activas <span id="badge-count-activas" class="contador-pill" style="display:none;">0</span>
+      </button>
+      <button type="button" class="btn-tab" data-tab="tab-pagos" onclick="cambiarTab('tab-pagos')">
+        💳 Conciliación de Pagos <span id="badge-count-pagos" class="contador-pill-gold" style="display:none;">0</span>
+      </button>
+      <button type="button" class="btn-tab" data-tab="tab-liquidaciones" onclick="cambiarTab('tab-liquidaciones')">
+        📋 Cortes y Liquidaciones <span id="badge-count-cortes" class="contador-pill-gold" style="display:none;">0</span>
+      </button>
+      <button type="button" class="btn-tab" data-tab="tab-drivers" onclick="cambiarTab('tab-drivers')">
+        🛵 Flota de Repartidores ($25)
+      </button>
+      <button type="button" class="btn-tab" data-tab="tab-locales" onclick="cambiarTab('tab-locales')">
+        👨‍🍳 Restaurantes y Expedientes
+      </button>
+      <button type="button" class="btn-tab" data-tab="tab-analitica" onclick="cambiarTab('tab-analitica')">
+        📈 Rendimiento y Órdenes
+      </button>
+    </nav>
+
+    <!-- 0. TAB: CIERRE DE COMANDAS ACTIVAS EN CUALQUIER MOMENTO -->
+    <section id="tab-activas" class="seccion-tab activa">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">⚡ Control de Comandas Activas en Tiempo Real</h2>
+            <p class="section-desc">Cierra o cancela cualquier comanda activa de inmediato. Al cancelar, el inventario de insumos se revierte de forma automática en Supabase.</p>
+          </div>
+          <div class="filter-pills">
+            <button type="button" id="btn-filtro-act-todas" class="pill-btn active" onclick="filtrarComandasActivas('todas')">Todas Activas</button>
+            <button type="button" id="btn-filtro-act-cocina" class="pill-btn" onclick="filtrarComandasActivas('cocina')">En Cocina</button>
+            <button type="button" id="btn-filtro-act-reparto" class="pill-btn" onclick="filtrarComandasActivas('reparto')">En Reparto / Lista</button>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Comanda / Hora</th>
+                <th>Restaurante</th>
+                <th>Cliente / Teléfono</th>
+                <th>Modalidad / Pago</th>
+                <th>Total ($)</th>
+                <th>Estado Actual</th>
+                <th>Repartidor</th>
+                <th>Cierre Forzado Administrativo</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-comandas-activas-cuerpo">
+              <tr><td colspan="8" style="text-align: center; color: #888; padding: 18px;">Cargando comandas activas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. TAB: CONCILIACIÓN DE PAGOS DIGITALES -->
+    <section id="tab-pagos" class="seccion-tab">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">💳 Conciliación de Pagos Digitales Reportados</h2>
+            <p class="section-desc">Revisa captures y referencias de Pago Móvil, Binance, Zelle, Zinli o Punto. Al aprobar, la orden pasa a cocina inmediatamente.</p>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Orden / Fecha</th>
+                <th>Cliente</th>
+                <th>Restaurante</th>
+                <th>Método / Monto</th>
+                <th>Referencia / Datos</th>
+                <th>Comprobante</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-pagos-cuerpo">
+              <tr><td colspan="7" style="text-align: center; color: #888; padding: 18px;">Cargando pagos pendientes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. TAB: LIQUIDACIONES Y CORTES DE CAJA -->
+    <section id="tab-liquidaciones" class="seccion-tab">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">📋 Solicitudes de Liquidación y Cortes de Caja</h2>
+            <p class="section-desc">Transfiere el 90% neto recaudado al comercio y asienta el número de confirmación bancaria.</p>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Restaurante</th>
+                <th>Fecha Solicitud</th>
+                <th>Bruto Ventas</th>
+                <th>Comisión (10%)</th>
+                <th>Neto a Transferir (90%)</th>
+                <th>Estado / Ref</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-cortes-cuerpo">
+              <tr><td colspan="7" style="text-align: center; color: #888; padding: 18px;">Cargando solicitudes de corte...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. TAB: FLOTA DE REPARTIDORES Y DEUDAS ($25) -->
+    <section id="tab-drivers" class="seccion-tab">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">🛵 Flota de Repartidores y Control de Deudas (Máx $25.00)</h2>
+            <p class="section-desc">Administra el saldo acumulado por fletes, la recaudación de efectivo y los datos de Pago Móvil bancario de cada motorizado.</p>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Repartidor / Teléfono</th>
+                <th>Estado</th>
+                <th>Datos Pago Móvil</th>
+                <th>Saldo Ganancias (Fletes)</th>
+                <th>Deuda Efectivo (Techo $25)</th>
+                <th>Estatus Operativo</th>
+                <th>Acciones de Caja</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-drivers-cuerpo">
+              <tr><td colspan="7" style="text-align: center; color: #888; padding: 18px;">Cargando flota de repartidores...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. TAB: RESTAURANTES Y EXPEDIENTES -->
+    <section id="tab-locales" class="seccion-tab">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">👨‍🍳 Comercios Registrados en Plataforma</h2>
+            <p class="section-desc">Control de apertura/pausa forzada para el catálogo comercial.</p>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper" style="margin-bottom: 24px;">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Nombre del Restaurante</th>
+                <th>Teléfono / Dirección</th>
+                <th>ID Propietario (owner_id)</th>
+                <th>Estado Tienda</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-comercios-activos">
+              <tr><td colspan="5" style="text-align: center; color: #888; padding: 18px;">Cargando comercios...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-header-row" style="margin-top: 24px;">
+          <div>
+            <h2 class="section-title">📄 Expedientes Legales Pendientes de Verificación</h2>
+            <p class="section-desc">Auditoría de RIF, Permiso Sanitario y Licencia de Licores para nuevos registros.</p>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Restaurante / Contacto</th>
+                <th>RIF</th>
+                <th>Cédula / RIF</th>
+                <th>Permiso Sanitario</th>
+                <th>Licencia Licores</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-locales-cuerpo">
+              <tr><td colspan="6" style="text-align: center; color: #888; padding: 18px;">Cargando expedientes...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. TAB: ANALÍTICA Y MONITOR DE HISTORIAL -->
+    <section id="tab-analitica" class="seccion-tab">
+      <div class="admin-section-box">
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">📈 Curva de Ingresos Globales</h2>
+            <p class="section-desc">Métricas de facturación de todas las sedes comerciales.</p>
+          </div>
+          <div class="filter-pills">
+            <button type="button" id="btn-adm-dia" onclick="cambiarPeriodoChartAdmin('dia')" class="pill-btn">Día</button>
+            <button type="button" id="btn-adm-semana" onclick="cambiarPeriodoChartAdmin('semana')" class="pill-btn active">Semana</button>
+            <button type="button" id="btn-adm-mes" onclick="cambiarPeriodoChartAdmin('mes')" class="pill-btn">Mes</button>
+            <button type="button" id="btn-adm-anio" onclick="cambiarPeriodoChartAdmin('anio')" class="pill-btn">Año</button>
+          </div>
+        </div>
+
+        <div style="position: relative; height: 260px; width: 100%; margin-bottom: 24px;">
+          <canvas id="chartGlobalAdmin"></canvas>
+        </div>
+
+        <div class="section-header-row">
+          <div>
+            <h2 class="section-title">📜 Auditoría de Todas las Órdenes</h2>
+            <p class="section-desc">Histórico completo de pedidos del sistema.</p>
+          </div>
+          <div class="filter-pills">
+            <button type="button" class="pill-btn active" onclick="filtrarAuditoriaOrdenes('todas')">Todas</button>
+            <button type="button" class="pill-btn" onclick="filtrarAuditoriaOrdenes('activas')">Solo Activas</button>
+            <button type="button" class="pill-btn" onclick="filtrarAuditoriaOrdenes('delivered')">Entregadas</button>
+            <button type="button" class="pill-btn" onclick="filtrarAuditoriaOrdenes('cancelled')">Canceladas</button>
+          </div>
+        </div>
+
+        <div class="tabla-wrapper">
+          <table class="tabla-admin">
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Restaurante</th>
+                <th>Cliente</th>
+                <th>Modalidad / Pago</th>
+                <th>Total</th>
+                <th>Estado Actual</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-todas-ordenes">
+              <tr><td colspan="7" style="text-align: center; color: #888; padding: 18px;">Cargando historial...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

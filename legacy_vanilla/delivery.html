@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel de Repartidor | Tropicalia</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 
   <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,171 +17,238 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    :root {
+      --brand-primary: #82133a;
+      --brand-primary-dark: #571846;
+      --brand-accent: #ef9d24;
+      --brand-gold: #fbbf24;
+      --brand-bg: #141015;
+      --brand-card: #1f1922;
+      --brand-border: #3d2b3c;
+      --brand-text: #fdf8f5;
+      --brand-muted: #a69da3;
+      --brand-green: #10b981;
+      --brand-red: #ef4444;
+    }
+
+    body {
+      background-color: var(--brand-bg);
+      color: var(--brand-text);
+      font-family: 'Plus Jakarta Sans', 'Roboto', -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
     .delivery-header {
+      background: linear-gradient(135deg, #1c151e 0%, #291a27 100%);
+      border: 1px solid var(--brand-border);
+      border-radius: 18px;
+      padding: 18px 22px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 12px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #333;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      margin-bottom: 20px;
     }
-    .status-toggle-box {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .wallet-card {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 18px;
-      margin-top: 20px;
+
+    .wallet-card-grid {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 20px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
+      color: #1f2937;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.04);
     }
-    .wallet-item span {
-      font-size: 0.8rem;
-      color: #a3a3a3;
-      text-transform: uppercase;
+
+    .wallet-box-inner {
+      background: #fdfbf7;
+      border: 1px solid #f2e9dc;
+      border-radius: 14px;
+      padding: 16px;
     }
-    .wallet-item strong {
-      display: block;
-      font-size: 1.4rem;
-      margin-top: 4px;
-    }
+
     .alerta-deuda {
-      background: #7f1d1d;
-      border: 1px solid #b91c1c;
-      color: #fecaca;
+      background: #fee2e2;
+      border: 1px solid #ef4444;
+      color: #b91c1c;
       padding: 10px 14px;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 0.85rem;
-      margin-top: 15px;
+      font-weight: 700;
+      margin-top: 14px;
       display: none;
     }
+
     #mapa-delivery {
       width: 100%;
-      height: 340px;
-      border-radius: 10px;
-      margin-top: 15px;
-      border: 1px solid #333;
+      height: 240px;
+      border-radius: 16px;
+      border: 1px solid var(--brand-border);
       z-index: 1;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
     }
+
     .carreras-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 16px;
-      margin-top: 15px;
+      margin-top: 14px;
     }
+
     .carrera-card {
-      background: #1a1a1a;
-      border: 1px solid #333;
-      border-radius: 10px;
-      padding: 16px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 18px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      color: #1f2937;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.04);
     }
+
     .carrera-activa {
-      border: 2px solid #fbbf24;
-      background: #201c13;
+      background: linear-gradient(135deg, #201722 0%, #2d1d2b 100%) !important;
+      border: 2px solid var(--brand-accent) !important;
+      color: #ffffff !important;
+      box-shadow: 0 8px 30px rgba(239, 157, 36, 0.25) !important;
     }
-    .step-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: bold;
-      text-transform: uppercase;
-      background: #fbbf24;
-      color: #000;
-    }
+
     .modal-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
+      z-index: 2000;
+      padding: 16px;
     }
-    .modal-content {
-      background: #1e1e1e;
-      border: 1px solid #333;
-      border-radius: 10px;
-      padding: 24px;
-      width: 90%;
-      max-width: 440px;
+
+    .modal-content-card {
+      background: #1c171d;
+      border: 2px solid var(--brand-accent);
+      border-radius: 18px;
+      padding: 22px;
+      width: 100%;
+      max-width: 420px;
+      color: #fff;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    #delivery-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark));
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--brand-accent);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      z-index: 3000;
+      font-weight: 700;
+      display: none;
+      animation: modalFadeIn 0.3s ease;
     }
   </style>
 </head>
 <body>
-  <div class="container" style="margin-top: 30px; margin-bottom: 60px;">
+
+  <div class="container" style="max-width: 880px; margin-top: 20px; margin-bottom: 80px;">
     
-    <!-- CABECERA DEL REPARTIDOR -->
+    <!-- TOAST NOTIFICACIÓN -->
+    <div id="delivery-toast"></div>
+
+    <!-- CABECERA DEL REPARTIDOR (MARCA TROPICALIA) -->
     <header class="delivery-header">
-      <div>
-        <h1 id="driver-nombre" style="font-size: 1.6rem; margin: 0; color: #fbbf24;">Repartidor Tropicalia</h1>
-        <p id="driver-vehiculo" style="margin: 4px 0 0 0; font-size: 0.85rem; color: #a3a3a3;">Cargando perfil...</p>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); display: flex; align-items: center; justify-content: center; font-size: 1.6rem;">
+          🛵
+        </div>
+        <div>
+          <h1 id="driver-nombre" style="font-size: 1.45rem; margin: 0; color: #fff; font-weight: 800;">Repartidor Tropicalia</h1>
+          <p id="driver-vehiculo" style="margin: 4px 0 0 0; font-size: 0.82rem; color: #d1c7d0;">Cargando perfil...</p>
+        </div>
       </div>
 
-      <div class="status-toggle-box">
-        <button id="btn-toggle-online" type="button" onclick="toggleDisponibilidad()" class="btn-toggle pausado">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button id="btn-toggle-online" type="button" onclick="toggleDisponibilidad()" class="btn-toggle pausado" style="font-weight: 800; padding: 8px 16px; border-radius: 10px;">
           ⚪ Desconectado
         </button>
-        <button type="button" onclick="cerrarSesion()" class="btn-secundario" style="padding: 6px 12px; font-size: 0.8rem;">
+        <button type="button" onclick="cerrarSesion()" class="btn-secundario" style="borderColor: var(--brand-red); color: #fca5a5; padding: 8px 14px; border-radius: 10px;">
           Salir
         </button>
       </div>
     </header>
 
-    <!-- BILLETERA Y CONTROL DE DEUDA EN EFECTIVO -->
-    <section class="wallet-card">
-      <div class="wallet-item">
-        <span>Saldo a Favor (Fletes Digitales)</span>
-        <strong id="wallet-saldo" style="color: #10b981;">$0.00</strong>
+    <!-- BILLETERA Y CONTROL DE DEUDA EN EFECTIVO (TECHO $25) -->
+    <section class="wallet-card-grid">
+      <!-- Saldo a Favor -->
+      <div class="wallet-box-inner">
+        <span style="font-size: 0.76rem; color: #78716c; font-weight: 800; text-transform: uppercase;">Ganancias Disponibles</span>
+        <strong id="wallet-saldo" style="color: #10b981; font-size: 1.5rem; display: block; margin: 4px 0;">$0.00</strong>
+        <div style="display: flex; gap: 6px; margin-top: 8px;">
+          <button type="button" onclick="abrirModalRetiroGanancias()" class="btn-primario" style="font-size: 0.78rem; padding: 6px 12px; border-radius: 8px; background: #10b981; color: #fff; font-weight: 800;">
+            💸 Retirar
+          </button>
+          <button type="button" onclick="abrirModalPagoMovil()" class="btn-secundario" style="font-size: 0.75rem; padding: 6px 10px; border-radius: 8px;">
+            ⚙️ Pago Móvil
+          </button>
+        </div>
       </div>
-      <div class="wallet-item">
-        <span>Deuda en Efectivo</span>
-        <strong id="wallet-deuda" style="color: #ef4444;">$0.00 / $20.00</strong>
-      </div>
-      <div class="wallet-item" style="display: flex; flex-direction: column; justify-content: center;">
-        <button id="btn-saldar-deuda" type="button" onclick="saldarDeudaConSaldo()" class="btn-primario" style="font-size: 0.8rem; padding: 8px;" disabled>
-          Amortizar Deuda con Saldo
-        </button>
+
+      <!-- Deuda en Efectivo -->
+      <div id="box-deuda-container" class="wallet-box-inner">
+        <span id="label-techo-deuda" style="font-size: 0.76rem; color: #78716c; font-weight: 800; text-transform: uppercase;">Deuda Efectivo (Tope $25.00)</span>
+        <strong id="wallet-deuda" style="color: var(--brand-accent); font-size: 1.5rem; display: block; margin: 4px 0;">$0.00 / $25.00</strong>
+        <div style="margin-top: 8px;">
+          <button id="btn-saldar-deuda" type="button" onclick="saldarDeudaConSaldo()" class="btn-primario" style="font-size: 0.78rem; padding: 7px 12px; border-radius: 8px; background: var(--brand-primary); color: #fff; font-weight: 800;" disabled>
+            💳 Acreditar Saldo para Deuda
+          </button>
+        </div>
       </div>
     </section>
 
-    <!-- BANNER DE BLOQUEO POR TECHO DE DEUDA ($20) -->
+    <!-- BANNER DE BLOQUEO POR TECHO DE DEUDA ($25) -->
     <div id="alerta-limite-deuda" class="alerta-deuda">
-      ⚠️ <strong>Has alcanzado el límite de $20 en efectivo:</strong> No puedes aceptar órdenes pagadas en efectivo. Solo recibirás carreras pagadas por Pago Móvil o salda tu deuda directamente.
+      ⚠️ <strong>Has alcanzado el límite de $25.00 en efectivo:</strong> No puedes aceptar órdenes en efectivo. Salda tu deuda con tu saldo disponible para desbloquearte.
     </div>
 
     <!-- SECCIÓN DE MAPA ACTIVO Y RUTA -->
-    <section style="margin-top: 25px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: 1.2rem; margin: 0;">🗺️ Navegación de Ruta</h2>
-        <span id="mapa-estado-texto" style="font-size: 0.8rem; color: #a3a3a3;">Sin carrera en curso</span>
+    <section style="margin-top: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="font-size: 1.15rem; margin: 0; color: #fff;">🗺️ Navegación GPS de Ruta</h2>
+        <span id="mapa-estado-texto" style="font-size: 0.8rem; color: var(--brand-muted);">Sin carrera en curso</span>
       </div>
       <div id="mapa-delivery"></div>
     </section>
 
     <!-- CARRERA ACTIVA EN CURSO -->
-    <section id="seccion-carrera-activa" style="margin-top: 30px; display: none;">
-      <h2 style="font-size: 1.2rem; color: #fbbf24;">🛵 Pedido en Curso</h2>
-      <div id="contenedor-carrera-activa" class="carrera-card carrera-activa" style="margin-top: 10px;"></div>
+    <section id="seccion-carrera-activa" style="margin-top: 24px; display: none;">
+      <h2 style="font-size: 1.25rem; color: var(--brand-accent); margin-bottom: 10px;">🛵 Pedido en Curso</h2>
+      <div id="contenedor-carrera-activa" class="carrera-card carrera-activa"></div>
     </section>
 
     <!-- PEDIDOS DISPONIBLES PARA TOMAR -->
-    <section style="margin-top: 35px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: 1.2rem; margin: 0;">📦 Carreras Disponibles</h2>
-        <button type="button" onclick="cargarCarrerasDisponibles()" class="btn-secundario" style="padding: 4px 10px; font-size: 0.8rem;">
+    <section style="margin-top: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="font-size: 1.25rem; margin: 0; color: #fff;">📦 Carreras Disponibles</h2>
+        <button type="button" onclick="cargarCarrerasDisponibles()" class="btn-secundario" style="padding: 5px 12px; font-size: 0.8rem; border-radius: 8px;">
           🔄 Actualizar
         </button>
       </div>
@@ -189,26 +259,124 @@
 
   </div>
 
-  <!-- MODAL: CONFIRMACIÓN Y ENTREGA CON CÓDIGO / FOTO -->
+  <!-- MODAL 1: CONFIRMACIÓN Y ENTREGA CON CÓDIGO / FOTO -->
   <div id="modal-entrega" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-      <h3 style="margin-top: 0; color: #fbbf24;">Confirmar Entrega Segura</h3>
-      <p style="font-size: 0.85rem; color: #a3a3a3;">Solicita el código de 4 dígitos al cliente o sube foto del paquete sellado:</p>
+    <div class="modal-content-card">
+      <h3 style="margin-top: 0; color: var(--brand-accent);">Confirmar Entrega Segura</h3>
+      <p style="font-size: 0.85rem; color: var(--brand-muted);">Solicita el código de 4 dígitos al cliente o sube foto del paquete sellado:</p>
       
       <div style="margin-bottom: 14px;">
         <label style="display:block; font-size:0.8rem; color:#fff; margin-bottom:4px;">Código de seguridad del cliente:</label>
-        <input type="text" id="input-codigo-entrega" maxlength="4" placeholder="Ej: 4821" style="font-size: 1.2rem; text-align: center; letter-spacing: 4px;" />
+        <input type="text" id="input-codigo-entrega" maxlength="6" placeholder="Ej: 4821" style="font-size: 1.5rem; text-align: center; letter-spacing: 4px; padding: 8px; width: 100%; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff;" />
       </div>
 
       <div style="margin-bottom: 16px;">
         <label style="display:block; font-size:0.8rem; color:#fff; margin-bottom:4px;">O foto del paquete con precinto entregado:</label>
-        <input type="file" id="input-foto-entrega" accept="image/*" />
+        <input type="file" id="input-foto-entrega" accept="image/*" style="font-size: 0.82rem;" />
       </div>
 
       <div style="display: flex; gap: 8px;">
-        <button type="button" onclick="cerrarModalEntrega()" class="btn-secundario" style="flex: 1;">Cancelar</button>
-        <button type="button" onclick="validarYFinalizarEntrega()" class="btn-primario" id="btn-finalizar-entrega" style="flex: 1;">Finalizar</button>
+        <button type="button" onclick="cerrarModalEntrega()" class="btn-secundario" style="flex: 1; padding: 10px; border-radius: 8px;">Cancelar</button>
+        <button type="button" onclick="validarYFinalizarEntrega()" class="btn-primario" id="btn-finalizar-entrega" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 800; border-radius: 8px;">Finalizar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CANCELACIÓN CON CÓDIGO SEGURO (COMIDA EN MANOS) -->
+  <div id="modal-cancelar-codigo" class="modal-overlay" style="display: none;">
+    <div class="modal-content-card" style="border-color: var(--brand-red);">
+      <div style="text-align: center; margin-bottom: 12px;">
+        <span style="font-size: 2.4rem;">🔒</span>
+        <h3 style="margin: 4px 0 0 0; color: #f87171; font-size: 1.2rem;">Cancelar Comanda en Tránsito</h3>
+        <p style="font-size: 0.82rem; color: var(--brand-muted); margin-top: 4px;">
+          Ya retiraste la comida del restaurante. Para cancelar debes ingresar el código de autorización de 4 dígitos.
+        </p>
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 0.78rem; font-weight: 700; color: #f3f4f6;">Código de Autorización (PIN):</label>
+        <input type="text" id="input-pin-cancelar" maxlength="6" placeholder="PIN" style="font-size: 1.6rem; text-align: center; letter-spacing: 6px; font-weight: 900; padding: 8px; width: 100%; border-radius: 8px; border: 1px solid var(--brand-border); background: #121013; color: #fff; margin-top: 4px;" />
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 0.78rem; font-weight: 700; color: #f3f4f6;">Motivo de la Cancelación:</label>
+        <select id="select-motivo-cancelar" style="width: 100%; padding: 8px; background: #121013; color: #fff; border: 1px solid var(--brand-border); border-radius: 8px; margin-top: 4px;">
+          <option value="Cliente no localizable en dirección">Cliente no localizable en dirección</option>
+          <option value="Accidente o avería en el trayecto">Accidente o avería en el trayecto</option>
+          <option value="Dirección errónea o fuera de zona">Dirección errónea o fuera de zona</option>
+          <option value="Cancelado por orden de soporte">Cancelado por orden de soporte</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="button" onclick="cerrarModalCancelarCodigo()" class="btn-secundario" style="flex: 1; padding: 10px; border-radius: 8px;">Volver</button>
+        <button type="button" onclick="ejecutarCancelarConCodigo()" class="btn-primario" style="flex: 1; padding: 10px; background: #ef4444; color: #fff; font-weight: 800; border-radius: 8px;">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: CONFIGURAR PAGO MÓVIL -->
+  <div id="modal-pagomovil" class="modal-overlay" style="display: none;">
+    <div class="modal-content-card">
+      <h3 style="margin-top: 0; color: var(--brand-accent);">🏦 Cuenta Pago Móvil para Retiros</h3>
+      <p style="font-size: 0.82rem; color: var(--brand-muted); margin-bottom: 12px;">Tus ganancias serán transferidas a estos datos bancarios:</p>
+
+      <form onsubmit="guardarDatosPagoMovil(event)" style="display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700;">Banco:</label>
+          <select id="pm-banco" style="width: 100%; padding: 8px; background: #121013; color: #fff; border: 1px solid var(--brand-border); border-radius: 8px; margin-top: 3px;">
+            <option value="0102 - Banco de Venezuela">0102 - Banco de Venezuela</option>
+            <option value="0134 - Banesco">0134 - Banesco</option>
+            <option value="0105 - Mercantil">0105 - Mercantil</option>
+            <option value="0108 - Provincial">0108 - Provincial</option>
+            <option value="0172 - Bancamiga">0172 - Bancamiga</option>
+            <option value="0191 - BNC">0191 - BNC</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700;">Cédula o RIF:</label>
+          <input type="text" id="pm-cedula" required placeholder="Ej: V-24890123" style="width: 100%; padding: 8px; background: #121013; color: #fff; border: 1px solid var(--brand-border); border-radius: 8px; margin-top: 3px;" />
+        </div>
+
+        <div>
+          <label style="font-size: 0.78rem; font-weight: 700;">Teléfono Pago Móvil:</label>
+          <input type="tel" id="pm-telefono" required placeholder="Ej: 04141234567" style="width: 100%; padding: 8px; background: #121013; color: #fff; border: 1px solid var(--brand-border); border-radius: 8px; margin-top: 3px;" />
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button type="button" onclick="cerrarModalPagoMovil()" class="btn-secundario" style="flex: 1; padding: 10px; border-radius: 8px;">Cerrar</button>
+          <button type="submit" class="btn-primario" style="flex: 1; padding: 10px; background: var(--brand-accent); color: #000; font-weight: 800; border-radius: 8px;">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: RETIRAR GANANCIAS -->
+  <div id="modal-retiro-ganancias" class="modal-overlay" style="display: none;">
+    <div class="modal-content-card">
+      <h3 style="margin-top: 0; color: #10b981;">💸 Retirar Ganancias</h3>
+      <p style="font-size: 0.84rem; color: var(--brand-muted); margin-bottom: 10px;">
+        Saldo disponible: <strong id="modal-retiro-saldo-disp" style="color: #10b981;">$0.00</strong>
+      </p>
+
+      <div style="background: #121013; border: 1px solid var(--brand-border); border-radius: 8px; padding: 10px; font-size: 0.8rem; margin-bottom: 12px;">
+        <div><strong>Destino:</strong> <span id="modal-retiro-banco">Banco de Venezuela</span></div>
+        <div><strong>Titular:</strong> <span id="modal-retiro-titular">V-Sin registrar</span></div>
+      </div>
+
+      <form onsubmit="solicitarRetiroGanancias(event)">
+        <label style="font-size: 0.78rem; font-weight: 700;">Monto a Retirar ($ USD):</label>
+        <div style="display: flex; gap: 8px; margin: 4px 0 16px 0;">
+          <input type="number" step="0.01" min="1" id="input-monto-retiro" required placeholder="0.00" style="flex: 1; padding: 10px; font-size: 1.2rem; font-weight: 800; background: #121013; color: #fff; border: 1px solid var(--brand-border); border-radius: 8px;" />
+          <button type="button" onclick="retirarTodoSaldo()" class="btn-secundario" style="padding: 8px 12px; border-radius: 8px; font-size: 0.8rem;">Todo</button>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button type="button" onclick="cerrarModalRetiroGanancias()" class="btn-secundario" style="flex: 1; padding: 10px; border-radius: 8px;">Cancelar</button>
+          <button type="submit" class="btn-primario" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 800; border-radius: 8px;">Confirmar</button>
+        </div>
+      </form>
     </div>
   </div>
 
