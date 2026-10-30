@@ -475,7 +475,53 @@ async function cargarCarrerasDisponibles() {
   }).join('');
 }
 
+window.generarTextoWhatsAppDelivery = function(orden, estado) {
+  const nombre = orden.customer_name || 'Cliente';
+  const ordenId = (orden.id || '').slice(0, 8).toUpperCase();
+  const esEfectivo = ['efectivo', 'efectivo_bs'].includes(orden.payment_method);
+  const pin = orden.delivery_code || ordenId.slice(0, 4);
+
+  let estadoTxt = 'en camino';
+  if (estado === 'on_the_way') estadoTxt = 'en camino a tu dirección';
+  if (estado === 'delivered') estadoTxt = 'entregado con éxito';
+
+  return `🌴 *TROPICALIA CRB* 🌴\n` +
+    `📞 *Contacto Oficial:* 0414-1352503\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `¡Hola, *${nombre}*! 👋\n` +
+    `Tu pedido *#ORD-${ordenId}* se encuentra *${estadoTxt.toUpperCase()}* 🛵.\n\n` +
+    `🔑 *Código Seguro:* *${pin}*\n` +
+    `💰 *Total:* $${parseFloat(orden.total || 0).toFixed(2)} (${esEfectivo ? 'Pago en Efectivo' : 'Pago Digital'})\n\n` +
+    `💬 Soporte Tropicalia: https://wa.me/584141352503\n` +
+    `_¡Gracias por tu preferencia!_ ✨`;
+};
+
+window.enviarWhatsAppNotificacion = function(orden, estado) {
+  if (!orden || !orden.customer_phone) return;
+  let clean = orden.customer_phone.toString().replace(/\D/g, '');
+  if (clean.startsWith('0')) clean = '58' + clean.slice(1);
+  else if (!clean.startsWith('58') && clean.length === 10) clean = '58' + clean;
+
+  const texto = window.generarTextoWhatsAppDelivery(orden, estado);
+  const url = `https://wa.me/${clean}?text=${encodeURIComponent(texto)}`;
+  try {
+    window.open(url, '_blank');
+  } catch (e) {
+    console.warn('Popup bloqueado:', e);
+  }
+};
+
 window.aceptarCarrera = async function(ordenId) {
+  const pedidosCache = window.pedidosDisponiblesCache || [];
+  const ord = pedidosCache.find(p => p.id === ordenId);
+  if (ord && ['efectivo', 'efectivo_bs'].includes(ord.payment_method)) {
+    const deuda = parseFloat(driverWallet?.cash_debt || 0);
+    if (deuda >= TECHO_DEUDA || driverWallet?.is_blocked) {
+      alert(`⛔ Límite de efectivo alcanzado ($${deuda.toFixed(2)} / $${TECHO_DEUDA.toFixed(2)}).\nDebes entregar el efectivo en caja o amortizar con tu saldo antes de aceptar pedidos en efectivo.`);
+      return;
+    }
+  }
+
   const codigoSeguridad = Math.floor(1000 + Math.random() * 9000).toString();
 
   const { data, error } = await db
@@ -572,7 +618,10 @@ window.actualizarPasoCarrera = async function(nuevoPaso) {
     if (nuevoPaso === 'on_the_way') pedidoActivo.status = 'on_the_way';
     renderizarCarreraActiva();
     if (nuevoPaso === 'arrived_at_store') showToast('🏪 Llegaste al restaurante.');
-    if (nuevoPaso === 'on_the_way') showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
+    if (nuevoPaso === 'on_the_way') {
+      showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
+      window.enviarWhatsAppNotificacion(pedidoActivo, 'on_the_way');
+    }
   }
 };
 
@@ -619,17 +668,65 @@ window.validarYFinalizarEntrega = async function() {
       delivery_photo_url: fotoUrl
     }).eq('id', pedidoActivo.id);
 
-    // Actualizar deuda si cobró efectivo
-    if (pedidoActivo.payment_method === 'efectivo' && driverWallet) {
-      const comision = (parseFloat(pedidoActivo.total || 0) - parseFloat(pedidoActivo.delivery_fee || 0)) * 0.10;
-      const nuevaDeuda = (parseFloat(driverWallet.cash_debt || 0)) + comision;
-      await db.from('delivery_wallets').update({
-        cash_debt: nuevaDeuda,
-        is_blocked: nuevaDeuda >= TECHO_DEUDA
-      }).eq('driver_id', driverUser.id);
+    // Liquidación financiera de balances en Supabase
+    const esEfectivo = ['efectivo', 'efectivo_bs'].includes(pedidoActivo.payment_method);
+    const fleteGanado = parseFloat(pedidoActivo.delivery_fee || 2.50) + parseFloat(pedidoActivo.driver_tip || 0);
+
+    if (driverWallet) {
+      const deudaPrevia = parseFloat(driverWallet.cash_debt || 0);
+      const saldoPrevio = parseFloat(driverWallet.prepaid_balance || 0);
+      const nuevoSaldo = parseFloat((saldoPrevio + fleteGanado).toFixed(2));
+
+      if (esEfectivo) {
+        let montoTotal = parseFloat(pedidoActivo.total || 0);
+        if (isNaN(montoTotal) || montoTotal <= 0) montoTotal = 5.00;
+        const nuevaDeuda = parseFloat((deudaPrevia + montoTotal).toFixed(2));
+        const bloqueado = nuevaDeuda >= TECHO_DEUDA;
+
+        await db.from('delivery_wallets').update({
+          cash_debt: nuevaDeuda,
+          prepaid_balance: nuevoSaldo,
+          is_blocked: bloqueado
+        }).eq('driver_id', driverUser.id);
+      } else {
+        // Pago Móvil: Flete acreditado como saldo a favor
+        await db.from('delivery_wallets').update({
+          prepaid_balance: nuevoSaldo
+        }).eq('driver_id', driverUser.id);
+
+        // Actualizar caja general de restaurante
+        try {
+          const subtotalComida = parseFloat(pedidoActivo.subtotal_food || (parseFloat(pedidoActivo.total || 0) - fleteGanado) || 0);
+          const comision = parseFloat((subtotalComida * 0.10).toFixed(2));
+          const neto = parseFloat((subtotalComida - comision).toFixed(2));
+
+          const { data: cPend } = await db.from('cash_closures').select('*')
+            .eq('business_id', pedidoActivo.business_id)
+            .eq('status', 'pending_settlement').limit(1);
+
+          if (cPend && cPend.length > 0) {
+            await db.from('cash_closures').update({
+              gross_amount: parseFloat((parseFloat(cPend[0].gross_amount || 0) + subtotalComida).toFixed(2)),
+              commission_amount: parseFloat((parseFloat(cPend[0].commission_amount || 0) + comision).toFixed(2)),
+              net_amount: parseFloat((parseFloat(cPend[0].net_amount || 0) + neto).toFixed(2))
+            }).eq('id', cPend[0].id);
+          } else {
+            await db.from('cash_closures').insert([{
+              business_id: pedidoActivo.business_id,
+              gross_amount: subtotalComida,
+              commission_amount: comision,
+              net_amount: neto,
+              status: 'pending_settlement'
+            }]);
+          }
+        } catch (e) {}
+      }
     }
 
-    showToast('🎉 ¡Entrega completada exitosamente!');
+    // Notificación automática al cliente de pedido entregado
+    window.enviarWhatsAppNotificacion(pedidoActivo, 'delivered');
+
+    showToast('🎉 ¡Entrega completada exitosamente! Balance actualizado.');
     cerrarModalEntrega();
     await verificarCarreraEnCurso();
     await cargarBilletera();

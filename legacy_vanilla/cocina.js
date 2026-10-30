@@ -942,14 +942,51 @@ window.cambiarEstadoComanda = async function(ordenId, nuevoEstado) {
   await cargarEstadisticasFinancieras();
 };
 
-function dispararWhatsAppNotificacion(orden) {
+function dispararWhatsAppNotificacion(orden, estado = 'cooking') {
   try {
+    if (!orden || !orden.customer_phone) return;
     const rawPhone = (orden.customer_phone || '').replace(/[^0-9]/g, '');
     let cleanPhone = rawPhone;
     if (rawPhone.startsWith('0')) cleanPhone = '58' + rawPhone.slice(1);
     else if (!rawPhone.startsWith('58') && rawPhone.length === 10) cleanPhone = '58' + rawPhone;
 
-    const texto = `¡Hola ${orden.customer_name || 'Estimado cliente'}! 🌴 Tu pedido #ORD-${orden.id.slice(0, 8)} de Tropicalia ya está en preparación en cocina. Te avisaremos apenas esté listo. ¡Gracias por tu compra!`;
+    const nombre = orden.customer_name || 'Cliente';
+    const ordenId = (orden.id || '').slice(0, 8).toUpperCase();
+    const esPickup = orden.delivery_type === 'pickup';
+    const pin = orden.delivery_code || ordenId.slice(0, 4);
+
+    const itemsList = Array.isArray(orden.items)
+      ? orden.items.map(i => `  • *${i.quantity || 1}x* ${i.name}`).join('\n')
+      : '';
+
+    let estadoBanner = '';
+    if (estado === 'cooking') {
+      estadoBanner = `👨‍🍳🔥 *ESTADO: EN PREPARACIÓN*\nTu orden acaba de ingresar a nuestros fogones y está siendo elaborada al momento.`;
+    } else if (estado === 'ready') {
+      estadoBanner = esPickup
+        ? `🥡🎉 *ESTADO: ¡LISTO EN BARRA!*\nTu pedido está recién empacado esperándote en mostrador.\n🔑 *Código de Retiro:* *${pin}*`
+        : `📦🛵 *ESTADO: EMPACADO Y SELLADO*\nTu pedido está listo esperando por el motorizado.\n🔑 *Código de Entrega:* *${pin}*`;
+    } else if (estado === 'cancelled') {
+      estadoBanner = `⚠️❌ *ESTADO: COMANDA CANCELADA*\nTu comanda ha sido cancelada e insumos restaurados.`;
+    } else {
+      estadoBanner = `ℹ️ *ACTUALIZACIÓN:* Estado ${estado.toUpperCase()}`;
+    }
+
+    const texto = 
+      `🌴 *TROPICALIA CRB* 🌴\n` +
+      `_Cocina Gourmet & Delivery Express_\n` +
+      `📞 *Contacto Oficial:* 0414-1352503 (+58 414 135 2503)\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `¡Hola, *${nombre}*! 👋\n` +
+      `Tu comanda *#ORD-${ordenId}*:\n\n` +
+      `${estadoBanner}\n\n` +
+      `📦 *Resumen de la Orden:*\n` +
+      `${itemsList}\n\n` +
+      `💰 *Total:* $${parseFloat(orden.total || 0).toFixed(2)}\n` +
+      `🛵 *Modalidad:* ${esPickup ? '🥡 Retiro en Mostrador' : '🛵 Delivery a Domicilio'}\n\n` +
+      `💬 *Atención al Cliente:* https://wa.me/584141352503\n` +
+      `_¡Gracias por preferir Tropicalia!_ ✨`;
+
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   } catch (e) {

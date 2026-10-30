@@ -181,6 +181,9 @@ function renderizarTablaComandasActivas() {
         </td>
         <td>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="btn-accion-mini" style="background:#25D366; color:#000;" onclick="notificarClienteWhatsAppPorId('${ord.id}')" title="Avisar al cliente por WhatsApp">
+              💬 WhatsApp
+            </button>
             <button type="button" class="btn-accion-mini btn-cerrar-entregada" onclick="forzarCierreEntregada('${ord.id}')" title="Marcar como entregada exitosamente">
               ✓ Entregada
             </button>
@@ -285,11 +288,50 @@ async function revertirStockDeOrdenEnAdmin(order) {
   }
 }
 
+window.notificarClienteWhatsAppPorId = function(ordenId, estadoOverride = null) {
+  const ord = cacheComandasActivas.find(o => o.id === ordenId) || cacheOrdenesGlobal.find(o => o.id === ordenId);
+  if (!ord || !ord.customer_phone) {
+    alert('No se localizó teléfono registrado para esta orden.');
+    return;
+  }
+
+  let cleanPhone = ord.customer_phone.toString().replace(/\D/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '58' + cleanPhone.slice(1);
+  else if (!cleanPhone.startsWith('58') && cleanPhone.length === 10) cleanPhone = '58' + cleanPhone;
+
+  const estado = estadoOverride || ord.status;
+  const nombre = ord.customer_name || 'Cliente';
+  const ordenCorta = ord.id.slice(0, 8).toUpperCase();
+  const total = parseFloat(ord.total || 0).toFixed(2);
+  const pin = ord.delivery_code || ordenCorta.slice(0, 4);
+
+  const texto = 
+    `🌴 *TROPICALIA CRB* 🌴\n` +
+    `📞 *Contacto Oficial:* 0414-1352503\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `¡Hola, *${nombre}*! 👋\n` +
+    `Actualización de tu comanda *#ORD-${ordenCorta}*:\n\n` +
+    `📌 *Estado:* ${estado.toUpperCase()}\n` +
+    `🔑 *Código Seguro:* *${pin}*\n` +
+    `💰 *Total:* $${total}\n\n` +
+    `💬 Atención directa en WhatsApp: https://wa.me/584141352503\n` +
+    `_¡Gracias por preferir Tropicalia!_ ✨`;
+
+  const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(texto)}`;
+  try {
+    window.open(url, '_blank');
+  } catch (e) {
+    console.warn('Popup bloqueado:', e);
+  }
+};
+
 // Acción: Forzar Cierre Entregada
 window.forzarCierreEntregada = async function(ordenId) {
   if (!confirm(`¿Confirmas que deseas cerrar la orden #${ordenId.slice(0, 8)} como ENTREGADA exitosamente?`)) return;
 
   try {
+    const { data: ord } = await db.from('orders').select('*').eq('id', ordenId).single();
+
     const { error } = await db
       .from('orders')
       .update({
@@ -299,6 +341,38 @@ window.forzarCierreEntregada = async function(ordenId) {
       .eq('id', ordenId);
 
     if (error) throw error;
+
+    // Actualización de balances si tenía motorizado asignado
+    if (ord && ord.driver_id) {
+      const esEfectivo = ['efectivo', 'efectivo_bs'].includes(ord.payment_method);
+      const flete = parseFloat(ord.delivery_fee || 2.50) + parseFloat(ord.driver_tip || 0);
+
+      const { data: w } = await db.from('delivery_wallets').select('*').eq('driver_id', ord.driver_id).maybeSingle();
+      if (w) {
+        const saldoAct = parseFloat(w.prepaid_balance || 0);
+        const deudaAct = parseFloat(w.cash_debt || 0);
+
+        if (esEfectivo) {
+          let montoEfectivo = parseFloat(ord.total || 0);
+          if (isNaN(montoEfectivo) || montoEfectivo <= 0) montoEfectivo = 5.00;
+          const nuevaDeuda = parseFloat((deudaAct + montoEfectivo).toFixed(2));
+          await db.from('delivery_wallets').update({
+            cash_debt: nuevaDeuda,
+            prepaid_balance: parseFloat((saldoAct + flete).toFixed(2)),
+            is_blocked: nuevaDeuda >= 25.00
+          }).eq('driver_id', ord.driver_id);
+        } else {
+          await db.from('delivery_wallets').update({
+            prepaid_balance: parseFloat((saldoAct + flete).toFixed(2))
+          }).eq('driver_id', ord.driver_id);
+        }
+      }
+    }
+
+    if (ord) {
+      window.notificarClienteWhatsAppPorId(ordenId, 'delivered');
+    }
+
     showToast('✅ Comanda cerrada exitosamente con estado ENTREGADA.');
     await recargarTodoAdmin();
   } catch (err) {
@@ -335,11 +409,14 @@ window.forzarCierreCancelada = async function(ordenId) {
 
     if (cancelErr) throw cancelErr;
 
+    window.notificarClienteWhatsAppPorId(ordenId, 'cancelled');
+
     showToast(`❌ Comanda #${ordenId.slice(0, 8)} cancelada y cerrada. Se reintegraron ${revResult.count || 0} ingredientes al inventario.`);
     await recargarTodoAdmin();
   } catch (err) {
     alert('Error al cancelar comanda: ' + err.message);
   }
+};
 };
 
 // =========================================================================

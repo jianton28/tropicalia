@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
 import { descontarStockDeOrden, cancelarOrdenConReversion } from '../services/inventoryService';
 import { abrirNotificacionWhatsApp } from '../services/whatsappService';
+import { procesarBalanceCompletado } from '../services/paymentService';
 
 function playBeepSound() {
   try {
@@ -434,7 +435,13 @@ export default function Cocina() {
     }
 
     if (nuevoEstado === 'delivered') {
-      showNotification('🎉 ¡Pedido completado y entregado al cliente!');
+      try {
+        await procesarBalanceCompletado({ orden, driverId: orden.driver_id || null });
+      } catch (e) {
+        console.warn('Balance en cocina:', e);
+      }
+      abrirNotificacionWhatsApp(orden, 'delivered', local);
+      showNotification('🎉 ¡Pedido completado y entregado al cliente! Notificación de WhatsApp enviada.');
     }
 
     await supabase.from('orders').update(payload).eq('id', ordenId);

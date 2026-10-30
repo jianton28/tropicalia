@@ -4,8 +4,15 @@ import L from 'leaflet';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
+import { abrirNotificacionWhatsApp, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
+import { 
+  validarAceptacionCarrera, 
+  procesarBalanceCompletado, 
+  amortizarDeudaConSaldo, 
+  TECHO_DEUDA_EFECTIVO 
+} from '../services/paymentService';
 
-const TECHO_DEUDA = 25.00;
+const TECHO_DEUDA = TECHO_DEUDA_EFECTIVO;
 
 export default function Delivery() {
   const navigate = useNavigate();
@@ -61,10 +68,19 @@ export default function Delivery() {
         cargarCarreraEnCurso();
         cargarCarrerasDisponibles();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_wallets', filter: `driver_id=eq.${user.id}` }, () => {
+        cargarWallet(user.id);
+      })
       .subscribe();
+
+    const handleBalanceEvent = () => {
+      cargarWallet(user.id);
+    };
+    window.addEventListener('tropicalia:balance_actualizado', handleBalanceEvent);
 
     return () => {
       channel.unsubscribe();
+      window.removeEventListener('tropicalia:balance_actualizado', handleBalanceEvent);
     };
   }, [user]);
 
@@ -192,6 +208,15 @@ export default function Delivery() {
   }
 
   async function aceptarCarrera(ordenId) {
+    const orden = pedidosDisponibles.find(p => p.id === ordenId);
+    if (orden) {
+      const check = validarAceptacionCarrera({ orden, wallet });
+      if (!check.permitido) {
+        alert(check.motivo);
+        return;
+      }
+    }
+
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     const { data, error } = await supabase
       .from('orders')
@@ -228,9 +253,16 @@ export default function Delivery() {
       .eq('id', pedidoActivo.id);
 
     if (!error) {
-      setPedidoActivo({ ...pedidoActivo, ...actualizacion });
-      if (nuevoPaso === 'arrived_at_store') showToast('🏪 Avisado al restaurante: Repartidor en puerta');
-      if (nuevoPaso === 'on_the_way') showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
+      const ordenActualizada = { ...pedidoActivo, ...actualizacion };
+      setPedidoActivo(ordenActualizada);
+      if (nuevoPaso === 'arrived_at_store') {
+        showToast('🏪 Avisado al restaurante: Repartidor en puerta');
+      }
+      if (nuevoPaso === 'on_the_way') {
+        showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
+        // Notificación automática al cliente de pedido en camino
+        abrirNotificacionWhatsApp(ordenActualizada, 'on_the_way', ordenActualizada.businesses);
+      }
     }
   }
 
@@ -300,7 +332,7 @@ export default function Delivery() {
   }
 
   // ==============================================================================
-  // FINALIZAR ENTREGA SEGURA
+  // FINALIZAR ENTREGA SEGURA Y PROCESAR BALANCES
   // ==============================================================================
   async function finalizarEntrega() {
     if (!pedidoActivo) return;
@@ -330,21 +362,25 @@ export default function Delivery() {
         delivery_photo_url: fotoUrl
       }).eq('id', pedidoActivo.id);
 
-      // Si cobró efectivo, actualizar deuda
-      if (pedidoActivo.payment_method === 'efectivo' && wallet) {
-        const comision = (parseFloat(pedidoActivo.total || 0) - parseFloat(pedidoActivo.delivery_fee || 0)) * 0.10;
-        const nuevaDeuda = (parseFloat(wallet.cash_debt || 0)) + comision;
-        await supabase.from('delivery_wallets').update({
-          cash_debt: nuevaDeuda,
-          is_blocked: nuevaDeuda >= TECHO_DEUDA
-        }).eq('driver_id', user.id);
-        await cargarWallet(user.id);
+      // Procesar balances en Supabase (Efectivo retenido o Pago Móvil acreditado)
+      const resBalance = await procesarBalanceCompletado({
+        orden: pedidoActivo,
+        driverId: user.id
+      });
+
+      if (resBalance.esEfectivo) {
+        showToast(`🎉 ¡Entrega completada! Efectivo retenido registrado en deuda en calle.`);
+      } else {
+        showToast(`🎉 ¡Entrega completada! Flete (${formatUsd(resBalance.fleteGanado)}) acreditado a tu balance.`);
       }
 
-      showToast('🎉 ¡Entrega concretada con éxito! Ganancia acreditada.');
+      // Notificación automática al cliente de pedido entregado
+      abrirNotificacionWhatsApp(pedidoActivo, 'delivered', pedidoActivo.businesses);
+
       setMostrarModal(false);
       setCodigoEntrega('');
       setFotoEntrega(null);
+      await cargarWallet(user.id);
       await cargarCarreraEnCurso();
       await cargarCarrerasDisponibles();
 
@@ -377,22 +413,13 @@ export default function Delivery() {
     );
     if (!confirma) return;
 
-    const nuevoSaldo = saldo - abono;
-    const nuevaDeuda = deuda - abono;
-    const sigueBloqueado = nuevaDeuda >= TECHO_DEUDA;
-
-    const { error } = await supabase.from('delivery_wallets').update({
-      prepaid_balance: nuevoSaldo,
-      cash_debt: nuevaDeuda,
-      is_blocked: sigueBloqueado
-    }).eq('driver_id', user.id);
-
-    if (!error) {
-      showToast(`💳 Se amortizaron ${formatUsd(abono)} de tu deuda con éxito.`);
-      await cargarWallet(user.id);
+    try {
+      const res = await amortizarDeudaConSaldo({ driverId: user.id, montoAbono: abono });
+      showToast(`💳 Se amortizaron ${formatUsd(res.abonoReal)} de tu deuda con éxito.`);
+      setWallet(res.wallet);
       await cargarCarrerasDisponibles();
-    } else {
-      alert('Error amortizando deuda: ' + error.message);
+    } catch (err) {
+      alert('Error amortizando deuda: ' + err.message);
     }
   }
 
@@ -744,6 +771,17 @@ export default function Delivery() {
                 3. Entregar al Cliente
               </button>
             )}
+
+            {/* BOTÓN WHATSAPP CLIENTE */}
+            <button
+              type="button"
+              onClick={() => abrirNotificacionWhatsApp(pedidoActivo, pedidoActivo.delivery_status || 'on_the_way', pedidoActivo.businesses)}
+              className="btn-secundario"
+              style={{ padding: '12px 14px', background: '#25D366', color: '#000', fontWeight: 700, borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              title="Avisar al cliente por WhatsApp con mensaje preformateado"
+            >
+              💬 WhatsApp Cliente
+            </button>
 
             {/* BOTÓN CANCELAR CON REGLA DE SEGURIDAD */}
             {pedidoActivo.delivery_status !== 'on_the_way' ? (

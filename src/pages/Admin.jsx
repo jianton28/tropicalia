@@ -4,6 +4,12 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
 import { cancelarOrdenConReversion } from '../services/inventoryService';
+import { abrirNotificacionWhatsApp, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
+import { 
+  procesarBalanceCompletado, 
+  recibirEfectivoEnCajaAdmin, 
+  TECHO_DEUDA_EFECTIVO 
+} from '../services/paymentService';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -108,7 +114,11 @@ export default function Admin() {
       .eq('id', ordenId);
 
     if (!error) {
-      showToast('✅ Pago verificado y aprobado. Orden enviada a cocina.');
+      const ord = pagos.find(p => p.id === ordenId) || ordenes.find(o => o.id === ordenId);
+      if (ord) {
+        abrirNotificacionWhatsApp({ ...ord, status: 'pending' }, 'cooking', ord.businesses);
+      }
+      showToast('✅ Pago verificado y aprobado. Notificación generada y orden enviada a cocina.');
       recargarTodoAdmin();
     }
   }
@@ -118,7 +128,11 @@ export default function Admin() {
     if (!motivo) return;
 
     try {
+      const ord = pagos.find(p => p.id === ordenId) || ordenes.find(o => o.id === ordenId);
       await cancelarOrdenConReversion(ordenId, `Pago rechazado por administración: ${motivo}`, 'administrador');
+      if (ord) {
+        abrirNotificacionWhatsApp(ord, 'cancelled', ord.businesses);
+      }
       showToast('❌ Pago rechazado y comanda cancelada. Insumos devueltos al stock.');
       recargarTodoAdmin();
     } catch (err) {
@@ -132,6 +146,7 @@ export default function Admin() {
   async function forzarCierreEntregada(ordenId) {
     if (!confirm('¿Confirmas que deseas cerrar esta orden activa como ENTREGADA exitosamente?')) return;
     try {
+      const ord = ordenes.find(o => o.id === ordenId);
       const { error } = await supabase
         .from('orders')
         .update({
@@ -141,6 +156,17 @@ export default function Admin() {
         .eq('id', ordenId);
 
       if (error) throw error;
+
+      // Si tenía repartidor asignado, liquidar balance en Supabase
+      if (ord && ord.driver_id) {
+        await procesarBalanceCompletado({ orden: ord, driverId: ord.driver_id });
+      }
+
+      // Notificación automática al cliente
+      if (ord) {
+        abrirNotificacionWhatsApp(ord, 'delivered', ord.businesses);
+      }
+
       showToast('✅ Orden cerrada exitosamente con estado Entregada.');
       recargarTodoAdmin();
     } catch (err) {
@@ -153,11 +179,32 @@ export default function Admin() {
     if (!motivo) return;
 
     try {
+      const ord = ordenes.find(o => o.id === ordenId);
       const res = await cancelarOrdenConReversion(ordenId, motivo, 'administrador');
+      
+      if (ord) {
+        abrirNotificacionWhatsApp(ord, 'cancelled', ord.businesses);
+      }
+
       showToast(`❌ Orden cancelada y cerrada. Se reintegraron ${res.reversionCount || 0} artículos al inventario.`);
       recargarTodoAdmin();
     } catch (err) {
       alert('Error al cancelar la orden: ' + err.message);
+    }
+  }
+
+  async function handleRecibirEfectivoDriver(driverId, nombre, deudaActual) {
+    const montoStr = prompt(`El repartidor ${nombre} tiene una deuda de $${deudaActual.toFixed(2)} en efectivo.\n¿Cuánto dinero te entrega en caja para saldar?`, deudaActual.toFixed(2));
+    if (!montoStr) return;
+    const abono = parseFloat(montoStr);
+    if (isNaN(abono) || abono <= 0) return;
+
+    try {
+      const res = await recibirEfectivoEnCajaAdmin({ driverId, montoRecibido: abono });
+      showToast(`✅ Deuda saldada. Nueva deuda de ${nombre}: $${res.nuevaDeuda.toFixed(2)}`);
+      cargarDrivers();
+    } catch (err) {
+      alert('Error recibiendo efectivo: ' + err.message);
     }
   }
 
@@ -390,7 +437,25 @@ export default function Admin() {
                         </span>
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => abrirNotificacionWhatsApp(o, o.status, o.businesses)}
+                            className="btn-secundario"
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '0.78rem',
+                              background: '#25D366',
+                              color: '#000',
+                              border: 'none',
+                              fontWeight: 700,
+                              borderRadius: '8px',
+                              cursor: 'pointer'
+                            }}
+                            title="Abrir WhatsApp directo hacia el cliente con resumen preformateado"
+                          >
+                            💬 WhatsApp
+                          </button>
                           <button
                             type="button"
                             onClick={() => forzarCierreEntregada(o.id)}
@@ -625,6 +690,7 @@ export default function Admin() {
                   <th>Saldo a Favor</th>
                   <th>Deuda Efectivo (Tope $25)</th>
                   <th>Estado</th>
+                  <th>Acciones de Caja</th>
                 </tr>
               </thead>
               <tbody>
@@ -646,6 +712,26 @@ export default function Admin() {
                         <span className={`badge ${d.is_online ? 'badge-on_the_way' : 'badge-delivered'}`}>
                           {d.is_online ? 'En Línea' : 'Desconectado'}
                         </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => handleRecibirEfectivoDriver(d.id, d.full_name, deuda)}
+                          disabled={deuda <= 0}
+                          className="btn-primario"
+                          style={{
+                            padding: '5px 10px',
+                            fontSize: '0.75rem',
+                            background: deuda > 0 ? '#10b981' : '#9ca3af',
+                            cursor: deuda > 0 ? 'pointer' : 'not-allowed',
+                            color: '#fff',
+                            borderRadius: '6px',
+                            fontWeight: 700
+                          }}
+                          title="Registrar recepción de efectivo para rebajar deuda en calle"
+                        >
+                          💵 Recibir Efectivo
+                        </button>
                       </td>
                     </tr>
                   );

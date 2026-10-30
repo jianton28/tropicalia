@@ -430,7 +430,7 @@ export default function Portal() {
               ¿Tienes dudas con un pedido o pago? Nuestro equipo de conciliación y atención al cliente está activo.
             </p>
             <a
-              href="https://wa.me/584120000000?text=Hola%20Tropicalia,%20necesito%20asistencia%20con%20un%20pedido"
+              href="https://wa.me/584141352503?text=Hola%20Tropicalia,%20necesito%20asistencia%20con%20un%20pedido"
               target="_blank"
               rel="noreferrer"
               className="btn-primario"

@@ -178,6 +178,21 @@ CREATE TABLE IF NOT EXISTS public.driver_withdrawals (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 9.2 TABLA: delivery_transactions (Auditoría de Movimientos y Deuda en Calle)
+CREATE TABLE IF NOT EXISTS public.delivery_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    driver_id UUID NOT NULL REFERENCES public.driver_profiles(id) ON DELETE CASCADE,
+    order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    type TEXT NOT NULL, -- 'cash_debt', 'delivery_fee_credit', 'debt_payment', 'payout'
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Columna de balance y ventas en negocios para conciliación de caja general
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS balance NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS total_sales NUMERIC(10, 2) DEFAULT 0.00;
+
 -- 10. TABLA: client_profiles (Perfiles de Clientes)
 CREATE TABLE IF NOT EXISTS public.client_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -219,6 +234,7 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_items;
     ALTER PUBLICATION supabase_realtime ADD TABLE public.cash_closures;
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.delivery_wallets;
   END IF;
 EXCEPTION
   WHEN duplicate_object THEN NULL;
