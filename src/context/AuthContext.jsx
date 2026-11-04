@@ -10,41 +10,40 @@ export function AuthProvider({ children }) {
 
   async function resolveRole(authUser) {
     if (!authUser) return null;
-    let detectedRole = authUser.user_metadata?.role;
-
-    if (!detectedRole) {
-      if (authUser.email?.includes('admin')) {
-        detectedRole = 'admin';
-      } else {
-        try {
-          const { data: neg } = await supabase
-            .from('businesses')
-            .select('id')
-            .eq('owner_id', authUser.id)
-            .maybeSingle();
-
-          if (neg) {
-            detectedRole = 'restaurant';
-          } else {
-            const { data: drv } = await supabase
-              .from('driver_profiles')
-              .select('id')
-              .eq('id', authUser.id)
-              .maybeSingle();
-
-            if (drv) {
-              detectedRole = 'delivery';
-            } else {
-              detectedRole = 'client';
-            }
-          }
-        } catch (err) {
-          console.warn('Error resolviendo rol:', err);
-          detectedRole = 'client';
-        }
-      }
+    
+    // 1. Administrador (por correo oficial o metadata)
+    if (authUser.email?.toLowerCase().includes('admin') || authUser.user_metadata?.role === 'admin') {
+      return 'admin';
     }
-    return detectedRole;
+
+    try {
+      // 2. Cocina / Restaurante (por registro en tabla businesses)
+      const { data: neg } = await supabase
+        .from('businesses')
+        .select('id')
+        .eq('owner_id', authUser.id)
+        .maybeSingle();
+
+      if (neg) {
+        return 'restaurant';
+      }
+
+      // 3. Repartidor (por registro en tabla driver_profiles)
+      const { data: drv } = await supabase
+        .from('driver_profiles')
+        .select('id')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (drv) {
+        return 'delivery';
+      }
+    } catch (err) {
+      console.warn('Error resolviendo rol en Supabase:', err);
+    }
+
+    // 4. Metadata explícita o Cliente por defecto
+    return authUser.user_metadata?.role || 'client';
   }
 
   async function initAuth() {
@@ -122,7 +121,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, signIn, signUp, signOut, refreshSession: initAuth }}>
+    <AuthContext.Provider value={{ user, role, setRole, loading, signIn, signUp, signOut, refreshSession: initAuth }}>
       {children}
     </AuthContext.Provider>
   );

@@ -54,6 +54,9 @@ export default function App() {
             <Route path="/portal" element={<Portal />} />
             <Route path="/registro" element={<Registro />} />
             <Route path="/legal" element={<Legal />} />
+            <Route path="/terminos" element={<Legal />} />
+            <Route path="/privacidad" element={<Legal />} />
+            <Route path="/terminos-y-condiciones" element={<Legal />} />
 
             {/* Rutas Protegidas por Rol */}
             <Route

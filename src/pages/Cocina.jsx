@@ -108,43 +108,70 @@ export default function Cocina() {
 
   // Notificación toast de acción
   const [toastMsg, setToastMsg] = useState('');
+  const [todosLosLocales, setTodosLosLocales] = useState([]);
+  const localRef = useRef(local);
+
+  useEffect(() => {
+    localRef.current = local;
+  }, [local]);
 
   useEffect(() => {
     if (!user) return;
     initCocina();
 
-    // Suscripción Realtime
+    // Suscripción Realtime blindada contra cierres obsoletos
     const channel = supabase.channel('cocina-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
         playBeepSound();
-        cargarComandas(local?.id);
+        const curId = localRef.current?.id || local?.id;
+        if (curId) cargarComandas(curId);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        cargarComandas(local?.id);
+        const curId = localRef.current?.id || local?.id;
+        if (curId) cargarComandas(curId);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, () => {
-        cargarInventario(local?.id);
+        const curId = localRef.current?.id || local?.id;
+        if (curId) cargarInventario(curId);
       })
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [user, local?.id]);
+  }, [user]);
+
+  async function cambiarLocal(nuevoLocal) {
+    if (!nuevoLocal) return;
+    setLoading(true);
+    setLocal(nuevoLocal);
+    localRef.current = nuevoLocal;
+    await Promise.all([
+      cargarComandas(nuevoLocal.id),
+      cargarInventario(nuevoLocal.id),
+      cargarProductosYRecetas(nuevoLocal.id),
+      cargarMermas(nuevoLocal.id)
+    ]);
+    setLoading(false);
+  }
 
   async function initCocina() {
     setLoading(true);
-    let { data: neg } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('owner_id', user.id)
-      .maybeSingle();
+    const { data: lista } = await supabase.from('businesses').select('*').order('created_at', { ascending: true });
+    setTodosLosLocales(lista || []);
 
-    if (!neg) {
-      const { data: lista } = await supabase.from('businesses').select('*').order('created_at', { ascending: true });
-      if (lista && lista.length > 0) {
-        neg = lista[0];
-      }
+    let neg = null;
+    if (user) {
+      const { data: userNeg } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+      neg = userNeg;
+    }
+
+    if (!neg && lista && lista.length > 0) {
+      neg = lista[0];
     }
 
     if (!neg) {
@@ -154,6 +181,7 @@ export default function Cocina() {
     }
 
     setLocal(neg);
+    localRef.current = neg;
     await Promise.all([
       cargarComandas(neg.id),
       cargarInventario(neg.id),
@@ -815,6 +843,34 @@ export default function Cocina() {
             <h1 style={{ fontSize: '1.6rem', margin: '2px 0 0 0', color: '#ffffff' }}>
               {local ? local.name : 'Panel de Cocina'}
             </h1>
+            {todosLosLocales.length > 1 && (
+              <div style={{ marginTop: '6px' }}>
+                <select
+                  value={local?.id || ''}
+                  onChange={(e) => {
+                    const sel = todosLosLocales.find(l => l.id === e.target.value);
+                    if (sel) cambiarLocal(sel);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {todosLosLocales.map(loc => (
+                    <option key={loc.id} value={loc.id} style={{ color: '#000' }}>
+                      🏢 {loc.name} {loc.is_active ? '(Abierto)' : '(Pausado)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

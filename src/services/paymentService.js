@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 
 /**
  * Servicio Centralizado de Pagos, Billeteras y Finanzas para Tropicalia CRB

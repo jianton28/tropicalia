@@ -76,7 +76,7 @@ export default function Tracking() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [orderId]);
 

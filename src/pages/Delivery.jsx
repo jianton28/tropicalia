@@ -79,7 +79,7 @@ export default function Delivery() {
     window.addEventListener('tropicalia:balance_actualizado', handleBalanceEvent);
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
       window.removeEventListener('tropicalia:balance_actualizado', handleBalanceEvent);
     };
   }, [user]);
