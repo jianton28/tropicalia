@@ -43,6 +43,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [categoriaActiva, setCategoriaActiva] = useState('Todos');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDualTab, setSearchDualTab] = useState('todo'); // 'todo' | 'restaurantes' | 'platos'
   const [localSearchOpen, setLocalSearchOpen] = useState(true);
 
   // Coordenadas del usuario para ordenamiento por cercanía geográfica
@@ -154,72 +155,75 @@ export default function Home({ onTriggerSearch, searchOpen }) {
   }
 
   // ==============================================================================
-  // 1. BUSCADOR GLOBAL DE PLATOS Y ALGORITMO DE PRIORIZACIÓN DE COCINAS
+  // 1. LISTADO GLOBAL DE RESTAURANTES ORDENADOS POR CALIFICACIÓN Y CERCANÍA
   // ==============================================================================
-  const cocinasGlobalesPriorizadas = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+  const listaRestaurantesOrdenados = useMemo(() => {
+    if (!negocios || negocios.length === 0) return [];
+
+    const conMetricas = negocios.map(n => {
+      const latBz = parseFloat(n.lat || 10.4880);
+      const lngBz = parseFloat(n.lng || -66.8650);
+      const distKm = calcularDistanciaKm(userCoords.lat, userCoords.lng, latBz, lngBz);
+      const rating = parseFloat(n.rating || 4.90);
+      const ratingCount = parseInt(n.rating_count || 120, 10);
+      return {
+        ...n,
+        distanciaKm: distKm,
+        rating: rating,
+        ratingCount: ratingCount
+      };
+    });
+
+    // Algoritmo de Priorización:
+    // Criterio 1: Calificación del restaurante (estrellas)
+    // Criterio 2: Cercanía geográfica respecto al cliente (distancia en km)
+    conMetricas.sort((a, b) => {
+      const difRating = b.rating - a.rating;
+      if (Math.abs(difRating) >= 0.20) {
+        return difRating;
+      }
+      const difDist = a.distanciaKm - b.distanciaKm;
+      if (Math.abs(difDist) >= 0.3) {
+        return difDist;
+      }
+      const scoreA = (a.rating * 25) - (a.distanciaKm * 3);
+      const scoreB = (b.rating * 25) - (b.distanciaKm * 3);
+      return scoreB - scoreA;
+    });
+
+    return conMetricas;
+  }, [negocios, userCoords]);
+
+  // ==============================================================================
+  // 2. BUSCADOR GLOBAL DUAL (RESTAURANTES COINCIDENTES Y PLATOS INDEPENDIENTES)
+  // ==============================================================================
+  const { restaurantesCoincidentes, platosIndependientes } = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return { restaurantesCoincidentes: [], platosIndependientes: [] };
+    }
     const query = searchQuery.toLowerCase().trim();
 
-    // 1. Buscar platos que coincidan con la búsqueda en todo el catálogo
-    const platosCoincidentes = todosLosProductos.filter(p => {
+    // 1. Platos disponibles independientes de todo el catálogo
+    const platos = todosLosProductos.filter(p => {
       const n = (p.name || '').toLowerCase();
       const d = (p.description || '').toLowerCase();
       const c = (p.category || '').toLowerCase();
       return n.includes(query) || d.includes(query) || c.includes(query);
     });
 
-    if (platosCoincidentes.length === 0) return [];
-
-    // 2. Agrupar por dark kitchen / restaurante
-    const mapaCocinas = new Map();
-    platosCoincidentes.forEach(prod => {
-      const bz = prod.businesses;
-      if (!bz || bz.is_active === false) return;
-
-      if (!mapaCocinas.has(bz.id)) {
-        const latBz = parseFloat(bz.lat || 10.4880);
-        const lngBz = parseFloat(bz.lng || -66.8650);
-        const distKm = calcularDistanciaKm(userCoords.lat, userCoords.lng, latBz, lngBz);
-        const rating = parseFloat(bz.rating || 4.90);
-        const ratingCount = parseInt(bz.rating_count || 120, 10);
-
-        mapaCocinas.set(bz.id, {
-          business: bz,
-          distanciaKm: distKm,
-          rating: rating,
-          ratingCount: ratingCount,
-          productos: []
-        });
-      }
-      mapaCocinas.get(bz.id).productos.push(prod);
+    // 2. Restaurantes coincidentes (por nombre, categoría o platos que preparan)
+    const restIdsConPlato = new Set(platos.map(p => p.business_id));
+    const rest = listaRestaurantesOrdenados.filter(n => {
+      const nombre = (n.name || '').toLowerCase();
+      const cat = (n.category || '').toLowerCase();
+      return nombre.includes(query) || cat.includes(query) || restIdsConPlato.has(n.id);
     });
 
-    const lista = Array.from(mapaCocinas.values());
-
-    // 3. ALGORITMO DE ORDENAMIENTO Y PRIORIZACIÓN:
-    // Criterio 1: Calificación del restaurante (estrellas)
-    // Criterio 2: Cercanía geográfica respecto al cliente (distancia en km)
-    lista.sort((a, b) => {
-      // Si la diferencia de calificación es notable (>= 0.2 estrellas), prioriza el de mayor rating
-      const difRating = b.rating - a.rating;
-      if (Math.abs(difRating) >= 0.20) {
-        return difRating;
-      }
-
-      // Si tienen calificación similar o empate técnico, prioriza la cocina más cercana
-      const difDistancia = a.distanciaKm - b.distanciaKm;
-      if (Math.abs(difDistancia) >= 0.3) {
-        return difDistancia;
-      }
-
-      // Ponderación compuesta final
-      const scoreA = (a.rating * 25) - (a.distanciaKm * 3);
-      const scoreB = (b.rating * 25) - (b.distanciaKm * 3);
-      return scoreB - scoreA;
-    });
-
-    return lista;
-  }, [searchQuery, todosLosProductos, userCoords]);
+    return {
+      restaurantesCoincidentes: rest,
+      platosIndependientes: platos
+    };
+  }, [searchQuery, todosLosProductos, listaRestaurantesOrdenados]);
 
   // Filtrado por categoría y búsqueda
   const productosFiltrados = useMemo(() => {
@@ -395,39 +399,86 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         </div>
       </header>
 
-      {/* SELECTOR DE LOCALES TROPICALIA (CHIPS COMPACTOS) */}
-      {negocios.length > 1 && (
-        <div style={{ padding: '12px 20px 4px 20px', display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {negocios.map(n => {
-            const isSelected = negocioActivo?.id === n.id;
-            return (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => seleccionarRestaurante(n)}
-                style={{
-                  background: isSelected ? 'var(--dark-amaranth)' : '#f3f4f6',
-                  color: isSelected ? '#ffffff' : '#4b5563',
-                  border: isSelected ? '1px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
-                  borderRadius: '999px',
-                  padding: '5px 12px',
-                  fontSize: '0.76rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                🏪 {n.name.replace('Tropicalia ', '')}
-              </button>
-            );
-          })}
-        </div>
+      {/* ESTRUCTURA DE NAVEGACIÓN DE RESTAURANTES TROPICALIA */}
+      {listaRestaurantesOrdenados.length > 0 && (
+        <section style={{ padding: '16px 20px 8px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '1.05rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800 }}>
+                🏪 Nuestras Cocinas y Restaurantes
+              </h2>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                Selecciona una cocina para explorar su menú exclusivo
+              </span>
+            </div>
+            {negocioActivo && (
+              <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                ✓ {negocioActivo.name.replace('Tropicalia ', '')}
+              </span>
+            )}
+          </div>
+
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            overflowX: 'auto',
+            paddingBottom: '8px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}>
+            {listaRestaurantesOrdenados.map(n => {
+              const isSelected = negocioActivo?.id === n.id;
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => {
+                    seleccionarRestaurante(n);
+                    showToast(`Menú de "${n.name}" cargado`);
+                  }}
+                  style={{
+                    minWidth: '200px',
+                    maxWidth: '220px',
+                    background: isSelected ? '#ffffff' : '#f9fafb',
+                    border: isSelected ? '2px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                    borderRadius: '16px',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 4px 14px rgba(130, 19, 58, 0.12)' : 'none',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--golden-orange)', fontWeight: 800, textTransform: 'uppercase' }}>
+                      {n.category || 'Cocina Aliada'}
+                    </span>
+                    {isSelected && (
+                      <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 900 }}>
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <strong style={{ fontSize: '0.92rem', color: isSelected ? 'var(--dark-amaranth)' : '#1f2937', display: 'block', marginBottom: '6px' }}>
+                    {n.name}
+                  </strong>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
+                      ⭐ {n.rating.toFixed(1)} ({n.ratingCount}+)
+                    </span>
+                    <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                      📍 ~{n.distanciaKm.toFixed(1)} km
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* BANNER DE PEDIDO EN CURSO */}
       {ultimaOrdenId && (
-        <div style={{ margin: '12px 20px 0 20px' }}>
+        <div style={{ margin: '8px 20px 14px 20px' }}>
           <Link
             to={`/tracking?order_id=${ultimaOrdenId}`}
             style={{
@@ -451,17 +502,19 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         </div>
       )}
 
-      {/* CONTENIDO PRINCIPAL: BUSCADOR GLOBAL PRIORIZADO O MENÚ DE LOCAL */}
+      {/* CONTENIDO PRINCIPAL: BUSCADOR GLOBAL DUAL O MENÚ DE COCINA ACTIVA */}
       <main>
         {searchQuery.trim() ? (
           <section style={{ padding: '0 20px', marginTop: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            
+            {/* CABECERA BUSCADOR GLOBAL DUAL */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                  🍽️ Cocinas que preparan "{searchQuery}"
+                  🔍 Resultados para "{searchQuery}"
                 </h2>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: '#6b7280' }}>
-                  Priorizadas por mayor calificación ⭐ y cercanía geográfica 📍
+                  Resultados divididos en restaurantes y platos independientes disponibles
                 </p>
               </div>
               <button
@@ -474,12 +527,64 @@ export default function Home({ onTriggerSearch, searchOpen }) {
               </button>
             </div>
 
-            {cocinasGlobalesPriorizadas.length === 0 ? (
+            {/* PESTAÑAS DEL BUSCADOR DUAL */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setSearchDualTab('todo')}
+                style={{
+                  background: searchDualTab === 'todo' ? 'var(--dark-amaranth)' : '#f3f4f6',
+                  color: searchDualTab === 'todo' ? '#ffffff' : '#4b5563',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Todo ({restaurantesCoincidentes.length + platosIndependientes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchDualTab('restaurantes')}
+                style={{
+                  background: searchDualTab === 'restaurantes' ? 'var(--dark-amaranth)' : '#f3f4f6',
+                  color: searchDualTab === 'restaurantes' ? '#ffffff' : '#4b5563',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🏪 Restaurantes ({restaurantesCoincidentes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchDualTab('platos')}
+                style={{
+                  background: searchDualTab === 'platos' ? 'var(--dark-amaranth)' : '#f3f4f6',
+                  color: searchDualTab === 'platos' ? '#ffffff' : '#4b5563',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🍽️ Platos Disponibles ({platosIndependientes.length})
+              </button>
+            </div>
+
+            {restaurantesCoincidentes.length === 0 && platosIndependientes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f9fafb', borderRadius: '18px', border: '1px solid #e5e7eb' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🔍</div>
-                <strong style={{ color: '#374151', fontSize: '1rem' }}>No encontramos cocinas con platos para "{searchQuery}"</strong>
+                <strong style={{ color: '#374151', fontSize: '1rem' }}>No encontramos resultados para "{searchQuery}"</strong>
                 <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: '4px 0 14px 0' }}>
-                  Prueba buscando: hamburguesa, pizza, sushi, postres, pollo o ensalada.
+                  Prueba buscando otro plato (hamburguesa, pizza, postre, sushi) o nombre de restaurante.
                 </p>
                 <button
                   type="button"
@@ -487,71 +592,125 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   className="btn-primario"
                   style={{ padding: '8px 18px', fontSize: '0.85rem' }}
                 >
-                  Ver Catálogo Completo
+                  Ver Menú Completo
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {cocinasGlobalesPriorizadas.map(({ business, distanciaKm, rating, ratingCount, productos: prodsCocina }) => (
-                  <div
-                    key={business.id}
-                    style={{
-                      background: '#ffffff',
-                      border: '1.5px solid #e5e7eb',
-                      borderRadius: '20px',
-                      padding: '16px',
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-                      position: 'relative'
-                    }}
-                  >
-                    {/* Header de la Cocina / Dark Kitchen */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid #f3f4f6', paddingBottom: '10px', marginBottom: '12px' }}>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                          🏪 {business.name}
-                        </h3>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            ⭐ {rating.toFixed(1)} ({ratingCount}+)
-                          </span>
-                          <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            📍 ~{distanciaKm.toFixed(1)} km de ti
-                          </span>
-                          <span style={{ color: '#6b7280', fontSize: '0.74rem' }}>
-                            ⏱️ 20-30 min
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          seleccionarRestaurante(business);
-                          setSearchQuery('');
-                          showToast(`Cocina "${business.name}" seleccionada`);
-                        }}
-                        className="btn-secundario"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', fontWeight: 700 }}
-                      >
-                        Ver Menú Completo →
-                      </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* 1. SECCIÓN DUAL: RESTAURANTES PRIORIZADOS */}
+                {(searchDualTab === 'todo' || searchDualTab === 'restaurantes') && restaurantesCoincidentes.length > 0 && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>🏪</span>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
+                        Restaurantes Coincidentes ({restaurantesCoincidentes.length})
+                      </h3>
+                      <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>
+                        • Priorizados por calificación y cercanía
+                      </small>
                     </div>
 
-                    {/* Platos que coinciden en esta cocina */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: '12px' }}>
-                      {prodsCocina.map(p => {
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+                      {restaurantesCoincidentes.map(r => (
+                        <div
+                          key={r.id}
+                          style={{
+                            background: '#ffffff',
+                            border: '1.5px solid #e5e7eb',
+                            borderRadius: '16px',
+                            padding: '14px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '10px'
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <h4 style={{ margin: 0, fontSize: '0.98rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
+                                🏪 {r.name}
+                              </h4>
+                              <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 800 }}>
+                                ⭐ {r.rating.toFixed(1)} ({r.ratingCount}+)
+                              </span>
+                            </div>
+                            <span style={{ color: '#6b7280', fontSize: '0.76rem', display: 'block', marginTop: '2px' }}>
+                              {r.category || 'Cocina Gourmet'} • ⏱️ 20-30 min
+                            </span>
+                            <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-block', marginTop: '6px' }}>
+                              📍 ~{r.distanciaKm.toFixed(1)} km de tu ubicación
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              seleccionarRestaurante(r);
+                              setSearchQuery('');
+                              showToast(`Menú de "${r.name}" cargado`);
+                            }}
+                            className="btn-primario"
+                            style={{ width: '100%', padding: '8px', fontSize: '0.8rem', fontWeight: 800 }}
+                          >
+                            Ver Menú Completo →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. SECCIÓN DUAL: PLATOS DISPONIBLES INDEPENDIENTES */}
+                {(searchDualTab === 'todo' || searchDualTab === 'platos') && platosIndependientes.length > 0 && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>🍽️</span>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
+                        Platos Disponibles ({platosIndependientes.length})
+                      </h3>
+                      <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>
+                        • Listado individual de todas las cocinas
+                      </small>
+                    </div>
+
+                    <div className="product-grid-figma">
+                      {platosIndependientes.map(p => {
                         const precioUsd = parseFloat(p.price || 0);
                         const precioBs = toBs(precioUsd, tasaBCV);
                         const imgUrl = getProductImageUrl(p);
+                        const nombreLocal = p.businesses?.name || 'Tropicalia';
 
                         return (
                           <div
                             key={p.id}
                             className="product-card-figma"
-                            style={{ margin: 0, padding: '10px' }}
                             onClick={() => handleOpenModal(p)}
+                            role="button"
+                            tabIndex={0}
+                            style={{ position: 'relative' }}
                           >
-                            <div className="product-card-img-box" style={{ height: '110px' }}>
+                            <span style={{
+                              position: 'absolute',
+                              top: '8px',
+                              left: '8px',
+                              background: 'rgba(0, 0, 0, 0.72)',
+                              color: '#ffffff',
+                              padding: '2px 6px',
+                              borderRadius: '6px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              zIndex: 2,
+                              maxWidth: '120px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              🏪 {nombreLocal.replace('Tropicalia ', '')}
+                            </span>
+
+                            <div className="product-card-img-box">
                               <img
                                 src={imgUrl}
                                 alt={p.name}
@@ -563,18 +722,29 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                                 }}
                               />
                             </div>
-                            <h4 className="product-card-name" style={{ fontSize: '0.85rem' }}>{p.name}</h4>
-                            <p className="product-card-price" style={{ fontSize: '0.9rem' }}>{formatUsd(precioUsd)}</p>
-                            <span className="product-card-bs" style={{ fontSize: '0.72rem' }}>{formatBs(precioBs)}</span>
+                            <h3 className="product-card-name">{p.name}</h3>
+                            <p className="product-card-price">{formatUsd(precioUsd)}</p>
+                            <span className="product-card-bs">{formatBs(precioBs)}</span>
+
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                addItem(p, 1, business.id, business.name);
+                                addItem(
+                                  {
+                                    id: p.id,
+                                    name: p.name,
+                                    price: precioUsd,
+                                    image_url: p.image_url,
+                                    quantity: 1
+                                  },
+                                  p.business_id,
+                                  nombreLocal
+                                );
                                 showToast(`¡${p.name} agregado al carrito!`);
                               }}
                               className="btn-primario"
-                              style={{ marginTop: '8px', width: '100%', padding: '6px', fontSize: '0.75rem', fontWeight: 800 }}
+                              style={{ width: '100%', padding: '6px', fontSize: '0.76rem', fontWeight: 800, marginTop: '8px' }}
                             >
                               + Agregar
                             </button>
@@ -583,7 +753,8 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                       })}
                     </div>
                   </div>
-                ))}
+                )}
+
               </div>
             )}
           </section>
@@ -591,51 +762,89 @@ export default function Home({ onTriggerSearch, searchOpen }) {
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
             <p>Cargando menú delicioso de {negocioActivo?.name}...</p>
           </div>
-        ) : productosFiltrados.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>No se encontraron platos en esta categoría.</p>
-            <button
-              onClick={() => { setCategoriaActiva('Todos'); setSearchQuery(''); }}
-              className="btn-secundario"
-              style={{ marginTop: '10px' }}
-            >
-              Ver todos los platos
-            </button>
-          </div>
         ) : (
-          <div className="product-grid-figma">
-            {productosFiltrados.map(p => {
-              const precioUsd = parseFloat(p.price || 0);
-              const precioBs = toBs(precioUsd, tasaBCV);
-              const imgUrl = getProductImageUrl(p);
-
-              return (
-                <div
-                  key={p.id}
-                  className="product-card-figma"
-                  onClick={() => handleOpenModal(p)}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Ver detalle de ${p.name}`}
-                >
-                  <div className="product-card-img-box">
-                    <img
-                      src={imgUrl}
-                      alt={p.name}
-                      className="product-card-img"
-                      loading="lazy"
-                      onError={e => {
-                        e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                  </div>
-                  <h3 className="product-card-name">{p.name}</h3>
-                  <p className="product-card-price">{formatUsd(precioUsd)}</p>
-                  <span className="product-card-bs">{formatBs(precioBs)}</span>
+          <div>
+            {/* ENCABEZADO DEL MENÚ DE LA COCINA SELECCIONADA */}
+            {negocioActivo && (
+              <div style={{
+                margin: '10px 20px 14px 20px',
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '16px',
+                padding: '12px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              }}>
+                <div>
+                  <span style={{ fontSize: '0.72rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 800 }}>
+                    Menú Oficial de Cocina
+                  </span>
+                  <h3 style={{ margin: '2px 0 0 0', fontSize: '1.1rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
+                    🍽️ {negocioActivo.name}
+                  </h3>
                 </div>
-              );
-            })}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800 }}>
+                    ⭐ {parseFloat(negocioActivo.rating || 4.90).toFixed(1)} ({negocioActivo.rating_count || 120} calificaciones)
+                  </span>
+                  <span style={{ background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700 }}>
+                    📍 Activo
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {productosFiltrados.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>No se encontraron platos en esta categoría.</p>
+                <button
+                  onClick={() => { setCategoriaActiva('Todos'); setSearchQuery(''); }}
+                  className="btn-secundario"
+                  style={{ marginTop: '10px' }}
+                >
+                  Ver todos los platos
+                </button>
+              </div>
+            ) : (
+              <div className="product-grid-figma">
+                {productosFiltrados.map(p => {
+                  const precioUsd = parseFloat(p.price || 0);
+                  const precioBs = toBs(precioUsd, tasaBCV);
+                  const imgUrl = getProductImageUrl(p);
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="product-card-figma"
+                      onClick={() => handleOpenModal(p)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Ver detalle de ${p.name}`}
+                    >
+                      <div className="product-card-img-box">
+                        <img
+                          src={imgUrl}
+                          alt={p.name}
+                          className="product-card-img"
+                          loading="lazy"
+                          onError={e => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80';
+                          }}
+                        />
+                      </div>
+                      <h3 className="product-card-name">{p.name}</h3>
+                      <p className="product-card-price">{formatUsd(precioUsd)}</p>
+                      <span className="product-card-bs">{formatBs(precioBs)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -201,6 +201,12 @@ export default function Tracking() {
       const timer = setTimeout(() => {
         setMostrarAlerta30Min(true);
         setMostrarFormularioCalificar(true);
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('Tropicalia CRB', {
+            body: '¡Gracias por su compra, califícanos! ¿Qué tal estuvo la sazón, temperatura y presentación?',
+            icon: '/icon.png'
+          });
+        }
       }, faltanteMs);
 
       // Intervalo para actualizar el contador en pantalla
@@ -539,11 +545,11 @@ export default function Tracking() {
                       }}>
                         <span style={{ fontSize: '2.2rem' }}>🔔</span>
                         <div style={{ flex: 1 }}>
-                          <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.96rem', display: 'block' }}>
-                            ¡Alerta: Califica tu plato!
+                          <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.98rem', display: 'block' }}>
+                            ¡Gracias por su compra, califícanos!
                           </strong>
-                          <span style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.4, display: 'block', marginTop: '2px' }}>
-                            Han transcurrido 30 minutos desde la entrega. ¿Qué tal estuvo la sazón, temperatura y presentación?
+                          <span style={{ fontSize: '0.84rem', color: '#78350f', lineHeight: 1.4, display: 'block', marginTop: '2px', fontWeight: 600 }}>
+                            ¿Qué tal estuvo la sazón, temperatura y presentación?
                           </span>
                         </div>
                       </div>

@@ -264,3 +264,25 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ==============================================================================
+-- 14. CONFIGURACIÓN FORMAL DE SUPABASE AUTH & PLANTILLAS DE CORREO
+-- ==============================================================================
+-- En el panel de Supabase: Project Settings -> Authentication -> URL Configuration:
+-- Site URL: https://tropicalia-rho.vercel.app
+-- Additional Redirect URLs:
+--   https://tropicalia-rho.vercel.app/**
+--   https://tropicalia-rho.vercel.app/portal
+--   https://tropicalia-rho.vercel.app/tracking
+--
+-- Plantilla de Confirmación de Registro (Email Templates -> Confirm signup):
+-- Asunto: ¡Bienvenido a Tropicalia CRB! Confirma tu cuenta
+-- Cuerpo HTML:
+-- <h2>¡Hola! Bienvenido a Tropicalia CRB 🌴</h2>
+-- <p>Gracias por unirte a nuestra comunidad gastronómica.</p>
+-- <p>Para confirmar tu correo y acceder a tu cuenta, haz clic en el siguiente enlace:</p>
+-- <p><a href="{{ .SiteURL }}/portal?confirmation_token={{ .TokenHash }}" style="background:#82133a; color:#fff; padding:12px 24px; border-radius:999px; text-decoration:none; font-weight:bold; display:inline-block;">Confirmar mi Cuenta</a></p>
+-- <p>Si el botón no funciona, copia y pega esta dirección en tu navegador:</p>
+-- <p>{{ .ConfirmationURL }}</p>
+-- <p><small>Línea directa de atención y soporte: 0414-1352503 (WhatsApp wa.me/584141352503)</small></p>
+
+

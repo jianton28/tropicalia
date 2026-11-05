@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+export const APP_PRODUCTION_URL = 'https://tropicalia-rho.vercel.app';
+
+export function getAuthRedirectUrl(path = '/portal') {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    // Si no es el puerto de desarrollo local 3000 que causa fallas de redirección externa:
+    if (!origin.includes(':3000')) {
+      return `${origin}${path}`;
+    }
+  }
+  return `${APP_PRODUCTION_URL}${path}`;
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -97,11 +110,13 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp(email, password, metadata = {}) {
+    const redirectUrl = getAuthRedirectUrl('/portal');
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: metadata,
+        emailRedirectTo: redirectUrl,
       },
     });
     if (error) throw error;

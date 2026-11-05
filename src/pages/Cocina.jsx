@@ -476,6 +476,20 @@ export default function Cocina() {
     await cargarComandas(local.id);
   }
 
+  async function handleConfirmarEntregaPickup(orden) {
+    if (!orden) return;
+    const codigoEsperado = (orden.delivery_code || (orden.id || '').slice(0, 4)).toUpperCase();
+    const codigoIngresado = prompt(`🔑 ENTREGA SEGURA EN MOSTRADOR (PICK UP)\nPor favor, verifica el código de retiro presentado por el cliente:\n(Código del sistema: ${codigoEsperado})`, codigoEsperado);
+    if (!codigoIngresado) return;
+
+    if (codigoIngresado.trim().toUpperCase() !== codigoEsperado) {
+      alert(`❌ Código incorrecto. El cliente debe mostrarte el código de retiro: ${codigoEsperado}`);
+      return;
+    }
+
+    await cambiarEstadoComanda(orden.id, 'delivered');
+  }
+
   async function handleCancelarComanda(orden) {
     const motivo = window.prompt(
       `¿Seguro que deseas cancelar la comanda #${orden.id.slice(0, 8)}?\nLos insumos serán devueltos automáticamente al inventario.\n\nIngresa el motivo:`,
@@ -843,6 +857,26 @@ export default function Cocina() {
             <h1 style={{ fontSize: '1.6rem', margin: '2px 0 0 0', color: '#ffffff' }}>
               {local ? local.name : 'Panel de Cocina'}
             </h1>
+            {local && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span style={{
+                  background: 'rgba(255, 255, 255, 0.22)',
+                  color: '#ffffff',
+                  padding: '3px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  ⭐ {parseFloat(local.rating || 4.90).toFixed(1)} ({local.rating_count || 128} calificaciones)
+                </span>
+                <span style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.78rem', fontWeight: 600 }}>
+                  • {local.category || 'Cocina Gourmet'}
+                </span>
+              </div>
+            )}
             {todosLosLocales.length > 1 && (
               <div style={{ marginTop: '6px' }}>
                 <select
@@ -1021,6 +1055,37 @@ export default function Cocina() {
                               <strong>Nota:</strong> {ord.notes}
                             </div>
                           )}
+
+                          {/* CÓDIGO SEGURO DE VERIFICACIÓN PARA RETIRO EN BARRA (PICK UP) */}
+                          {esPickup && (
+                            <div style={{
+                              marginTop: '8px',
+                              background: '#fffbeb',
+                              border: '2px dashed var(--golden-orange)',
+                              borderRadius: '12px',
+                              padding: '8px 12px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}>
+                              <div>
+                                <span style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>
+                                  🔑 CÓDIGO DE RETIRO MOSTRADOR
+                                </span>
+                                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--dark-amaranth)', letterSpacing: '3px' }}>
+                                  {ord.delivery_code || (ord.id || '').slice(0, 4).toUpperCase()}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: '0.74rem', color: '#78350f', fontWeight: 700, display: 'block' }}>
+                                  Validar con cliente
+                                </span>
+                                <small style={{ color: '#92400e', fontSize: '0.68rem' }}>
+                                  al entregar comanda
+                                </small>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1060,7 +1125,7 @@ export default function Cocina() {
                           {ord.status === 'ready' && esPickup && (
                             <button
                               type="button"
-                              onClick={() => cambiarEstadoComanda(ord.id, 'delivered')}
+                              onClick={() => handleConfirmarEntregaPickup(ord)}
                               style={{
                                 flex: 1,
                                 background: '#059669',
