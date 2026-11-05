@@ -320,6 +320,8 @@ CREATE TABLE IF NOT EXISTS public.app_admins (
 );
 
 -- 15.4 AISLAMIENTO ESTRICTO DE ROLES: ROW LEVEL SECURITY (RLS)
+-- NOTA: Las políticas exhaustivas Zero-Trust para todos los roles (Clientes, Cocinas, Repartidores, Admins)
+-- se encuentran completamente orquestadas en la Sección 17.5 y en el archivo dedicado 'supabase_rls_policies.sql'.
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_closures ENABLE ROW LEVEL SECURITY;
@@ -327,56 +329,6 @@ ALTER TABLE public.driver_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.delivery_wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_favorites ENABLE ROW LEVEL SECURITY;
-
--- Políticas de Seguridad de Órdenes (orders)
--- 1. Los dueños de restaurantes SOLO pueden ver y modificar órdenes pertenecientes a sus cocinas:
-CREATE POLICY "Cocina: Ver solo ordenes de sus negocios"
-ON public.orders FOR SELECT
-USING (
-  auth.role() = 'authenticated' AND (
-    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
-    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
-  )
-);
-
-CREATE POLICY "Cocina: Actualizar solo ordenes de sus negocios"
-ON public.orders FOR UPDATE
-USING (
-  auth.role() = 'authenticated' AND (
-    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
-    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
-  )
-);
-
--- 2. Los repartidores SOLO pueden ver órdenes delivery disponibles para tomar o asignadas a ellos:
-CREATE POLICY "Repartidor: Ver carreras asignadas o disponibles"
-ON public.orders FOR SELECT
-USING (
-  delivery_type = 'delivery' AND (
-    driver_id = auth.uid() OR
-    (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
-    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
-  )
-);
-
-CREATE POLICY "Repartidor: Aceptar y gestionar sus carreras"
-ON public.orders FOR UPDATE
-USING (
-  driver_id = auth.uid() OR
-  (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
-  EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
-);
-
--- 3. Clientes: Inserción y lectura de sus direcciones y favoritos:
-CREATE POLICY "Clientes: Gestionar sus propias direcciones"
-ON public.user_addresses FOR ALL
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Clientes: Gestionar sus platos favoritos"
-ON public.user_favorites FOR ALL
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
 
 -- 15.5 PROTECCIÓN CONTRA ESCALAMIENTO DE ROL DESDE EL CLIENTE
 -- Impide que cualquier usuario altere su rol en raw_user_meta_data desde el frontend:
