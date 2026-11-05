@@ -5,9 +5,13 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchTasaBCV, toBs, formatUsd, formatBs } from '../services/bcvService';
 import { getProductImageUrl } from '../services/imageService';
+import { favoritesService } from '../services/favoritesService';
+import { semanticSearchService } from '../services/semanticSearchService';
+import GlobalSearchBar from '../components/common/GlobalSearchBar';
 
 const CATEGORIAS_FIGMA = [
   'Todos',
+  '❤️ Favoritos',
   'Platos Salados',
   'Platos Dulces',
   'Hamburguesas',
@@ -69,6 +73,32 @@ export default function Home({ onTriggerSearch, searchOpen }) {
 
   // Orden activa
   const [ultimaOrdenId, setUltimaOrdenId] = useState(null);
+
+  // Sistema de Platos Favoritos
+  const [favorites, setFavorites] = useState(() => favoritesService.getFavorites());
+
+  useEffect(() => {
+    // Sincronizar favoritos al montar
+    const handleFavsChanged = (e) => {
+      setFavorites(e.detail || favoritesService.getFavorites());
+    };
+    window.addEventListener('tropicalia:favorites_changed', handleFavsChanged);
+    if (user?.id) {
+      favoritesService.syncWithSupabase(user.id);
+    }
+    return () => {
+      window.removeEventListener('tropicalia:favorites_changed', handleFavsChanged);
+    };
+  }, [user]);
+
+  async function handleToggleFavorite(productId, e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const isNowFav = await favoritesService.toggleFavorite(productId, user?.id);
+    showToast(isNowFav ? '❤️ Agregado a tus favoritos' : '🤍 Eliminado de tus favoritos');
+  }
 
   useEffect(() => {
     fetchTasaBCV().then(r => setTasaBCV(r));
@@ -195,39 +225,33 @@ export default function Home({ onTriggerSearch, searchOpen }) {
   }, [negocios, userCoords]);
 
   // ==============================================================================
-  // 2. BUSCADOR GLOBAL DUAL (RESTAURANTES COINCIDENTES Y PLATOS INDEPENDIENTES)
+  // 2. BUSCADOR GLOBAL INTELIGENTE (SINÓNIMOS CON IA, PLATOS Y RESTAURANTES CRUZADOS)
   // ==============================================================================
-  const { restaurantesCoincidentes, platosIndependientes } = useMemo(() => {
+  const { restaurantesCoincidentes, platosIndependientes, interpretacion } = useMemo(() => {
     if (!searchQuery.trim()) {
-      return { restaurantesCoincidentes: [], platosIndependientes: [] };
+      return {
+        restaurantesCoincidentes: [],
+        platosIndependientes: [],
+        interpretacion: null,
+        totalEncontrados: 0
+      };
     }
-    const query = searchQuery.toLowerCase().trim();
 
-    // 1. Platos disponibles independientes de todo el catálogo
-    const platos = todosLosProductos.filter(p => {
-      const n = (p.name || '').toLowerCase();
-      const d = (p.description || '').toLowerCase();
-      const c = (p.category || '').toLowerCase();
-      return n.includes(query) || d.includes(query) || c.includes(query);
+    return semanticSearchService.buscarCatalogoLocal({
+      query: searchQuery,
+      productos: todosLosProductos,
+      restaurantes: listaRestaurantesOrdenados,
+      userCoords
     });
-
-    // 2. Restaurantes coincidentes (por nombre, categoría o platos que preparan)
-    const restIdsConPlato = new Set(platos.map(p => p.business_id));
-    const rest = listaRestaurantesOrdenados.filter(n => {
-      const nombre = (n.name || '').toLowerCase();
-      const cat = (n.category || '').toLowerCase();
-      return nombre.includes(query) || cat.includes(query) || restIdsConPlato.has(n.id);
-    });
-
-    return {
-      restaurantesCoincidentes: rest,
-      platosIndependientes: platos
-    };
-  }, [searchQuery, todosLosProductos, listaRestaurantesOrdenados]);
+  }, [searchQuery, todosLosProductos, listaRestaurantesOrdenados, userCoords]);
 
   // Filtrado por categoría y búsqueda
   const productosFiltrados = useMemo(() => {
-    return productos.filter(p => {
+    const coleccionBase = (categoriaActiva === '❤️ Favoritos' && todosLosProductos.length > 0)
+      ? todosLosProductos
+      : productos;
+
+    return coleccionBase.filter(p => {
       const name = (p.name || '').toLowerCase();
       const desc = (p.description || '').toLowerCase();
 
@@ -241,6 +265,10 @@ export default function Home({ onTriggerSearch, searchOpen }) {
       // Filtro de categoría
       if (categoriaActiva === 'Todos') return true;
 
+      if (categoriaActiva === '❤️ Favoritos') {
+        return favorites.includes(p.id);
+      }
+
       if (categoriaActiva === 'Platos Salados') {
         const esDulce = name.includes('choc') || name.includes('mousse') || name.includes('tiramis') || name.includes('dulce') || name.includes('vainilla');
         return !esDulce && !name.includes('bebida') && !name.includes('jugo');
@@ -251,24 +279,28 @@ export default function Home({ onTriggerSearch, searchOpen }) {
       }
 
       if (categoriaActiva === 'Hamburguesas') {
-        return name.includes('hamburguesa') || name.includes('burger') || name.includes('papa');
+        const syns = ['hamburguesa', 'burger', 'cheeseburger', 'smash', 'angus', 'papa'];
+        return syns.some(s => name.includes(s) || desc.includes(s));
       }
 
       if (categoriaActiva === 'Pizzas') {
-        return name.includes('pizza') || name.includes('margarita') || name.includes('pepperoni');
+        const syns = ['pizza', 'margarita', 'pepperoni', 'calzone', 'focaccia', 'napolitana'];
+        return syns.some(s => name.includes(s) || desc.includes(s));
       }
 
       if (categoriaActiva === 'Sushi') {
-        return name.includes('sushi') || name.includes('roll');
+        const syns = ['sushi', 'roll', 'maki', 'tempura', 'sashimi', 'nigiri', 'salmon'];
+        return syns.some(s => name.includes(s) || desc.includes(s));
       }
 
       if (categoriaActiva === 'Bebidas') {
-        return name.includes('bebida') || name.includes('jugo') || name.includes('refresco') || name.includes('café');
+        const syns = ['bebida', 'jugo', 'refresco', 'soda', 'coca', 'pepsi', 'café', 'cafe', 'cerveza', 'agua'];
+        return syns.some(s => name.includes(s) || desc.includes(s));
       }
 
       return true;
     });
-  }, [productos, categoriaActiva, searchQuery]);
+  }, [productos, todosLosProductos, categoriaActiva, searchQuery, favorites]);
 
   function handleOpenModal(producto) {
     setSelectedProduct(producto);
@@ -363,26 +395,12 @@ export default function Home({ onTriggerSearch, searchOpen }) {
           </span>
         </div>
 
-        {/* Buscador Global Integrado */}
-        <div style={{ position: 'relative', marginTop: '6px', marginBottom: '10px' }}>
-          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.7, fontSize: '0.95rem' }}>🔍</span>
-          <input
-            type="text"
-            className="figma-search-input"
-            placeholder="Buscar hamburguesas, pizzas, sushi en todas las cocinas..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.95rem' }}
-              title="Borrar búsqueda"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        {/* Buscador Global Inteligente con IA y Sinónimos */}
+        <GlobalSearchBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          interpretacion={interpretacion}
+        />
 
         {/* Selector de Categorías Horizontal Figma */}
         <div className="category-scroll-container">
@@ -639,9 +657,54 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                             <span style={{ color: '#6b7280', fontSize: '0.76rem', display: 'block', marginTop: '2px' }}>
                               {r.category || 'Cocina Gourmet'} • ⏱️ 20-30 min
                             </span>
-                            <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-block', marginTop: '6px' }}>
-                              📍 ~{r.distanciaKm.toFixed(1)} km de tu ubicación
-                            </span>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '6px' }}>
+                              <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                📍 ~{r.distanciaKm.toFixed(1)} km
+                              </span>
+                              {r.matchReason && (
+                                <span style={{ background: '#fdf2f8', color: 'var(--dark-amaranth)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
+                                  ✨ {r.matchReason}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Vista previa de platos coincidentes en este restaurante */}
+                            {r.platosCoincidentes && r.platosCoincidentes.length > 0 && (
+                              <div style={{ marginTop: '8px', borderTop: '1px dashed #e5e7eb', paddingTop: '8px' }}>
+                                <span style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                                  Platos destacados en su carta:
+                                </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  {r.platosCoincidentes.map(cp => (
+                                    <div
+                                      key={cp.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenModal(cp);
+                                      }}
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        background: '#f9fafb',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.74rem',
+                                        cursor: 'pointer'
+                                      }}
+                                      title={`Toca para ver ${cp.name}`}
+                                    >
+                                      <span style={{ fontWeight: 600, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
+                                        🍽️ {cp.name}
+                                      </span>
+                                      <span style={{ fontWeight: 800, color: 'var(--dark-amaranth)', flexShrink: 0 }}>
+                                        ${parseFloat(cp.price || 0).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           <button
@@ -710,6 +773,33 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                               🏪 {nombreLocal.replace('Tropicalia ', '')}
                             </span>
 
+                            {/* Botón Favorito ❤️ / 🤍 */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleFavorite(p.id, e)}
+                              aria-label={favorites.includes(p.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                              style={{
+                                position: 'absolute',
+                                top: '8px',
+                                right: '8px',
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '50%',
+                                background: 'rgba(255, 255, 255, 0.94)',
+                                border: '1px solid rgba(0, 0, 0, 0.08)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.95rem',
+                                cursor: 'pointer',
+                                zIndex: 3,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                                transition: 'transform 0.15s ease'
+                              }}
+                            >
+                              {favorites.includes(p.id) ? '❤️' : '🤍'}
+                            </button>
+
                             <div className="product-card-img-box">
                               <img
                                 src={imgUrl}
@@ -723,6 +813,11 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                               />
                             </div>
                             <h3 className="product-card-name">{p.name}</h3>
+                            {p.matchedReason && (
+                              <span style={{ fontSize: '0.68rem', color: '#047857', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
+                                ✨ {p.matchedReason}
+                              </span>
+                            )}
                             <p className="product-card-price">{formatUsd(precioUsd)}</p>
                             <span className="product-card-bs">{formatBs(precioBs)}</span>
 
@@ -824,7 +919,35 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                       role="button"
                       tabIndex={0}
                       aria-label={`Ver detalle de ${p.name}`}
+                      style={{ position: 'relative' }}
                     >
+                      {/* Botón Favorito ❤️ / 🤍 */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleFavorite(p.id, e)}
+                        aria-label={favorites.includes(p.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.94)',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.95rem',
+                          cursor: 'pointer',
+                          zIndex: 3,
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                          transition: 'transform 0.15s ease'
+                        }}
+                      >
+                        {favorites.includes(p.id) ? '❤️' : '🤍'}
+                      </button>
+
                       <div className="product-card-img-box">
                         <img
                           src={imgUrl}
@@ -858,28 +981,51 @@ export default function Home({ onTriggerSearch, searchOpen }) {
             role="dialog"
             aria-modal="true"
           >
-            {/* Barra superior de cierre */}
+            {/* Barra superior de cierre y favorito */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div style={{ width: '40px', height: '4px', backgroundColor: '#d1d5db', borderRadius: '999px', margin: '0 auto 0 0' }} />
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                style={{
-                  background: '#f3f4f6',
-                  border: 'none',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  fontSize: '1rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#4b5563'
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ width: '40px', height: '4px', backgroundColor: '#d1d5db', borderRadius: '999px', margin: '0' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={(e) => handleToggleFavorite(selectedProduct.id, e)}
+                  aria-label={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fee2e2',
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    fontSize: '1.1rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.06)'
+                  }}
+                  title={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+                >
+                  {favorites.includes(selectedProduct.id) ? '❤️' : '🤍'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  style={{
+                    background: '#f3f4f6',
+                    border: 'none',
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4b5563'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Imagen del plato */}

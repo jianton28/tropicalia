@@ -285,4 +285,212 @@ END $$;
 -- <p>{{ .ConfirmationURL }}</p>
 -- <p><small>Línea directa de atención y soporte: 0414-1352503 (WhatsApp wa.me/584141352503)</small></p>
 
+-- ==============================================================================
+-- 15. DIRECCIONES MÚLTIPLES, ENVÍOS A TERCEROS Y PLATOS FAVORITOS
+-- ==============================================================================
+
+-- 15.1 TABLA: user_addresses (Direcciones Múltiples y Envíos a Terceros)
+CREATE TABLE IF NOT EXISTS public.user_addresses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    alias TEXT NOT NULL, -- 'Casa', 'Oficina', 'Mamá', 'Envío a Tercero'
+    recipient_name TEXT, -- Nombre de la persona que recibe (para envíos a terceros)
+    recipient_phone TEXT, -- Teléfono de contacto del tercero
+    address TEXT NOT NULL,
+    lat NUMERIC(10, 7),
+    lng NUMERIC(10, 7),
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15.2 TABLA: user_favorites (Platos Favoritos de Clientes)
+CREATE TABLE IF NOT EXISTS public.user_favorites (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+);
+
+-- 15.3 TABLA: app_admins (Aislamiento y Verificación Estricta de Administradores)
+CREATE TABLE IF NOT EXISTS public.app_admins (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15.4 AISLAMIENTO ESTRICTO DE ROLES: ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cash_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.driver_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_addresses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_favorites ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de Seguridad de Órdenes (orders)
+-- 1. Los dueños de restaurantes SOLO pueden ver y modificar órdenes pertenecientes a sus cocinas:
+CREATE POLICY "Cocina: Ver solo ordenes de sus negocios"
+ON public.orders FOR SELECT
+USING (
+  auth.role() = 'authenticated' AND (
+    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+  )
+);
+
+CREATE POLICY "Cocina: Actualizar solo ordenes de sus negocios"
+ON public.orders FOR UPDATE
+USING (
+  auth.role() = 'authenticated' AND (
+    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+  )
+);
+
+-- 2. Los repartidores SOLO pueden ver órdenes delivery disponibles para tomar o asignadas a ellos:
+CREATE POLICY "Repartidor: Ver carreras asignadas o disponibles"
+ON public.orders FOR SELECT
+USING (
+  delivery_type = 'delivery' AND (
+    driver_id = auth.uid() OR
+    (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+  )
+);
+
+CREATE POLICY "Repartidor: Aceptar y gestionar sus carreras"
+ON public.orders FOR UPDATE
+USING (
+  driver_id = auth.uid() OR
+  (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
+  EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+);
+
+-- 3. Clientes: Inserción y lectura de sus direcciones y favoritos:
+CREATE POLICY "Clientes: Gestionar sus propias direcciones"
+ON public.user_addresses FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Clientes: Gestionar sus platos favoritos"
+ON public.user_favorites FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- 15.5 PROTECCIÓN CONTRA ESCALAMIENTO DE ROL DESDE EL CLIENTE
+-- Impide que cualquier usuario altere su rol en raw_user_meta_data desde el frontend:
+CREATE OR REPLACE FUNCTION public.proteger_rol_inmutable()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (OLD.raw_user_meta_data->>'role' IS DISTINCT FROM NEW.raw_user_meta_data->>'role') THEN
+    IF current_user NOT IN ('supabase_admin', 'service_role') THEN
+      NEW.raw_user_meta_data = jsonb_set(
+        NEW.raw_user_meta_data,
+        '{role}',
+        to_jsonb(COALESCE(OLD.raw_user_meta_data->>'role', 'client'))
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_proteger_rol_inmutable ON auth.users;
+CREATE TRIGGER trigger_proteger_rol_inmutable
+BEFORE UPDATE ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.proteger_rol_inmutable();
+
+-- ==============================================================================
+-- 16. OPTIMIZACIÓN DEL BUSCADOR GLOBAL INTELIGENTE (POSTGRESQL & SUPABASE)
+-- ==============================================================================
+
+-- 16.1 Habilitación de extensión de trigramas para búsqueda difusa y de texto
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
+-- 16.2 Índices GIN de Trigramas para búsquedas ultra-rápidas en Platos
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON public.products USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_description_trgm ON public.products USING gin (description gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON public.products USING gin (category gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_available_biz ON public.products (is_available, business_id);
+
+-- 16.3 Índices GIN de Trigramas para Restaurantes y Dark Kitchens
+CREATE INDEX IF NOT EXISTS idx_businesses_name_trgm ON public.businesses USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_businesses_category_trgm ON public.businesses USING gin (category gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_businesses_active_id ON public.businesses (is_active, id);
+
+-- 16.4 Función RPC de Búsqueda Global Semántica y Cruzada
+-- Permite consultar desde Supabase platos y restaurantes con puntuación de similitud
+CREATE OR REPLACE FUNCTION public.buscar_tropicalia_global(termino TEXT)
+RETURNS TABLE (
+    tipo TEXT,
+    id UUID,
+    nombre TEXT,
+    categoria TEXT,
+    descripcion TEXT,
+    precio NUMERIC,
+    imagen_url TEXT,
+    business_id UUID,
+    business_name TEXT,
+    similitud REAL
+) AS $$
+BEGIN
+    RETURN QUERY
+    -- 1. Platos coincidentes
+    SELECT 
+        'plato'::TEXT AS tipo,
+        p.id,
+        p.name AS nombre,
+        COALESCE(p.category, 'General') AS categoria,
+        COALESCE(p.description, '') AS descripcion,
+        p.price AS precio,
+        COALESCE(p.image_url, '') AS imagen_url,
+        p.business_id,
+        b.name AS business_name,
+        GREATEST(
+            similarity(p.name, termino),
+            similarity(COALESCE(p.category, ''), termino) * 0.8,
+            similarity(COALESCE(p.description, ''), termino) * 0.5
+        ) AS similitud
+    FROM public.products p
+    JOIN public.businesses b ON b.id = p.business_id
+    WHERE p.is_available = TRUE 
+      AND b.is_active = TRUE
+      AND (
+          p.name ILIKE '%' || termino || '%'
+          OR COALESCE(p.description, '') ILIKE '%' || termino || '%'
+          OR COALESCE(p.category, '') ILIKE '%' || termino || '%'
+          OR p.name % termino
+      )
+
+    UNION ALL
+
+    -- 2. Restaurantes coincidentes
+    SELECT 
+        'restaurante'::TEXT AS tipo,
+        b.id,
+        b.name AS nombre,
+        COALESCE(b.category, 'Cocina') AS categoria,
+        ''::TEXT AS descripcion,
+        0.00::NUMERIC AS precio,
+        COALESCE(b.logo_url, '') AS imagen_url,
+        b.id AS business_id,
+        b.name AS business_name,
+        GREATEST(
+            similarity(b.name, termino),
+            similarity(COALESCE(b.category, ''), termino) * 0.8
+        ) AS similitud
+    FROM public.businesses b
+    WHERE b.is_active = TRUE
+      AND (
+          b.name ILIKE '%' || termino || '%'
+          OR COALESCE(b.category, '') ILIKE '%' || termino || '%'
+          OR b.name % termino
+      )
+    ORDER BY similitud DESC;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+
+
 

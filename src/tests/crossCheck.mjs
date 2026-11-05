@@ -13,6 +13,7 @@ import {
 } from '../services/paymentService.js';
 
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
+import { semanticSearchService, normalizarTexto } from '../services/semanticSearchService.js';
 
 let passed = 0;
 let failed = 0;
@@ -99,6 +100,77 @@ assert(checkDigital.permitido === true, 'Repartidor con deuda en efectivo puede 
 console.log('\n=== TEST 3: BCV CURRENCY FORMATTING ===');
 assert(formatUsd(15.5) === '$15.50', 'formatUsd formatea correctamente');
 assert(toBs(10, 800) === 8000, 'toBs calcula tasa correctamente');
+
+console.log('\n=== TEST 4: BUSCADOR GLOBAL INTELIGENTE (SINÓNIMOS CON IA Y BÚSQUEDA CRUZADA) ===');
+
+// 4.1 Normalización de texto
+assert(normalizarTexto('Hambúrguesa con Quesó!') === 'hamburguesa con queso', 'Normalización remueve tildes y signos');
+assert(normalizarTexto('PIZZA NAPOLITANA') === 'pizza napolitana', 'Normalización a minúsculas');
+
+// 4.2 Mapeo semántico y expansión de sinónimos
+const expansionBurger = semanticSearchService.expandirTerminos('burger');
+assert(expansionBurger.sinonimos.includes('hamburguesa'), 'Mapeo semántico: "burger" equivale a "hamburguesa"');
+assert(expansionBurger.sinonimos.includes('cheeseburger'), 'Mapeo semántico: incluye variantes como "cheeseburger"');
+assert(expansionBurger.conceptosDetectados.some(c => c.includes('Hamburguesas')), 'Detecta concepto visual de Hamburguesas');
+
+const expansionPizza = semanticSearchService.expandirTerminos('pizza');
+assert(expansionPizza.sinonimos.includes('pizzeria') || expansionPizza.sinonimos.includes('margarita'), 'Mapeo semántico: "pizza" expande a pizzería y margarita');
+
+// 4.3 Búsqueda cruzada de Platos y Restaurantes
+const testProductos = [
+  { id: 'prod-1', name: 'Hamburguesa Tropical Especial', description: 'Carne jugosa con queso y tocineta', price: 9.5, category: 'Hamburguesas', business_id: 'biz-1' },
+  { id: 'prod-2', name: 'Pizza Margarita Familiar', description: 'Masa madre, salsa pomodoro y mozzarella', price: 12.0, category: 'Pizzas', business_id: 'biz-2' },
+  { id: 'prod-3', name: 'Roll Tempura Salmón', description: '10 piezas con queso crema y aguacate', price: 11.0, category: 'Sushi', business_id: 'biz-3' },
+  { id: 'prod-4', name: 'Alitas BBQ Crispy', description: '8 alitas crujientes con salsa BBQ', price: 7.5, category: 'Platos Salados', business_id: 'biz-1' }
+];
+
+const testRestaurantes = [
+  { id: 'biz-1', name: 'Burger & Grill Tropicalia', category: 'Hamburguesas y Carnes', rating: 4.95, distanciaKm: 1.2 },
+  { id: 'biz-2', name: 'Pizzería Bella Napoli', category: 'Pizzas Artesanales', rating: 4.85, distanciaKm: 2.1 },
+  { id: 'biz-3', name: 'Tokyo Sushi House', category: 'Sushi y Asiática', rating: 4.90, distanciaKm: 3.5 }
+];
+
+// Caso A: Búsqueda con sinónimo en inglés "burger"
+const resultadoBurger = semanticSearchService.buscarCatalogoLocal({
+  query: 'burger',
+  productos: testProductos,
+  restaurantes: testRestaurantes
+});
+
+assert(resultadoBurger.platosIndependientes.some(p => p.id === 'prod-1'), 'Búsqueda "burger" encuentra el plato "Hamburguesa Tropical Especial"');
+assert(resultadoBurger.restaurantesCoincidentes.some(r => r.id === 'biz-1'), 'Búsqueda "burger" encuentra el restaurante "Burger & Grill Tropicalia"');
+assert(resultadoBurger.restaurantesCoincidentes[0].id === 'biz-1', 'Restaurante especializado en burgers queda de primero en el ordenamiento');
+assert(resultadoBurger.restaurantesCoincidentes[0].platosCoincidentes.length > 0, 'Restaurante incluye lista cruzada de platos afines');
+
+// Caso B: Búsqueda general "pizza"
+const resultadoPizza = semanticSearchService.buscarCatalogoLocal({
+  query: 'pizza',
+  productos: testProductos,
+  restaurantes: testRestaurantes
+});
+
+assert(resultadoPizza.platosIndependientes.some(p => p.id === 'prod-2'), 'Búsqueda "pizza" encuentra el plato "Pizza Margarita Familiar"');
+assert(resultadoPizza.restaurantesCoincidentes.some(r => r.id === 'biz-2'), 'Búsqueda "pizza" encuentra "Pizzería Bella Napoli"');
+
+// Caso C: Tolerancia a errores ortográficos (Fuzzy Matching "hamburgesa" sin 'u')
+const resultadoFuzzy = semanticSearchService.buscarCatalogoLocal({
+  query: 'hamburgesa',
+  productos: testProductos,
+  restaurantes: testRestaurantes
+});
+assert(resultadoFuzzy.platosIndependientes.some(p => p.id === 'prod-1'), 'Fuzzy matching: "hamburgesa" (con error ortográfico) encuentra "Hamburguesa Tropical Especial"');
+
+// Caso D: Rendimiento y Caché (< 50ms para 100 consultas)
+const tInicio = performance.now();
+for (let i = 0; i < 100; i++) {
+  semanticSearchService.buscarCatalogoLocal({
+    query: 'burger',
+    productos: testProductos,
+    restaurantes: testRestaurantes
+  });
+}
+const tTotal = performance.now() - tInicio;
+assert(tTotal < 50, `Rendimiento ultra-rápido: 100 consultas en ${tTotal.toFixed(2)}ms (promedio ${(tTotal / 100).toFixed(3)}ms/consulta)`);
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);

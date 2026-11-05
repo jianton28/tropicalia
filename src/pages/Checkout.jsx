@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchTasaBCV, toBs, formatUsd, formatBs } from '../services/bcvService';
+import { addressService } from '../services/addressService';
+import MapAddressPicker from '../components/common/MapAddressPicker';
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -65,6 +67,96 @@ export default function Checkout() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Direcciones Múltiples y Envíos a Terceros
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('custom');
+  const [showAddAddressForm, setShowAddAddressForm] = useState(false);
+  const [newAlias, setNewAlias] = useState('Casa');
+  const [newAddressText, setNewAddressText] = useState('');
+  const [isThirdParty, setIsThirdParty] = useState(false);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [newCoords, setNewCoords] = useState(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  useEffect(() => {
+    if (user?.id) {
+      addressService.getAddresses(user.id).then(addrs => {
+        setSavedAddresses(addrs);
+        const def = addrs.find(a => a.is_default) || addrs[0];
+        if (def && (!direccion || direccion.trim() === '')) {
+          setSelectedAddressId(def.id);
+          aplicarDireccion(def);
+        }
+      });
+    }
+  }, [user]);
+
+  function aplicarDireccion(addr) {
+    if (!addr) return;
+    setSelectedAddressId(addr.id);
+    setDireccion(addr.address);
+    if (addr.recipient_name) {
+      setNombre(addr.recipient_name);
+    } else if (user?.user_metadata?.full_name) {
+      setNombre(user.user_metadata.full_name);
+    }
+    if (addr.recipient_phone) {
+      setTelefono(addr.recipient_phone);
+    } else if (user?.user_metadata?.phone) {
+      setTelefono(user.user_metadata.phone);
+    }
+    if (addr.lat && addr.lng) {
+      const lat = parseFloat(addr.lat);
+      const lng = parseFloat(addr.lng);
+      setMapUrl(`https://www.google.com/maps?q=${lat},${lng}`);
+      localStorage.setItem('tropicalia_user_lat', lat.toString());
+      localStorage.setItem('tropicalia_user_lng', lng.toString());
+      const km = calcularDistanciaKm(coordsRestaurante.lat, coordsRestaurante.lng, lat, lng);
+      setDistanciaKm(km);
+      setFleteUsd(calcularTarifaPorKm(km));
+      setGpsStatus(`📍 Dirección seleccionada: "${addr.alias}" (${km.toFixed(1)} km)`);
+    }
+  }
+
+  async function handleGuardarNuevaDireccion(e) {
+    e.preventDefault();
+    if (!newAddressText.trim()) {
+      alert('Por favor ingresa la dirección escrita o referencia.');
+      return;
+    }
+    if (isThirdParty && (!recipientName.trim() || !recipientPhone.trim())) {
+      alert('Por favor indica el nombre y teléfono del destinatario para el envío a tercero.');
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const lat = newCoords ? newCoords.lat : (parseFloat(localStorage.getItem('tropicalia_user_lat')) || 10.4950);
+      const lng = newCoords ? newCoords.lng : (parseFloat(localStorage.getItem('tropicalia_user_lng')) || -66.8480);
+      const nueva = await addressService.saveAddress({
+        user_id: user?.id,
+        alias: newAlias.trim() || 'Mi Dirección',
+        recipient_name: isThirdParty ? recipientName.trim() : null,
+        recipient_phone: isThirdParty ? recipientPhone.trim() : null,
+        address: newAddressText.trim(),
+        lat: lat,
+        lng: lng,
+        is_default: savedAddresses.length === 0
+      });
+      setSavedAddresses(prev => [nueva, ...prev.filter(a => a.id !== nueva.id)]);
+      aplicarDireccion(nueva);
+      setShowAddAddressForm(false);
+      setNewAddressText('');
+      setRecipientName('');
+      setRecipientPhone('');
+      setIsThirdParty(false);
+    } catch (err) {
+      alert('Error al guardar dirección: ' + err.message);
+    } finally {
+      setSavingAddress(false);
+    }
+  }
 
   // ============================================================================
   // CÁLCULO 100% AUTOMÁTICO DE DISTANCIA (SIN INGRESO MANUAL DEL USUARIO)
@@ -232,7 +324,9 @@ export default function Checkout() {
       const requiereVerificacion = ['pago_movil', 'binance', 'zelle', 'zinli'].includes(metodoPago);
       const estadoInicial = requiereVerificacion ? 'pending_payment_verification' : 'pending';
 
-      const notasCompletas = [notas, detalleExtraPago].filter(Boolean).join(' • ');
+      const addrActual = savedAddresses.find(a => a.id === selectedAddressId);
+      const tagTercero = addrActual?.recipient_name ? `[Envío a Tercero: ${addrActual.recipient_name} (Tlf: ${addrActual.recipient_phone || telefono})]` : '';
+      const notasCompletas = [notas, detalleExtraPago, tagTercero].filter(Boolean).join(' • ');
 
       const payload = {
         business_id: businessId,
@@ -516,6 +610,218 @@ export default function Checkout() {
 
           {modalidad === 'delivery' && (
             <div style={{ marginTop: '14px' }}>
+              
+              {/* SELECTOR DE DIRECCIONES GUARDADAS Y ENVÍOS A TERCEROS */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, fontWeight: 800, color: '#374151', fontSize: '0.9rem' }}>
+                    📍 Tus Direcciones de Entrega
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAddressForm(prev => !prev)}
+                    className="btn-secundario"
+                    style={{ padding: '4px 10px', fontSize: '0.78rem', borderRadius: '8px', fontWeight: 700 }}
+                  >
+                    {showAddAddressForm ? '✕ Cerrar formulario' : '➕ Agregar dirección extra'}
+                  </button>
+                </div>
+
+                {savedAddresses.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    overflowX: 'auto',
+                    paddingBottom: '6px',
+                    scrollbarWidth: 'none'
+                  }}>
+                    {savedAddresses.map(addr => {
+                      const isSelected = selectedAddressId === addr.id;
+                      const esTercero = Boolean(addr.recipient_name);
+                      return (
+                        <div
+                          key={addr.id}
+                          onClick={() => aplicarDireccion(addr)}
+                          style={{
+                            minWidth: '180px',
+                            maxWidth: '220px',
+                            background: isSelected ? '#ffffff' : '#f9fafb',
+                            border: isSelected ? '2px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                            borderRadius: '12px',
+                            padding: '10px',
+                            cursor: 'pointer',
+                            boxShadow: isSelected ? '0 4px 12px rgba(130, 19, 58, 0.12)' : 'none',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--dark-amaranth)' : '#1f2937' }}>
+                              {esTercero ? '🎁' : '📍'} {addr.alias}
+                            </strong>
+                            {isSelected && (
+                              <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 900 }}>
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          {esTercero && (
+                            <span style={{ background: '#ecfdf5', color: '#065f46', fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', display: 'inline-block', marginBottom: '4px' }}>
+                              Para: {addr.recipient_name}
+                            </span>
+                          )}
+                          <p style={{ margin: 0, fontSize: '0.74rem', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {addr.address}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* FORMULARIO INLINE: AGREGAR DIRECCIÓN EXTRA O ENVÍO A TERCERO CON MAPA */}
+              {showAddAddressForm && (
+                <div style={{
+                  background: '#fdfbf7',
+                  border: '1.5px dashed var(--golden-orange)',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h4 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '0.96rem', fontWeight: 800 }}>
+                      ➕ Agregar Nueva Dirección o Envío a Tercero
+                    </h4>
+                    <span style={{ fontSize: '0.74rem', color: '#78350f', background: '#fef3c7', padding: '2px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                      Con Mapa Interactivo
+                    </span>
+                  </div>
+
+                  {/* Preajustes rápidos de Alias */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#4b5563', marginBottom: '4px', display: 'block' }}>
+                      Identificador de la dirección (Alias):
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                      {['🏠 Casa', '🏢 Oficina', '🎁 Mamá', '❤️ Pareja', '📍 Otra'].map(sug => {
+                        const limpio = sug.replace(/^[^\s]+\s/, '');
+                        return (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => setNewAlias(limpio)}
+                            style={{
+                              background: newAlias === limpio ? 'var(--dark-amaranth)' : '#ffffff',
+                              color: newAlias === limpio ? '#ffffff' : '#374151',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '8px',
+                              padding: '3px 8px',
+                              fontSize: '0.76rem',
+                              cursor: 'pointer',
+                              fontWeight: 700
+                            }}
+                          >
+                            {sug}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      value={newAlias}
+                      onChange={e => setNewAlias(e.target.value)}
+                      placeholder="Ej: Apartamento Playa, Casa de la Abuela..."
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  {/* Opción de Envío a Tercero */}
+                  <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '10px', marginBottom: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 700, fontSize: '0.84rem', color: '#1f2937' }}>
+                      <input
+                        type="checkbox"
+                        checked={isThirdParty}
+                        onChange={e => setIsThirdParty(e.target.checked)}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span>🎁 Esta dirección es para un tercero (otra persona la recibirá)</span>
+                    </label>
+
+                    {isThirdParty && (
+                      <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.76rem' }}>Nombre del Destinatario:</label>
+                          <input
+                            type="text"
+                            value={recipientName}
+                            onChange={e => setRecipientName(e.target.value)}
+                            placeholder="Ej: Carmen Gómez"
+                            style={{ fontSize: '0.85rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.76rem' }}>Teléfono Destinatario (WhatsApp):</label>
+                          <input
+                            type="tel"
+                            value={recipientPhone}
+                            onChange={e => setRecipientPhone(e.target.value)}
+                            placeholder="04141234567"
+                            style={{ fontSize: '0.85rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dirección escrita */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#4b5563', marginBottom: '4px', display: 'block' }}>
+                      Punto de referencia o dirección escrita:
+                    </label>
+                    <input
+                      type="text"
+                      value={newAddressText}
+                      onChange={e => setNewAddressText(e.target.value)}
+                      placeholder="Ej: Av. Francisco de Miranda, Edif. Centro Plaza, Torre B, Piso 5"
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  {/* Mapa Interactivo Leaflet con Pin Arrastrable */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ fontSize: '0.78rem', color: '#4b5563', marginBottom: '4px', display: 'block' }}>
+                      🗺️ Selecciona la ubicación exacta en el mapa:
+                    </label>
+                    <MapAddressPicker
+                      initialLat={parseFloat(localStorage.getItem('tropicalia_user_lat')) || 10.4950}
+                      initialLng={parseFloat(localStorage.getItem('tropicalia_user_lng')) || -66.8480}
+                      onLocationSelect={(coords) => setNewCoords(coords)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddAddressForm(false)}
+                      className="btn-secundario"
+                      style={{ padding: '7px 14px', fontSize: '0.82rem' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGuardarNuevaDireccion}
+                      className="btn-primario"
+                      disabled={savingAddress}
+                      style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800 }}
+                    >
+                      {savingAddress ? 'Guardando...' : '💾 Guardar y Usar Dirección'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* DISTANCIA Y TARIFA EXACTA AUTOMÁTICA (SIN INGRESO MANUAL DEL USUARIO) */}
               <div style={{
                 background: '#f8fafc',
@@ -562,7 +868,7 @@ export default function Checkout() {
               </div>
 
               <div>
-                <label>Dirección exacta / Punto de referencia:</label>
+                <label>Dirección exacta / Punto de referencia activo:</label>
                 <input
                   type="text"
                   value={direccion}

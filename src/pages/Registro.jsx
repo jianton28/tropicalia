@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/common/PasswordInput';
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -211,9 +212,8 @@ export default function Registro() {
             </div>
           </div>
 
-          <label>Contraseña segura:</label>
-          <input
-            type="password"
+          <PasswordInput
+            label="Contraseña segura:"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
