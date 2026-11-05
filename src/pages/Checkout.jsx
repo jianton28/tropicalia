@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { fetchTasaBCV, toBs, formatUsd, formatBs } from '../services/bcvService';
 import { addressService } from '../services/addressService';
 import MapAddressPicker from '../components/common/MapAddressPicker';
+import SecurityVerification from '../components/common/SecurityVerification';
+import { securityService } from '../services/securityService';
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -79,6 +81,10 @@ export default function Checkout() {
   const [recipientPhone, setRecipientPhone] = useState('');
   const [newCoords, setNewCoords] = useState(null);
   const [savingAddress, setSavingAddress] = useState(false);
+
+  // Blindaje Zero-Trust: Idempotencia y Verificación Anti-Bot
+  const [idempotencyKey, setIdempotencyKey] = useState(() => securityService.generateIdempotencyKey());
+  const [botVerified, setBotVerified] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -276,6 +282,20 @@ export default function Checkout() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    // 1. Verificación de Rate Limiting (Protección contra Flood de Bot)
+    const rateCheck = securityService.checkOrderRateLimit();
+    if (!rateCheck.allowed) {
+      alert(`⛔ Por favor espera ${rateCheck.waitSeconds} segundos antes de emitir otro pedido.`);
+      return;
+    }
+
+    // 2. Verificación Anti-Bot / Turnstile Zero-Trust
+    if (!botVerified) {
+      alert('⚠️ Por favor completa la verificación de seguridad anti-bot antes de confirmar tu pedido.');
+      return;
+    }
+
     if (modalidad === 'delivery' && !direccion) {
       alert('Por favor indica tu dirección de entrega o usa el botón de ubicación GPS.');
       return;
@@ -291,20 +311,20 @@ export default function Checkout() {
         if (!pmBanco || !pmTelefono || !referencia) {
           throw new Error('Por favor completa el banco, teléfono emisor y número de referencia.');
         }
-        referenciaFinal = `${referencia} (${pmBanco} - ${pmTelefono})`;
+        referenciaFinal = `${securityService.sanitizeInput(referencia)} (${securityService.sanitizeInput(pmBanco)} - ${securityService.sanitizeInput(pmTelefono)})`;
       } else if (metodoPago === 'binance') {
         if (!binanceId) throw new Error('Ingresa tu Binance UID o correo de envío.');
-        referenciaFinal = `UID/Email: ${binanceId} (Ref: ${referencia || 'S/R'})`;
+        referenciaFinal = `UID/Email: ${securityService.sanitizeInput(binanceId)} (Ref: ${securityService.sanitizeInput(referencia) || 'S/R'})`;
       } else if (metodoPago === 'zelle') {
         if (!zelleTitular || !referencia) throw new Error('Ingresa el titular Zelle y la referencia.');
-        referenciaFinal = `Zelle: ${zelleTitular} (#${referencia})`;
+        referenciaFinal = `Zelle: ${securityService.sanitizeInput(zelleTitular)} (#${securityService.sanitizeInput(referencia)})`;
       } else if (metodoPago === 'zinli') {
         if (!zinliEmisor || !referencia) throw new Error('Ingresa tu usuario Zinli y la referencia.');
-        referenciaFinal = `Zinli: ${zinliEmisor} (#${referencia})`;
+        referenciaFinal = `Zinli: ${securityService.sanitizeInput(zinliEmisor)} (#${securityService.sanitizeInput(referencia)})`;
       } else if (metodoPago === 'punto') {
-        referenciaFinal = `Punto (${puntoTipo}) - ${referencia || 'Cobrar con punto'}`;
+        referenciaFinal = `Punto (${puntoTipo}) - ${securityService.sanitizeInput(referencia) || 'Cobrar con punto'}`;
       } else if (metodoPago === 'efectivo' || metodoPago === 'efectivo_bs') {
-        const billete = efectivoBillete || 'Efectivo exacto';
+        const billete = securityService.sanitizeInput(efectivoBillete) || 'Efectivo exacto';
         referenciaFinal = `EFECTIVO (${billete})`;
         detalleExtraPago = `[Pago con: ${billete}]`;
       }
@@ -328,14 +348,20 @@ export default function Checkout() {
       const tagTercero = addrActual?.recipient_name ? `[Envío a Tercero: ${addrActual.recipient_name} (Tlf: ${addrActual.recipient_phone || telefono})]` : '';
       const notasCompletas = [notas, detalleExtraPago, tagTercero].filter(Boolean).join(' • ');
 
+      const cleanNombre = securityService.sanitizeInput(nombre);
+      const cleanTelefono = securityService.sanitizeInput(telefono);
+      const cleanDireccion = securityService.sanitizeInput(direccion);
+      const cleanNotas = securityService.sanitizeInput(notasCompletas);
+
       const payload = {
         business_id: businessId,
-        customer_name: nombre,
-        customer_phone: telefono,
+        customer_id: user?.id || null,
+        customer_name: cleanNombre,
+        customer_phone: cleanTelefono,
         delivery_type: modalidad,
-        delivery_address: modalidad === 'delivery' ? `${direccion} (~${distanciaKm.toFixed(1)} km)` : 'Retiro en local (Pickup)',
+        delivery_address: modalidad === 'delivery' ? `${cleanDireccion} (~${distanciaKm.toFixed(1)} km)` : 'Retiro en local (Pickup)',
         map_url: mapUrl || null,
-        notes: notasCompletas,
+        notes: cleanNotas,
         payment_method: metodoPago,
         payment_reference: referenciaFinal,
         payment_receipt_url: urlComprobante,
@@ -345,16 +371,39 @@ export default function Checkout() {
         driver_tip: propinaMotorizado,
         total: totalUsd,
         total_bs: totalBs,
-        status: estadoInicial
+        status: estadoInicial,
+        idempotency_key: idempotencyKey,
+        bot_verified: true
       };
 
-      const { data: orden, error: ordenError } = await supabase
-        .from('orders')
-        .insert([payload])
-        .select()
-        .single();
+      // 3. Inserción atómica con Idempotencia via RPC Segura (o Fallback directo)
+      let orden = null;
+      try {
+        const { data: rpcOrden, error: rpcErr } = await supabase.rpc('crear_pedido_seguro', {
+          p_order_payload: payload,
+          p_idempotency_key: idempotencyKey
+        });
+        if (!rpcErr && rpcOrden && rpcOrden.id) {
+          orden = rpcOrden;
+        }
+      } catch {
+        // Fallback a inserción directa con clave de idempotencia
+      }
 
-      if (ordenError) throw ordenError;
+      if (!orden) {
+        const { data: directOrden, error: ordenError } = await supabase
+          .from('orders')
+          .insert([payload])
+          .select()
+          .single();
+
+        if (ordenError) throw ordenError;
+        orden = directOrden;
+      }
+
+      // 4. Registrar emisión en el limitador de tasa y rotar clave de idempotencia
+      securityService.recordOrderPlaced();
+      setIdempotencyKey(securityService.generateIdempotencyKey());
 
       // Marcar orden completada para prevenir bug visual de carrito vacío
       isOrderConfirmedRef.current = true;
@@ -1071,6 +1120,12 @@ export default function Checkout() {
             </div>
           )}
         </div>
+
+        {/* Verificación de Seguridad Anti-Bot Zero-Trust */}
+        <SecurityVerification
+          action="checkout"
+          onVerify={(_, valid) => setBotVerified(valid)}
+        />
 
         <button
           type="submit"

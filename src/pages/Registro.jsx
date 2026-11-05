@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/common/PasswordInput';
+import SecurityVerification from '../components/common/SecurityVerification';
+import { securityService } from '../services/securityService';
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ export default function Registro() {
   const [tycAccepted, setTycAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [botVerified, setBotVerified] = useState(false);
 
   async function uploadRecaudo(file, folder) {
     if (!file) return null;
@@ -49,14 +52,33 @@ export default function Registro() {
       return;
     }
 
+    if (!botVerified) {
+      setErrorMsg('⚠️ Por favor completa la verificación de seguridad anti-bot antes de registrarte.');
+      return;
+    }
+
+    const cleanEmail = securityService.sanitizeInput(email);
+    const cleanNombre = securityService.sanitizeInput(nombre);
+    const cleanTelefono = securityService.sanitizeInput(telefono);
+
+    if (!securityService.validateEmail(cleanEmail)) {
+      setErrorMsg('Por favor ingresa un correo electrónico con formato válido.');
+      return;
+    }
+
+    if (!securityService.validatePhoneVE(cleanTelefono)) {
+      setErrorMsg('Por favor ingresa un número de teléfono válido (WhatsApp activo).');
+      return;
+    }
+
     setSubmitting(true);
     setErrorMsg('');
 
     try {
-      const authData = await signUp(email.trim(), password, {
+      const authData = await signUp(cleanEmail, password, {
         role: rol,
-        full_name: nombre.trim(),
-        phone: telefono.trim(),
+        full_name: cleanNombre,
+        phone: cleanTelefono,
       });
 
       const userId = authData.user?.id;
@@ -64,8 +86,8 @@ export default function Registro() {
       if (rol === 'client' && userId) {
         await supabase.from('client_profiles').upsert([{
           id: userId,
-          full_name: nombre.trim(),
-          phone: telefono.trim(),
+          full_name: cleanNombre,
+          phone: cleanTelefono,
           terms_accepted: true,
         }]);
         alert('¡Cuenta de cliente creada con éxito!');
@@ -76,9 +98,9 @@ export default function Registro() {
           .from('businesses')
           .insert([{
             owner_id: userId,
-            name: localNombre.trim() || `${nombre} Cocina`,
+            name: securityService.sanitizeInput(localNombre) || `${cleanNombre} Cocina`,
             category: localCategoria,
-            phone: telefono.trim(),
+            phone: cleanTelefono,
             is_active: true,
           }])
           .select()
@@ -348,6 +370,12 @@ export default function Registro() {
               {errorMsg}
             </div>
           )}
+
+          {/* Verificación de Seguridad Anti-Bot Zero-Trust */}
+          <SecurityVerification
+            action="signup"
+            onVerify={(_, valid) => setBotVerified(valid)}
+          />
 
           <button
             type="submit"

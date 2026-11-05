@@ -9,6 +9,8 @@ import { formatUsd, formatBs, toBs } from '../services/bcvService';
 import { getProductImageUrl } from '../services/imageService';
 import PasswordInput from '../components/common/PasswordInput';
 import MapAddressPicker from '../components/common/MapAddressPicker';
+import SecurityVerification from '../components/common/SecurityVerification';
+import { securityService } from '../services/securityService';
 
 export default function Portal() {
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ export default function Portal() {
   const [successBanner, setSuccessBanner] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(!user);
+  const [botVerified, setBotVerified] = useState(false);
 
   // Modales de información Figma: 'pedidos' | 'favoritos' | 'direcciones' | 'datos' | 'clave' | 'pagos' | 'soporte' | null
   const [modalType, setModalType] = useState(null);
@@ -180,17 +183,40 @@ export default function Portal() {
   async function handleLogin(e) {
     e.preventDefault();
     setErrorMsg('');
+
+    const cleanEmail = securityService.sanitizeInput(email);
+
+    // 1. Verificación de Rate Limiting (Protección contra fuerza bruta)
+    const rlCheck = securityService.checkLoginRateLimit(cleanEmail);
+    if (rlCheck.blocked) {
+      setErrorMsg(`⛔ Has superado el límite de intentos permitidos. Por seguridad, tu acceso está temporalmente pausado. Intenta de nuevo en ${rlCheck.remainingSeconds} segundos.`);
+      return;
+    }
+
+    // 2. Verificación Anti-Bot / Turnstile
+    if (!botVerified) {
+      setErrorMsg('⚠️ Por favor completa la verificación de seguridad anti-bot antes de ingresar.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await signIn(email.trim(), password);
+      const res = await signIn(cleanEmail, password);
+      securityService.resetLoginAttempts(cleanEmail);
       setLoading(false);
       setShowAuthForm(false);
       if (res.role === 'restaurant') navigate('/cocina');
       else if (res.role === 'delivery') navigate('/delivery');
       else if (res.role === 'admin') navigate('/admin');
     } catch (err) {
-      setErrorMsg('Error al iniciar sesión: ' + err.message);
+      securityService.recordFailedLoginAttempt(cleanEmail);
+      const postCheck = securityService.checkLoginRateLimit(cleanEmail);
+      if (postCheck.blocked) {
+        setErrorMsg('⛔ 5 intentos fallidos alcanzados. Acceso bloqueado por 15 minutos para prevenir ataques de fuerza bruta.');
+      } else {
+        setErrorMsg(`Credenciales inválidas: ${err.message}. Intentos restantes: ${postCheck.attemptsLeft}`);
+      }
       setLoading(false);
     }
   }
@@ -413,6 +439,12 @@ export default function Portal() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Contraseña"
                 required
+              />
+
+              {/* Verificación de Seguridad Anti-Bot Zero-Trust */}
+              <SecurityVerification
+                action="login"
+                onVerify={(_, isValid) => setBotVerified(isValid)}
               />
 
               <button

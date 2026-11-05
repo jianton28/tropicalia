@@ -95,6 +95,30 @@ export async function procesarBalanceCompletado({ orden, driverId }) {
   const esPagoMovil = ['pago_movil', 'binance', 'zelle', 'zinli', 'punto'].includes(orden.payment_method);
   const fleteGanado = parseFloat(orden.delivery_fee || (orden.delivery_type === 'delivery' ? FLETE_BASE_DEFAULT : 0)) + parseFloat(orden.driver_tip || 0);
 
+  // 0. LIQUIDACIÓN ATÓMICA EN POSTGRESQL VIA RPC SEGURA (SECURITY DEFINER ZERO-TRUST)
+  if (driverId) {
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('procesar_balance_completado_seguro', {
+        p_order_id: orden.id,
+        p_driver_id: driverId
+      });
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        return {
+          exito: true,
+          wallet: {
+            cash_debt: rpcRes.cash_debt,
+            prepaid_balance: rpcRes.prepaid_balance,
+            is_blocked: rpcRes.is_blocked
+          },
+          tipo: esEfectivo ? 'efectivo' : 'digital',
+          modoSeguro: 'RPC_SECURITY_DEFINER'
+        };
+      }
+    } catch {
+      // Fallback suave a liquidación cliente en caso de que la RPC no esté migrada en el host
+    }
+  }
+
   let walletActualizada = null;
 
   // -------------------------------------------------------------------------

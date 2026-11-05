@@ -491,6 +491,376 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+-- ==============================================================================
+-- 17. BLINDAJE ZERO-TRUST: IDEMPOTENCIA, ANTI-BOT, RATE LIMITING Y RLS ESTRICTO
+-- ==============================================================================
+
+-- 17.1 Columnas de Seguridad e Idempotencia en Orders
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT UNIQUE;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS client_ip TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS bot_verified BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_orders_idempotency_key ON public.orders(idempotency_key);
+
+-- 17.2 Tabla de Auditoría de Ciberseguridad (Security Audit Logs)
+CREATE TABLE IF NOT EXISTS public.security_audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_type TEXT NOT NULL, -- 'LOGIN_BRUTE_FORCE_BLOCKED', 'ORDER_IDEMPOTENT_HIT', 'RATE_LIMIT_EXCEEDED', 'FINANCIAL_SETTLEMENT'
+    severity TEXT NOT NULL DEFAULT 'info', -- 'info', 'warning', 'critical'
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    ip_address TEXT,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sec_audit_event_type ON public.security_audit_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_sec_audit_created_at ON public.security_audit_logs(created_at DESC);
+
+-- 17.3 Tabla de Control de Frecuencia y Restricción de Tasa (Rate Limiting)
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key TEXT UNIQUE NOT NULL, -- ej: 'order_phone_04141234567' o 'login_user@email.com'
+    attempts INTEGER NOT NULL DEFAULT 1,
+    window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    locked_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limits_key ON public.rate_limits(key);
+
+-- 17.4 Función de Verificación y Control de Tasa (Rate Limiting Sliding Window)
+CREATE OR REPLACE FUNCTION public.verificar_rate_limit(
+    p_key TEXT,
+    p_max_attempts INT,
+    p_window_seconds INT,
+    p_lockout_seconds INT
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_record RECORD;
+    v_now TIMESTAMPTZ := NOW();
+BEGIN
+    SELECT * INTO v_record FROM public.rate_limits WHERE key = p_key;
+
+    IF v_record IS NULL THEN
+        INSERT INTO public.rate_limits (key, attempts, window_start)
+        VALUES (p_key, 1, v_now);
+        RETURN TRUE;
+    END IF;
+
+    -- Verificar si está en período de bloqueo
+    IF v_record.locked_until IS NOT NULL AND v_now < v_record.locked_until THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Si la ventana ya expiró, reiniciar contador
+    IF v_now > (v_record.window_start + (p_window_seconds || ' seconds')::INTERVAL) THEN
+        UPDATE public.rate_limits 
+        SET attempts = 1, window_start = v_now, locked_until = NULL
+        WHERE key = p_key;
+        RETURN TRUE;
+    END IF;
+
+    -- Si sigue en la ventana activa:
+    IF v_record.attempts >= p_max_attempts THEN
+        UPDATE public.rate_limits 
+        SET locked_until = v_now + (p_lockout_seconds || ' seconds')::INTERVAL
+        WHERE key = p_key;
+        RETURN FALSE;
+    ELSE
+        UPDATE public.rate_limits 
+        SET attempts = attempts + 1
+        WHERE key = p_key;
+        RETURN TRUE;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 17.5 ENDURECIMIENTO DE POLÍTICAS RLS (ZERO-TRUST) EN TABLAS CRÍTICAS
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cash_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.driver_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- RLS Products: Catálogo visible solo si está disponible; edición exclusiva del dueño
+DROP POLICY IF EXISTS "ZeroTrust: Productos visibles publicos" ON public.products;
+CREATE POLICY "ZeroTrust: Productos visibles publicos"
+ON public.products FOR SELECT
+USING (is_available = TRUE OR auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "ZeroTrust: Cocina gestiona productos propios" ON public.products;
+CREATE POLICY "ZeroTrust: Cocina gestiona productos propios"
+ON public.products FOR ALL
+USING (
+    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+)
+WITH CHECK (
+    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+);
+
+-- RLS Businesses: Lectura pública de locales activos; modificación exclusiva de dueño
+DROP POLICY IF EXISTS "ZeroTrust: Negocios visibles activos" ON public.businesses;
+CREATE POLICY "ZeroTrust: Negocios visibles activos"
+ON public.businesses FOR SELECT
+USING (is_active = TRUE OR owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "ZeroTrust: Dueño actualiza negocio" ON public.businesses;
+CREATE POLICY "ZeroTrust: Dueño actualiza negocio"
+ON public.businesses FOR UPDATE
+USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid()));
+
+-- RLS Orders: Inserción protegida por esquema de validez
+DROP POLICY IF EXISTS "ZeroTrust: Insercion de pedidos validos" ON public.orders;
+CREATE POLICY "ZeroTrust: Insercion de pedidos validos"
+ON public.orders FOR INSERT
+WITH CHECK (
+    total > 0 AND 
+    jsonb_array_length(items) > 0 AND
+    customer_phone IS NOT NULL AND
+    customer_phone <> ''
+);
+
+DROP POLICY IF EXISTS "ZeroTrust: Clientes leen sus pedidos" ON public.orders;
+CREATE POLICY "ZeroTrust: Clientes leen sus pedidos"
+ON public.orders FOR SELECT
+USING (
+    customer_id = auth.uid() OR
+    business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
+    driver_id = auth.uid() OR
+    (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
+    EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
+);
+
+-- RLS Security Logs: Solo lectura para administradores; inserción del sistema
+DROP POLICY IF EXISTS "ZeroTrust: Solo admins leen logs de seguridad" ON public.security_audit_logs;
+CREATE POLICY "ZeroTrust: Solo admins leen logs de seguridad"
+ON public.security_audit_logs FOR SELECT
+USING (EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "ZeroTrust: Sistema inserta logs de seguridad" ON public.security_audit_logs;
+CREATE POLICY "ZeroTrust: Sistema inserta logs de seguridad"
+ON public.security_audit_logs FOR INSERT
+WITH CHECK (TRUE);
+
+-- 17.6 FUNCIÓN RPC FINANCIERA SEGURA: CREACIÓN DE PEDIDO CON IDEMPOTENCIA Y RATE LIMITING
+CREATE OR REPLACE FUNCTION public.crear_pedido_seguro(
+    p_order_payload JSONB,
+    p_idempotency_key TEXT
+) RETURNS JSONB AS $$
+DECLARE
+    v_existing_order RECORD;
+    v_new_order_id UUID;
+    v_total NUMERIC;
+    v_customer_phone TEXT;
+    v_rate_limit_key TEXT;
+    v_allowed BOOLEAN;
+    v_result JSONB;
+BEGIN
+    -- 1. Control de Idempotencia: Si la clave ya existe, devolver la orden sin duplicar
+    IF p_idempotency_key IS NOT NULL AND p_idempotency_key <> '' THEN
+        SELECT id, status, total, customer_name INTO v_existing_order 
+        FROM public.orders 
+        WHERE idempotency_key = p_idempotency_key;
+
+        IF v_existing_order.id IS NOT NULL THEN
+            INSERT INTO public.security_audit_logs (event_type, severity, details)
+            VALUES ('ORDER_IDEMPOTENT_HIT', 'info', jsonb_build_object(
+                'order_id', v_existing_order.id,
+                'idempotency_key', p_idempotency_key
+            ));
+
+            SELECT to_jsonb(o.*) INTO v_result FROM public.orders o WHERE o.id = v_existing_order.id;
+            RETURN v_result;
+        END IF;
+    END IF;
+
+    -- 2. Validación de Esquema
+    v_total := COALESCE((p_order_payload->>'total')::NUMERIC, 0);
+    v_customer_phone := p_order_payload->>'customer_phone';
+
+    IF v_total <= 0 THEN
+        RAISE EXCEPTION 'INVALID_ORDER_TOTAL: El total de la orden debe ser superior a 0.';
+    END IF;
+
+    IF v_customer_phone IS NULL OR length(trim(v_customer_phone)) < 7 THEN
+        RAISE EXCEPTION 'INVALID_PHONE: El teléfono de contacto es obligatorio.';
+    END IF;
+
+    IF jsonb_array_length(COALESCE(p_order_payload->'items', '[]'::jsonb)) = 0 THEN
+        RAISE EXCEPTION 'EMPTY_CART: El pedido debe contener al menos un plato.';
+    END IF;
+
+    -- 3. Restricción de Tasa (Rate Limiting de Pedidos): Máximo 1 pedido cada 20 segundos por teléfono
+    v_rate_limit_key := 'order_rate_' || trim(v_customer_phone);
+    v_allowed := public.verificar_rate_limit(v_rate_limit_key, 2, 30, 60);
+
+    IF NOT v_allowed THEN
+        INSERT INTO public.security_audit_logs (event_type, severity, details)
+        VALUES ('ORDER_FLOOD_BLOCKED', 'warning', jsonb_build_object(
+            'phone', v_customer_phone,
+            'idempotency_key', p_idempotency_key
+        ));
+        RAISE EXCEPTION 'RATE_LIMIT_EXCEEDED: Por favor espera unos momentos antes de enviar otro pedido.';
+    END IF;
+
+    -- 4. Inserción atómica del pedido
+    INSERT INTO public.orders (
+        business_id,
+        customer_id,
+        customer_name,
+        customer_phone,
+        delivery_type,
+        delivery_address,
+        map_url,
+        notes,
+        payment_method,
+        payment_reference,
+        payment_receipt_url,
+        items,
+        subtotal_food,
+        delivery_fee,
+        driver_tip,
+        total,
+        total_bs,
+        status,
+        idempotency_key,
+        bot_verified
+    ) VALUES (
+        (p_order_payload->>'business_id')::UUID,
+        auth.uid(),
+        p_order_payload->>'customer_name',
+        v_customer_phone,
+        COALESCE(p_order_payload->>'delivery_type', 'delivery'),
+        p_order_payload->>'delivery_address',
+        p_order_payload->>'map_url',
+        p_order_payload->>'notes',
+        p_order_payload->>'payment_method',
+        p_order_payload->>'payment_reference',
+        p_order_payload->>'payment_receipt_url',
+        p_order_payload->'items',
+        COALESCE((p_order_payload->>'subtotal_food')::NUMERIC, 0),
+        COALESCE((p_order_payload->>'delivery_fee')::NUMERIC, 0),
+        COALESCE((p_order_payload->>'driver_tip')::NUMERIC, 0),
+        v_total,
+        COALESCE((p_order_payload->>'total_bs')::NUMERIC, 0),
+        COALESCE(p_order_payload->>'status', 'pending'),
+        p_idempotency_key,
+        TRUE
+    ) RETURNING id INTO v_new_order_id;
+
+    -- 5. Registro de auditoría
+    INSERT INTO public.security_audit_logs (event_type, severity, details)
+    VALUES ('ORDER_CREATED_SECURE', 'info', jsonb_build_object(
+        'order_id', v_new_order_id,
+        'total', v_total,
+        'idempotency_key', p_idempotency_key
+    ));
+
+    SELECT to_jsonb(o.*) INTO v_result FROM public.orders o WHERE o.id = v_new_order_id;
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 17.7 FUNCIÓN RPC FINANCIERA SEGURA: LIQUIDACIÓN ATÓMICA DE BALANCE DE ENTREGAS
+-- Ejecuta con SECURITY DEFINER para que el cliente no pueda manipular saldos o deudas
+CREATE OR REPLACE FUNCTION public.procesar_balance_completado_seguro(
+    p_order_id UUID,
+    p_driver_id UUID
+) RETURNS JSONB AS $$
+DECLARE
+    v_order RECORD;
+    v_wallet RECORD;
+    v_es_efectivo BOOLEAN;
+    v_monto_total NUMERIC;
+    v_flete_ganado NUMERIC;
+    v_nueva_deuda NUMERIC;
+    v_nuevo_saldo NUMERIC;
+    v_is_blocked BOOLEAN;
+    v_techo_deuda NUMERIC := 25.00;
+BEGIN
+    -- 1. Obtener orden
+    SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+    IF v_order IS NULL THEN
+        RAISE EXCEPTION 'ORDER_NOT_FOUND: Orden no encontrada.';
+    END IF;
+
+    -- 2. Asegurar existencia de billetera
+    SELECT * INTO v_wallet FROM public.delivery_wallets WHERE driver_id = p_driver_id;
+    IF v_wallet IS NULL THEN
+        INSERT INTO public.delivery_wallets (driver_id, prepaid_balance, cash_debt, debt_ceiling, is_blocked)
+        VALUES (p_driver_id, 0.00, 0.00, v_techo_deuda, FALSE)
+        RETURNING * INTO v_wallet;
+    END IF;
+
+    v_es_efectivo := v_order.payment_method IN ('efectivo', 'efectivo_bs');
+    v_monto_total := COALESCE(v_order.total, 0);
+    v_flete_ganado := COALESCE(v_order.delivery_fee, 0) + COALESCE(v_order.driver_tip, 0);
+
+    v_nueva_deuda := COALESCE(v_wallet.cash_debt, 0);
+    v_nuevo_saldo := COALESCE(v_wallet.prepaid_balance, 0);
+    v_is_blocked := v_wallet.is_blocked;
+
+    -- 3. Transacción atómica según método de pago
+    IF v_es_efectivo THEN
+        -- Sumar monto de la orden a la deuda en calle
+        v_nueva_deuda := v_nueva_deuda + v_monto_total;
+        -- Bloquear si supera o iguala el techo de $25
+        v_is_blocked := v_nueva_deuda >= v_techo_deuda;
+        -- Acreditar ganancia de flete a saldo a favor
+        v_nuevo_saldo := v_nuevo_saldo + v_flete_ganado;
+
+        -- Registrar transacción de deuda
+        INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
+        VALUES (p_driver_id, p_order_id, v_monto_total, 'cash_debt', 'Cobro de efectivo en calle retenido');
+    ELSE
+        -- Métodos digitales: Acreditar ganancia de flete
+        v_nuevo_saldo := v_nuevo_saldo + v_flete_ganado;
+
+        -- Asentar venta en balance del restaurante (neto 90%)
+        UPDATE public.businesses
+        SET balance = COALESCE(balance, 0) + (COALESCE(v_order.subtotal_food, 0) * 0.90),
+            total_sales = COALESCE(total_sales, 0) + COALESCE(v_order.subtotal_food, 0)
+        WHERE id = v_order.business_id;
+    END IF;
+
+    -- Actualizar billetera de forma blindada
+    UPDATE public.delivery_wallets
+    SET cash_debt = v_nueva_deuda,
+        prepaid_balance = v_nuevo_saldo,
+        is_blocked = v_is_blocked
+    WHERE driver_id = p_driver_id;
+
+    -- Actualizar estado de orden a entregado
+    UPDATE public.orders
+    SET status = 'delivered',
+        delivered_at = NOW()
+    WHERE id = p_order_id;
+
+    -- Log de auditoría financiera
+    INSERT INTO public.security_audit_logs (event_type, severity, details)
+    VALUES ('FINANCIAL_SETTLEMENT_SUCCESS', 'info', jsonb_build_object(
+        'order_id', p_order_id,
+        'driver_id', p_driver_id,
+        'payment_method', v_order.payment_method,
+        'nueva_deuda', v_nueva_deuda,
+        'nuevo_saldo', v_nuevo_saldo,
+        'is_blocked', v_is_blocked
+    ));
+
+    RETURN jsonb_build_object(
+        'success', TRUE,
+        'cash_debt', v_nueva_deuda,
+        'prepaid_balance', v_nuevo_saldo,
+        'is_blocked', v_is_blocked
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 
 
 

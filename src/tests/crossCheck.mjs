@@ -14,6 +14,7 @@ import {
 
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
 import { semanticSearchService, normalizarTexto } from '../services/semanticSearchService.js';
+import { securityService } from '../services/securityService.js';
 
 let passed = 0;
 let failed = 0;
@@ -171,6 +172,57 @@ for (let i = 0; i < 100; i++) {
 }
 const tTotal = performance.now() - tInicio;
 assert(tTotal < 50, `Rendimiento ultra-rápido: 100 consultas en ${tTotal.toFixed(2)}ms (promedio ${(tTotal / 100).toFixed(3)}ms/consulta)`);
+
+console.log('\n=== TEST 5: ZERO-TRUST CIBERSEGURIDAD, ANTI-BOT Y IDEMPOTENCIA ===');
+
+// 5.1 Clave de idempotencia única (UUID v4)
+const key1 = securityService.generateIdempotencyKey();
+const key2 = securityService.generateIdempotencyKey();
+assert(key1 !== key2, 'Genera claves de idempotencia únicas por transacción');
+assert(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key1), 'Clave de idempotencia cumple especificación RFC 4122 UUID v4');
+
+// 5.2 Sanitización de entradas (Prevención XSS / Inyección)
+const inputPeligroso = '<script>alert("xss")</script>Carlos Ruiz <img src=x onerror=alert(1)>';
+const saneado = securityService.sanitizeInput(inputPeligroso);
+assert(!saneado.includes('<script>') && !saneado.includes('onerror'), 'Sanitización remueve tags HTML y manejadores onerror');
+assert(saneado.includes('Carlos Ruiz'), 'Sanitización preserva texto legítimo del usuario');
+
+// 5.3 Validación de teléfono y correo
+assert(securityService.validateEmail('cliente@tropicalia.com') === true, 'Email válido aceptado');
+assert(securityService.validateEmail('invalido@@email') === false, 'Email inválido rechazado');
+assert(securityService.validatePhoneVE('04141352503') === true, 'Teléfono móvil VE (0414) válido');
+assert(securityService.validatePhoneVE('584241234567') === true, 'Teléfono VE formato internacional válido');
+assert(securityService.validatePhoneVE('123') === false, 'Teléfono truncado rechazado');
+
+// 5.4 Rate Limiting de Autenticación (Prevención de Fuerza Bruta)
+const testUser = 'hacker_test@tropicalia.com';
+securityService.resetLoginAttempts(testUser);
+
+assert(securityService.checkLoginRateLimit(testUser).blocked === false, 'Usuario nuevo no está bloqueado');
+assert(securityService.checkLoginRateLimit(testUser).attemptsLeft === 5, 'Cuenta inicia con 5 intentos disponibles');
+
+// Simular 4 intentos fallidos
+for (let i = 0; i < 4; i++) {
+  securityService.recordFailedLoginAttempt(testUser);
+}
+assert(securityService.checkLoginRateLimit(testUser).blocked === false, 'Con 4 intentos fallidos sigue sin bloquearse');
+assert(securityService.checkLoginRateLimit(testUser).attemptsLeft === 1, 'Queda exactamente 1 intento restante');
+
+// 5to intento fallido -> Bloqueo estricto
+securityService.recordFailedLoginAttempt(testUser);
+const lockCheck = securityService.checkLoginRateLimit(testUser);
+assert(lockCheck.blocked === true, 'Al 5to intento fallido se activa bloqueo por fuerza bruta');
+assert(lockCheck.remainingSeconds > 0, 'Informa segundos restantes de bloqueo');
+
+// Desbloqueo tras login exitoso
+securityService.resetLoginAttempts(testUser);
+assert(securityService.checkLoginRateLimit(testUser).blocked === false, 'Restablecimiento exitoso tras autenticación legítima');
+
+// 5.5 Rate Limiting de Pedidos (Protección contra Bombardeo)
+securityService.recordOrderPlaced();
+const orderLimit = securityService.checkOrderRateLimit();
+assert(orderLimit.allowed === false, 'Bloquea órdenes inmediatas consecutivas (< 30s)');
+assert(orderLimit.waitSeconds > 0 && orderLimit.waitSeconds <= 30, 'Calcula ventana de enfriamiento de 30 segundos');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);
