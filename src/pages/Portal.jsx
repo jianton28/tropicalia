@@ -22,7 +22,9 @@ export default function Portal() {
     signOut,
     updateUserProfile,
     requestPasswordChange,
-    applyPendingPasswordUpdate
+    applyPendingPasswordUpdate,
+    sendPasswordResetEmail,
+    resendVerificationEmail
   } = useAuth();
   const { addItem } = useCart();
 
@@ -34,6 +36,19 @@ export default function Portal() {
   const [loading, setLoading] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(!user);
   const [botVerified, setBotVerified] = useState(false);
+
+  // Estados para recuperación de contraseña y reenvío de confirmación
+  const [authRecoveryMode, setAuthRecoveryMode] = useState(null); // null | 'forgot_password' | 'resend_confirm'
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryMsg, setRecoveryMsg] = useState('');
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+
+  // Modal de restablecimiento de contraseña (cuando llega del enlace de correo)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [recoveryNewPwd, setRecoveryNewPwd] = useState('');
+  const [recoveryConfirmPwd, setRecoveryConfirmPwd] = useState('');
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [recoveryFeedback, setRecoveryFeedback] = useState('');
 
   // Modales de información Figma: 'pedidos' | 'favoritos' | 'direcciones' | 'datos' | 'clave' | 'pagos' | 'soporte' | null
   const [modalType, setModalType] = useState(null);
@@ -74,7 +89,7 @@ export default function Portal() {
   const [pwdFeedback, setPwdFeedback] = useState('');
   const [pwdSubmitting, setPwdSubmitting] = useState(false);
 
-  // Detectar confirmación automática de contraseña por correo
+  // Detectar confirmación automática de contraseña por correo o evento de recuperación
   useEffect(() => {
     if (searchParams.get('verify_pwd_update') === '1') {
       applyPendingPasswordUpdate()
@@ -87,6 +102,17 @@ export default function Portal() {
           setErrorMsg('Error al aplicar nueva contraseña: ' + err.message);
         });
     }
+
+    // Detectar enlace de restablecimiento de contraseña
+    if (searchParams.get('reset_pwd') === '1' || (typeof window !== 'undefined' && window.location.hash?.includes('type=recovery'))) {
+      setShowResetModal(true);
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowResetModal(true);
+      }
+    });
 
     const lastId = localStorage.getItem('tropicalia_last_order_id');
     if (lastId) {
@@ -112,6 +138,10 @@ export default function Portal() {
       addressService.syncWithSupabase(user.id).then(res => setDirecciones(res));
       favoritesService.syncWithSupabase(user.id);
     }
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, [searchParams, user]);
 
   useEffect(() => {
@@ -218,6 +248,85 @@ export default function Portal() {
         setErrorMsg(`Credenciales inválidas: ${err.message}. Intentos restantes: ${postCheck.attemptsLeft}`);
       }
       setLoading(false);
+    }
+  }
+
+  // Envío oficial de correo de recuperación de contraseña apuntando a producción
+  async function handleSendPasswordReset(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetEmail = (recoveryEmail.trim() || email.trim()).toLowerCase();
+    if (!targetEmail) {
+      setRecoveryMsg('⚠️ Por favor ingresa tu correo electrónico.');
+      return;
+    }
+    if (!securityService.validateEmail(targetEmail)) {
+      setRecoveryMsg('⚠️ Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryMsg('');
+    try {
+      await sendPasswordResetEmail(targetEmail);
+      setRecoveryMsg(`✅ ¡Enlace enviado! Revisa tu bandeja de entrada en ${targetEmail}. Al hacer clic en el enlace oficial de Tropicalia podrás ingresar tu nueva contraseña.`);
+    } catch (err) {
+      setRecoveryMsg(`❌ Error enviando enlace: ${err.message || 'Intenta de nuevo más tarde.'}`);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  }
+
+  // Reenvío de confirmación de registro
+  async function handleResendConfirmation(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetEmail = (recoveryEmail.trim() || email.trim()).toLowerCase();
+    if (!targetEmail) {
+      setRecoveryMsg('⚠️ Por favor ingresa tu correo electrónico.');
+      return;
+    }
+    if (!securityService.validateEmail(targetEmail)) {
+      setRecoveryMsg('⚠️ Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryMsg('');
+    try {
+      await resendVerificationEmail(targetEmail);
+      setRecoveryMsg(`✅ ¡Correo reenviado con éxito! Revisa tu bandeja de entrada o spam en ${targetEmail}.`);
+    } catch (err) {
+      setRecoveryMsg(`❌ Error reenviando correo: ${err.message || 'Intenta de nuevo más tarde.'}`);
+    } finally {
+      setRecoveryLoading(false);
+    }
+  }
+
+  // Aplicación de nueva clave desde el enlace de restablecimiento
+  async function handleApplyRecoveryPassword(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!recoveryNewPwd || recoveryNewPwd.length < 6) {
+      setRecoveryFeedback('⚠️ La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (recoveryNewPwd !== recoveryConfirmPwd) {
+      setRecoveryFeedback('⚠️ Las contraseñas no coinciden.');
+      return;
+    }
+
+    setRecoverySubmitting(true);
+    setRecoveryFeedback('');
+    try {
+      const { error } = await supabase.auth.updateUser({ password: recoveryNewPwd });
+      if (error) throw error;
+      setSuccessBanner('🎉 ¡Tu contraseña ha sido restablecida exitosamente! Ya puedes usar tu nueva clave.');
+      setShowResetModal(false);
+      setRecoveryNewPwd('');
+      setRecoveryConfirmPwd('');
+      navigate('/portal', { replace: true });
+    } catch (err) {
+      setRecoveryFeedback(`❌ Error al actualizar contraseña: ${err.message}`);
+    } finally {
+      setRecoverySubmitting(false);
     }
   }
 
@@ -409,65 +518,313 @@ export default function Portal() {
       {/* FORMULARIO DE INICIO DE SESIÓN CON BOTÓN DE VISIBILIDAD DE MONO (🙈 / 🐵) */}
       {!user && showAuthForm && (
         <div style={{ padding: '20px' }}>
+          {authRecoveryMode === 'forgot_password' ? (
+            <div style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>🔑 Recuperar Contraseña</h3>
+                <button
+                  type="button"
+                  onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
+                Ingresa tu correo y te enviaremos un enlace oficial seguro para que restablezcas tu contraseña sin enlaces fallidos a localhost:3000.
+              </p>
+
+              <form onSubmit={handleSendPasswordReset}>
+                <div style={{ marginBottom: '12px' }}>
+                  <input
+                    type="email"
+                    className="form-input-figma"
+                    placeholder="Tu correo electrónico registrado"
+                    value={recoveryEmail}
+                    onChange={e => setRecoveryEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primario"
+                  style={{ width: '100%', padding: '12px' }}
+                  disabled={recoveryLoading}
+                >
+                  {recoveryLoading ? 'Enviando enlace...' : 'Enviar Enlace de Recuperación'}
+                </button>
+              </form>
+
+              {recoveryMsg && (
+                <div style={{
+                  background: recoveryMsg.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${recoveryMsg.startsWith('✅') ? '#10b981' : '#ef4444'}`,
+                  color: recoveryMsg.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.82rem',
+                  marginTop: '12px'
+                }}>
+                  {recoveryMsg}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '14px', paddingTop: '12px', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--dark-amaranth)', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ← Volver a Iniciar Sesión
+                </button>
+              </div>
+            </div>
+          ) : authRecoveryMode === 'resend_confirm' ? (
+            <div style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>📩 Reenviar Confirmación</h3>
+                <button
+                  type="button"
+                  onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
+                ¿No recibiste el correo de confirmación al registrarte? Ingresa tu correo para reenviar el enlace oficial de bienvenida.
+              </p>
+
+              <form onSubmit={handleResendConfirmation}>
+                <div style={{ marginBottom: '12px' }}>
+                  <input
+                    type="email"
+                    className="form-input-figma"
+                    placeholder="Tu correo registrado"
+                    value={recoveryEmail}
+                    onChange={e => setRecoveryEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primario"
+                  style={{ width: '100%', padding: '12px' }}
+                  disabled={recoveryLoading}
+                >
+                  {recoveryLoading ? 'Reenviando...' : 'Reenviar Correo de Confirmación'}
+                </button>
+              </form>
+
+              {recoveryMsg && (
+                <div style={{
+                  background: recoveryMsg.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${recoveryMsg.startsWith('✅') ? '#10b981' : '#ef4444'}`,
+                  color: recoveryMsg.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  fontSize: '0.82rem',
+                  marginTop: '12px'
+                }}>
+                  {recoveryMsg}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '14px', paddingTop: '12px', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--dark-amaranth)', fontSize: '0.84rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ← Volver a Iniciar Sesión
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+            }}>
+              <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)' }}>Iniciar Sesión</h3>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#6b7280' }}>
+                Accede a tu cuenta de cliente o perfil del personal.
+              </p>
+
+              <form onSubmit={handleLogin}>
+                <div style={{ marginBottom: '10px' }}>
+                  <input
+                    type="email"
+                    className="form-input-figma"
+                    placeholder="Correo electrónico"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Input interactivo con emoticón de mono 🙈 / 🐵 */}
+                <PasswordInput
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Contraseña"
+                  required
+                />
+
+                {/* Verificación de Seguridad Anti-Bot Zero-Trust */}
+                <SecurityVerification
+                  action="login"
+                  onVerify={(_, isValid) => setBotVerified(isValid)}
+                />
+
+                <button
+                  type="submit"
+                  className="btn-primario"
+                  style={{ width: '100%', padding: '12px', marginTop: '4px' }}
+                  disabled={loading}
+                >
+                  {loading ? 'Ingresando...' : 'Iniciar Sesión'}
+                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', fontSize: '0.78rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthRecoveryMode('forgot_password');
+                      setRecoveryEmail(email);
+                      setRecoveryMsg('');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthRecoveryMode('resend_confirm');
+                      setRecoveryEmail(email);
+                      setRecoveryMsg('');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                  >
+                    Reenviar confirmación
+                  </button>
+                </div>
+              </form>
+
+              {errorMsg && (
+                <div style={{ background: '#fee2e2', border: '1px solid #ef4444', color: '#b91c1c', padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', marginTop: '10px' }}>
+                  {errorMsg}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '14px', paddingTop: '12px', textAlign: 'center' }}>
+                <Link to="/registro" style={{ color: 'var(--dark-amaranth)', fontSize: '0.84rem', fontWeight: 700, textDecoration: 'none' }}>
+                  ¿No tienes cuenta? Regístrate aquí →
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL PARA RESTABLECER CONTRASEÑA TRAS ENLACE DE RECUPERACIÓN */}
+      {showResetModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
           <div style={{
-            background: '#f9fafb',
-            border: '1px solid #e5e7eb',
-            borderRadius: '20px',
-            padding: '20px',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            maxWidth: '440px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)'
           }}>
-            <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)' }}>Iniciar Sesión</h3>
-            <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#6b7280' }}>
-              Accede a tu cuenta de cliente o perfil del personal.
+            <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
+              🔐 Establecer Nueva Contraseña
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
+              Has accedido mediante un enlace oficial de recuperación. Por favor ingresa tu nueva contraseña para actualizarla en Supabase.
             </p>
 
-            <form onSubmit={handleLogin}>
+            <form onSubmit={handleApplyRecoveryPassword}>
               <div style={{ marginBottom: '10px' }}>
-                <input
-                  type="email"
-                  className="form-input-figma"
-                  placeholder="Correo electrónico"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
+                <PasswordInput
+                  value={recoveryNewPwd}
+                  onChange={e => setRecoveryNewPwd(e.target.value)}
+                  placeholder="Nueva contraseña (mínimo 6 caracteres)"
+                  required
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <PasswordInput
+                  value={recoveryConfirmPwd}
+                  onChange={e => setRecoveryConfirmPwd(e.target.value)}
+                  placeholder="Confirmar nueva contraseña"
                   required
                 />
               </div>
 
-              {/* Input interactivo con emoticón de mono 🙈 / 🐵 */}
-              <PasswordInput
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Contraseña"
-                required
-              />
+              {recoveryFeedback && (
+                <div style={{
+                  background: recoveryFeedback.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${recoveryFeedback.startsWith('✅') ? '#10b981' : '#ef4444'}`,
+                  color: recoveryFeedback.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  fontSize: '0.8rem',
+                  marginBottom: '14px'
+                }}>
+                  {recoveryFeedback}
+                </div>
+              )}
 
-              {/* Verificación de Seguridad Anti-Bot Zero-Trust */}
-              <SecurityVerification
-                action="login"
-                onVerify={(_, isValid) => setBotVerified(isValid)}
-              />
-
-              <button
-                type="submit"
-                className="btn-primario"
-                style={{ width: '100%', padding: '12px', marginTop: '4px' }}
-                disabled={loading}
-              >
-                {loading ? 'Ingresando...' : 'Iniciar Sesión'}
-              </button>
-            </form>
-
-            {errorMsg && (
-              <div style={{ background: '#fee2e2', border: '1px solid #ef4444', color: '#b91c1c', padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', marginTop: '10px' }}>
-                {errorMsg}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-secundario"
+                  style={{ flex: 1, padding: '10px' }}
+                  onClick={() => setShowResetModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primario"
+                  style={{ flex: 1, padding: '10px' }}
+                  disabled={recoverySubmitting}
+                >
+                  {recoverySubmitting ? 'Guardando...' : 'Guardar Clave'}
+                </button>
               </div>
-            )}
-
-            <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '14px', paddingTop: '12px', textAlign: 'center' }}>
-              <Link to="/registro" style={{ color: 'var(--dark-amaranth)', fontSize: '0.84rem', fontWeight: 700, textDecoration: 'none' }}>
-                ¿No tienes cuenta? Regístrate aquí →
-              </Link>
-            </div>
+            </form>
           </div>
         </div>
       )}

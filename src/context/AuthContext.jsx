@@ -1,18 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { APP_PRODUCTION_URL, getAuthRedirectUrl } from '../services/authRedirect';
 
-export const APP_PRODUCTION_URL = 'https://tropicalia-rho.vercel.app';
-
-export function getAuthRedirectUrl(path = '/portal') {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    const origin = window.location.origin;
-    // Si no es el puerto de desarrollo local 3000 que causa fallas de redirección externa:
-    if (!origin.includes(':3000')) {
-      return `${origin}${path}`;
-    }
-  }
-  return `${APP_PRODUCTION_URL}${path}`;
-}
+export { APP_PRODUCTION_URL, getAuthRedirectUrl };
 
 const AuthContext = createContext(null);
 
@@ -246,8 +236,8 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem('tropicalia_pending_new_pwd', newPassword);
     }
 
-    // 3. Enviar correo de verificación obligatorio
-    const redirectUrl = `${APP_PRODUCTION_URL}/portal?verify_pwd_update=1`;
+    // 3. Enviar correo de verificación obligatorio garantizando URL oficial
+    const redirectUrl = getAuthRedirectUrl('/portal?verify_pwd_update=1');
     const { error: resetErr } = await supabase.auth.resetPasswordForEmail(user.email, {
       redirectTo: redirectUrl
     });
@@ -258,6 +248,58 @@ export function AuthProvider({ children }) {
       success: true,
       message: `Hemos enviado un correo de verificación a ${user.email}. Por favor confirma el enlace recibido para que tu nueva contraseña se active automáticamente en Supabase.`
     };
+  }
+
+  /**
+   * Recuperación de contraseña para usuarios con sesión cerrada (olvidaron clave).
+   * Envía enlace oficial de restablecimiento a production URL evitando localhost:3000.
+   */
+  async function sendPasswordResetEmail(emailToReset) {
+    if (!emailToReset || !emailToReset.trim()) {
+      throw new Error('Por favor ingresa tu correo electrónico.');
+    }
+    const cleanEmail = emailToReset.trim().toLowerCase();
+    const redirectUrl = getAuthRedirectUrl('/portal?reset_pwd=1');
+    const { data, error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: redirectUrl
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Autenticación con proveedores externos (Google, Apple, etc.) garantizando redirección oficial.
+   */
+  async function signInWithOAuth(provider = 'google', nextPath = '/portal') {
+    const redirectUrl = getAuthRedirectUrl(nextPath);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: redirectUrl
+      }
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Reenvío del correo de confirmación de cuenta en caso de que no haya llegado.
+   */
+  async function resendVerificationEmail(emailToResend) {
+    if (!emailToResend || !emailToResend.trim()) {
+      throw new Error('Por favor ingresa tu correo electrónico.');
+    }
+    const cleanEmail = emailToResend.trim().toLowerCase();
+    const redirectUrl = getAuthRedirectUrl('/portal');
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    });
+    if (error) throw error;
+    return data;
   }
 
   async function applyPendingPasswordUpdate(newPasswordOverride = null) {
@@ -282,6 +324,9 @@ export function AuthProvider({ children }) {
       signIn,
       signUp,
       signOut,
+      signInWithOAuth,
+      sendPasswordResetEmail,
+      resendVerificationEmail,
       refreshSession: initAuth,
       updateUserProfile,
       requestPasswordChange,

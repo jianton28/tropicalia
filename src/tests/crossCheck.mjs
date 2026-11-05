@@ -15,6 +15,11 @@ import {
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
 import { semanticSearchService, normalizarTexto } from '../services/semanticSearchService.js';
 import { securityService } from '../services/securityService.js';
+import {
+  APP_PRODUCTION_URL,
+  isLocalOrInternalOrigin,
+  getAuthRedirectUrl
+} from '../services/authRedirect.js';
 
 let passed = 0;
 let failed = 0;
@@ -223,6 +228,47 @@ securityService.recordOrderPlaced();
 const orderLimit = securityService.checkOrderRateLimit();
 assert(orderLimit.allowed === false, 'Bloquea órdenes inmediatas consecutivas (< 30s)');
 assert(orderLimit.waitSeconds > 0 && orderLimit.waitSeconds <= 30, 'Calcula ventana de enfriamiento de 30 segundos');
+
+console.log('\n=== TEST 6: SUPABASE AUTH REDIRECT URL & LOCALHOST:3000 PREVENTION ===');
+
+// 6.1 Constante de Producción Oficial
+assert(APP_PRODUCTION_URL === 'https://tropicalia-rho.vercel.app', 'APP_PRODUCTION_URL apunta a la URL oficial de Vercel');
+
+// 6.2 Detección de orígenes locales, móviles o internos
+assert(isLocalOrInternalOrigin('http://localhost:3000') === true, 'Detecta localhost:3000 como origen interno');
+assert(isLocalOrInternalOrigin('http://localhost:5173') === true, 'Detecta Vite dev (localhost:5173) como origen interno');
+assert(isLocalOrInternalOrigin('http://127.0.0.1:8080') === true, 'Detecta 127.0.0.1 como origen interno');
+assert(isLocalOrInternalOrigin('capacitor://localhost') === true, 'Detecta esquema Capacitor como origen interno');
+assert(isLocalOrInternalOrigin('file:///android_asset') === true, 'Detecta esquema file:// como origen interno');
+assert(isLocalOrInternalOrigin('https://tropicalia-rho.vercel.app') === false, 'Dominio oficial de Vercel es reconocido como producción');
+assert(isLocalOrInternalOrigin('https://tropicalia.lat') === false, 'Dominio propio de producción es reconocido como producción');
+
+// 6.3 Construcción segura de URLs de redirección para Auth
+const urlDefault = getAuthRedirectUrl();
+assert(urlDefault === 'https://tropicalia-rho.vercel.app/portal', 'Default redirect URL apunta a https://tropicalia-rho.vercel.app/portal');
+assert(!urlDefault.includes(':3000'), 'La URL de redirección jamás incluye el puerto 3000');
+assert(!urlDefault.includes('localhost'), 'La URL de redirección jamás incluye localhost en entornos no autorizados');
+
+// 6.4 Conmutación automática ante orígenes locales (Prevención estricta de localhost:3000)
+const urlDesde3000 = getAuthRedirectUrl('/portal', 'http://localhost:3000');
+assert(urlDesde3000 === 'https://tropicalia-rho.vercel.app/portal', 'Si el cliente está en localhost:3000, redirige a producción Vercel');
+
+const urlDesde5173 = getAuthRedirectUrl('/portal', 'http://localhost:5173');
+assert(urlDesde5173 === 'https://tropicalia-rho.vercel.app/portal', 'Si el cliente está en localhost:5173 (Vite), redirige a producción Vercel');
+
+const urlCapacitor = getAuthRedirectUrl('/portal', 'capacitor://localhost');
+assert(urlCapacitor === 'https://tropicalia-rho.vercel.app/portal', 'Si el cliente está en la app móvil Capacitor, redirige a producción Vercel');
+
+// 6.5 Rutas especializadas (cambio de clave y recuperación)
+const urlResetPwd = getAuthRedirectUrl('/portal?reset_pwd=1', 'http://localhost:5173');
+assert(urlResetPwd === 'https://tropicalia-rho.vercel.app/portal?reset_pwd=1', 'Enlace de reset_pwd apunta a producción Vercel');
+
+const urlVerifyPwd = getAuthRedirectUrl('/portal?verify_pwd_update=1', 'http://localhost:3000');
+assert(urlVerifyPwd === 'https://tropicalia-rho.vercel.app/portal?verify_pwd_update=1', 'Enlace de confirmación de clave apunta a producción Vercel');
+
+// 6.6 Preservación de dominio propio en producción pública
+const urlProd = getAuthRedirectUrl('/portal', 'https://tropicalia.lat');
+assert(urlProd === 'https://tropicalia.lat/portal', 'En dominio propio de producción preserva el host');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);
