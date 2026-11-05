@@ -516,17 +516,50 @@ export const semanticSearchService = {
     const terminosFiltro = sinonimos.slice(0, 4);
 
     try {
-      // Búsqueda cruzada de productos con negocios relacionados
-      let queryProds = supabase
-        .from('products')
-        .select('*, businesses(id, name, lat, lng, rating, rating_count, is_active)')
-        .eq('is_available', true);
-
-      // Aplicar filtros OR ilike
+      // Búsqueda cruzada de productos con negocios relacionados (con manejo de foreign key y fallback anti-400)
       const orFilters = terminosFiltro.map(t => `name.ilike.%${t}%,description.ilike.%${t}%,category.ilike.%${t}%`).join(',');
-      queryProds = queryProds.or(orFilters).limit(50);
+      
+      let productos = null;
+      let errProds = null;
 
-      const { data: productos, error: errProds } = await queryProds;
+      // Intento 1: Join con clave foránea explícita
+      try {
+        const { data: d1, error: e1 } = await supabase
+          .from('products')
+          .select('*, businesses!business_id(id, name, lat, lng, rating, rating_count, is_active)')
+          .eq('is_available', true)
+          .or(orFilters)
+          .limit(50);
+
+        if (!e1 && d1) {
+          productos = d1;
+        } else {
+          errProds = e1;
+        }
+      } catch (ex) {
+        errProds = ex;
+      }
+
+      // Intento 2: Join estándar si el anterior falló
+      if (!productos) {
+        try {
+          const { data: d2, error: e2 } = await supabase
+            .from('products')
+            .select('*, businesses(id, name, lat, lng, rating, rating_count, is_active)')
+            .eq('is_available', true)
+            .or(orFilters)
+            .limit(50);
+
+          if (!e2 && d2) {
+            productos = d2;
+            errProds = null;
+          } else {
+            errProds = e2;
+          }
+        } catch (ex) {
+          errProds = ex;
+        }
+      }
 
       // Búsqueda de restaurantes por nombre o categoría
       const orBzFilters = terminosFiltro.map(t => `name.ilike.%${t}%,category.ilike.%${t}%`).join(',');
@@ -537,8 +570,36 @@ export const semanticSearchService = {
         .or(orBzFilters)
         .limit(20);
 
+      // Intento 3: Fallback resiliente si los joins fallaron con Error 400
+      if (!productos && errProds) {
+        try {
+          const { data: rawProds } = await supabase
+            .from('products')
+            .select('*')
+            .eq('is_available', true)
+            .or(orFilters)
+            .limit(50);
+
+          if (rawProds && rawProds.length > 0) {
+            const bizIds = [...new Set(rawProds.map(p => p.business_id).filter(Boolean))];
+            const { data: bData } = await supabase
+              .from('businesses')
+              .select('id, name, lat, lng, rating, rating_count, is_active')
+              .in('id', bizIds);
+
+            const bMap = new Map((bData || []).map(b => [b.id, b]));
+            productos = rawProds.map(p => ({
+              ...p,
+              businesses: bMap.get(p.business_id) || null
+            }));
+          }
+        } catch (fErr) {
+          console.warn('Fallback búsqueda remota:', fErr);
+        }
+      }
+
       return {
-        productos: errProds ? [] : (productos || []),
+        productos: productos || [],
         negocios: errBz ? [] : (negocios || [])
       };
     } catch (e) {

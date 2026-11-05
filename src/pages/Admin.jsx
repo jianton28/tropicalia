@@ -79,12 +79,54 @@ export default function Admin() {
   }
 
   async function cargarDrivers() {
-    const { data } = await supabase
-      .from('driver_profiles')
-      .select('*, delivery_wallets(cash_debt, prepaid_balance, is_blocked)')
-      .order('full_name', { ascending: true });
+    // Intento 1: Join directo de PostgREST con relación de clave foránea
+    try {
+      const { data, error } = await supabase
+        .from('driver_profiles')
+        .select('*, delivery_wallets!delivery_wallets_driver_id_fkey(cash_debt, prepaid_balance, is_blocked)')
+        .order('full_name', { ascending: true });
 
-    setDrivers(data || []);
+      if (!error && data) {
+        setDrivers(data);
+        return;
+      }
+    } catch (e) {}
+
+    // Intento 2: Join directo con nombre de relación estándar
+    try {
+      const { data, error } = await supabase
+        .from('driver_profiles')
+        .select('*, delivery_wallets(cash_debt, prepaid_balance, is_blocked)')
+        .order('full_name', { ascending: true });
+
+      if (!error && data) {
+        setDrivers(data);
+        return;
+      }
+    } catch (e) {}
+
+    // Intento 3: Fallback resiliente para prevenir Error 400 en Supabase
+    // Consulta ambas tablas en paralelo y fusiona por driver_id
+    try {
+      const [resDrivers, resWallets] = await Promise.all([
+        supabase.from('driver_profiles').select('*').order('full_name', { ascending: true }),
+        supabase.from('delivery_wallets').select('driver_id, cash_debt, prepaid_balance, is_blocked')
+      ]);
+
+      const drivers = resDrivers.data || [];
+      const wallets = resWallets.data || [];
+      const walletMap = new Map(wallets.map(w => [w.driver_id, w]));
+
+      const merged = drivers.map(d => ({
+        ...d,
+        delivery_wallets: walletMap.get(d.id) || { cash_debt: 0, prepaid_balance: 0, is_blocked: false }
+      }));
+
+      setDrivers(merged);
+    } catch (err) {
+      console.warn('Error en fallback de drivers:', err);
+      setDrivers([]);
+    }
   }
 
   async function cargarLocales() {

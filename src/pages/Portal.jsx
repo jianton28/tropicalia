@@ -194,14 +194,60 @@ export default function Portal() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .select('*, businesses(id, name, lat, lng)')
-        .in('id', favIds)
-        .eq('is_available', true);
+      let prods = null;
+      // Intento 1: Join con clave foránea explícita
+      try {
+        const { data: d1, error: e1 } = await supabase
+          .from('products')
+          .select('*, businesses!business_id(id, name, lat, lng)')
+          .in('id', favIds)
+          .eq('is_available', true);
 
-      if (!error && data) {
-        setPlatosFavoritos(data);
+        if (!e1 && d1) prods = d1;
+      } catch (ex) {}
+
+      // Intento 2: Join estándar
+      if (!prods) {
+        try {
+          const { data: d2, error: e2 } = await supabase
+            .from('products')
+            .select('*, businesses(id, name, lat, lng)')
+            .in('id', favIds)
+            .eq('is_available', true);
+
+          if (!e2 && d2) prods = d2;
+        } catch (ex) {}
+      }
+
+      // Intento 3: Fallback resiliente (evita Error 400)
+      if (!prods) {
+        try {
+          const { data: rawProds } = await supabase
+            .from('products')
+            .select('*')
+            .in('id', favIds)
+            .eq('is_available', true);
+
+          if (rawProds && rawProds.length > 0) {
+            const bizIds = [...new Set(rawProds.map(p => p.business_id).filter(Boolean))];
+            const { data: bData } = await supabase
+              .from('businesses')
+              .select('id, name, lat, lng')
+              .in('id', bizIds);
+
+            const bMap = new Map((bData || []).map(b => [b.id, b]));
+            prods = rawProds.map(p => ({
+              ...p,
+              businesses: bMap.get(p.business_id) || null
+            }));
+          }
+        } catch (ex) {
+          console.warn('Fallback favoritos:', ex);
+        }
+      }
+
+      if (prods) {
+        setPlatosFavoritos(prods);
       }
     } catch (e) {
       console.warn('Error cargando favoritos:', e);

@@ -88,14 +88,31 @@ export default function Checkout() {
 
   useEffect(() => {
     if (user?.id) {
-      addressService.getAddresses(user.id).then(addrs => {
-        setSavedAddresses(addrs);
-        const def = addrs.find(a => a.is_default) || addrs[0];
-        if (def && (!direccion || direccion.trim() === '')) {
-          setSelectedAddressId(def.id);
-          aplicarDireccion(def);
+      const procesarDirecciones = (addrs) => {
+        if (Array.isArray(addrs) && addrs.length > 0) {
+          setSavedAddresses(addrs);
+          const def = addrs.find(a => a.is_default || a.isDefault) || addrs[0];
+          if (def && (!direccion || direccion.trim() === '')) {
+            setSelectedAddressId(def.id);
+            aplicarDireccion(def);
+          }
         }
-      });
+      };
+
+      try {
+        const res = addressService.getAddresses(user.id);
+        if (res && typeof res.then === 'function') {
+          res.then(procesarDirecciones).catch(err => {
+            console.warn('Fallback al resolver direcciones en Checkout:', err);
+            procesarDirecciones(addressService.getAddresses());
+          });
+        } else {
+          procesarDirecciones(res);
+        }
+      } catch (err) {
+        console.warn('Error cargando direcciones:', err);
+        procesarDirecciones(addressService.getAddresses());
+      }
     }
   }, [user]);
 

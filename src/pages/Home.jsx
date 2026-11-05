@@ -148,15 +148,43 @@ export default function Home({ onTriggerSearch, searchOpen }) {
       seleccionarRestaurante(inicial);
     }
 
-    // Cargar catálogo global de todos los platos para el Buscador Global
+    // Cargar catálogo global de todos los platos para el Buscador Global (con fallback resiliente contra Error 400)
     try {
-      const { data: todosProds } = await supabase
+      let prods = null;
+
+      // Intento 1: Join con clave foránea explícita
+      const { data: d1, error: e1 } = await supabase
         .from('products')
-        .select('*, businesses(id, name, lat, lng, rating, rating_count, is_active)')
+        .select('*, businesses!business_id(id, name, lat, lng, rating, rating_count, is_active)')
         .eq('is_available', true);
 
-      if (todosProds) {
-        setTodosLosProductos(todosProds);
+      if (!e1 && d1) {
+        prods = d1;
+      } else {
+        // Intento 2: Join estándar
+        const { data: d2, error: e2 } = await supabase
+          .from('products')
+          .select('*, businesses(id, name, lat, lng, rating, rating_count, is_active)')
+          .eq('is_available', true);
+
+        if (!e2 && d2) {
+          prods = d2;
+        } else {
+          // Intento 3: Fallback resiliente (consultas separadas y unión en memoria)
+          const [resP, resB] = await Promise.all([
+            supabase.from('products').select('*').eq('is_available', true),
+            supabase.from('businesses').select('id, name, lat, lng, rating, rating_count, is_active')
+          ]);
+          const bMap = new Map((resB.data || []).map(b => [b.id, b]));
+          prods = (resP.data || []).map(p => ({
+            ...p,
+            businesses: bMap.get(p.business_id) || null
+          }));
+        }
+      }
+
+      if (prods) {
+        setTodosLosProductos(prods);
       }
     } catch (e) {
       console.warn('Carga de catálogo global:', e);

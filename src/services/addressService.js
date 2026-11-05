@@ -3,33 +3,88 @@ import { supabase } from '../lib/supabase.js';
 const STORAGE_KEY = 'tropicalia_saved_addresses';
 
 export const addressService = {
-  getAddresses() {
+  /**
+   * Obtiene la lista de direcciones. Retorna un Arreglo "Thenable" híbrido:
+   * 1. Puede ser consumido síncronamente como Array clásico: const list = addressService.getAddresses();
+   * 2. Puede ser consumido asíncronamente como Promesa: addressService.getAddresses(userId).then(addrs => ...)
+   * Si se provee userId, el método .then() sincroniza con Supabase en segundo plano.
+   */
+  getAddresses(userId = null) {
+    let list = [];
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       if (stored) {
-        return JSON.parse(stored);
+        list = JSON.parse(stored);
       }
     } catch (e) {
       console.warn('Error leyendo direcciones locales:', e);
     }
 
-    // Dirección base por defecto si no hay ninguna
-    const defaultAddr = localStorage.getItem('tropicalia_delivery_address') || 'Av. Las Delicias, Edif. Torre';
-    const initial = [
-      {
-        id: 'addr_default',
-        alias: 'Casa / Principal',
-        esTercero: false,
-        recipientName: '',
-        recipientPhone: '',
-        address: defaultAddr,
-        lat: 10.4950,
-        lng: -66.8480,
-        isDefault: true
+    if (!Array.isArray(list) || list.length === 0) {
+      const defaultAddr = (typeof localStorage !== 'undefined' && localStorage.getItem('tropicalia_delivery_address')) || 'Av. Las Delicias, Edif. Torre';
+      list = [
+        {
+          id: 'addr_default',
+          alias: 'Casa / Principal',
+          esTercero: false,
+          es_tercero: false,
+          recipientName: '',
+          recipient_name: '',
+          recipientPhone: '',
+          recipient_phone: '',
+          address: defaultAddr,
+          lat: 10.4950,
+          lng: -66.8480,
+          isDefault: true,
+          is_default: true
+        }
+      ];
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
       }
-    ];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-    return initial;
+    } else {
+      // Normalizar campos para compatibilidad camelCase y snake_case
+      list = list.map(item => ({
+        ...item,
+        isDefault: Boolean(item.isDefault ?? item.is_default),
+        is_default: Boolean(item.isDefault ?? item.is_default),
+        recipientName: item.recipientName || item.recipient_name || '',
+        recipient_name: item.recipientName || item.recipient_name || '',
+        recipientPhone: item.recipientPhone || item.recipient_phone || '',
+        recipient_phone: item.recipientPhone || item.recipient_phone || '',
+        esTercero: Boolean(item.esTercero || item.es_tercero || item.recipientName || item.recipient_name),
+        es_tercero: Boolean(item.esTercero || item.es_tercero || item.recipientName || item.recipient_name)
+      }));
+    }
+
+    // Configurar protocolo Thenable (Promesa) en el arreglo para evitar errores "getAddresses(...).then is not a function"
+    const self = this;
+    Object.defineProperty(list, 'then', {
+      value: function(onFulfilled, onRejected) {
+        if (userId) {
+          return self.syncWithSupabase(userId).then(onFulfilled, onRejected);
+        }
+        // Copia limpia del arreglo para evitar recursión infinita en la resolución de Promesas
+        return Promise.resolve([...list]).then(onFulfilled, onRejected);
+      },
+      writable: true,
+      configurable: true,
+      enumerable: false
+    });
+
+    Object.defineProperty(list, 'catch', {
+      value: function(onRejected) {
+        if (userId) {
+          return self.syncWithSupabase(userId).catch(onRejected);
+        }
+        return Promise.resolve([...list]).catch(onRejected);
+      },
+      writable: true,
+      configurable: true,
+      enumerable: false
+    });
+
+    return list;
   },
 
   getDefaultAddress() {
@@ -152,29 +207,42 @@ export const addressService = {
   async syncWithSupabase(userId) {
     if (!userId) return this.getAddresses();
     try {
-      const { data, error } = await supabase
+      // Timeout de protección (3 segundos) para evitar bloqueos si la red falla o está offline
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Network timeout')), 3000)
+      );
+
+      const fetchPromise = supabase
         .from('user_addresses')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
+
+      const res = await Promise.race([fetchPromise, timeoutPromise]);
+      const data = res?.data;
+      const error = res?.error;
 
       if (!error && data && data.length > 0) {
         const mapped = data.map(d => ({
           id: d.id,
           alias: d.alias,
           esTercero: Boolean(d.recipient_name),
+          es_tercero: Boolean(d.recipient_name),
           recipientName: d.recipient_name || '',
+          recipient_name: d.recipient_name || '',
           recipientPhone: d.recipient_phone || '',
+          recipient_phone: d.recipient_phone || '',
           address: d.address,
           lat: parseFloat(d.lat || 10.4950),
           lng: parseFloat(d.lng || -66.8480),
-          isDefault: Boolean(d.is_default)
+          isDefault: Boolean(d.is_default),
+          is_default: Boolean(d.is_default)
         }));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
         return mapped;
       }
     } catch (e) {
-      console.warn('Sincronizando direcciones con Supabase:', e);
+      console.warn('Sincronizando direcciones con Supabase:', e.message || e);
     }
     return this.getAddresses();
   }

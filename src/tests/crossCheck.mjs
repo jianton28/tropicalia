@@ -20,6 +20,7 @@ import {
   isLocalOrInternalOrigin,
   getAuthRedirectUrl
 } from '../services/authRedirect.js';
+import { addressService } from '../services/addressService.js';
 
 let passed = 0;
 let failed = 0;
@@ -269,6 +270,37 @@ assert(urlVerifyPwd === 'https://tropicalia-rho.vercel.app/portal?verify_pwd_upd
 // 6.6 Preservación de dominio propio en producción pública
 const urlProd = getAuthRedirectUrl('/portal', 'https://tropicalia.lat');
 assert(urlProd === 'https://tropicalia.lat/portal', 'En dominio propio de producción preserva el host');
+
+console.log('\n=== TEST 7: ADDRESS SERVICE THENABLE & ASYNC RESOLUTION ===');
+
+// 7.1 Retorno síncrono válido como Array
+const addrsSync = addressService.getAddresses();
+assert(Array.isArray(addrsSync), 'addressService.getAddresses() retorna un Arreglo nativo');
+assert(addrsSync.length > 0, 'El arreglo contiene al menos una dirección base');
+
+// 7.2 Soporte de Thenable (.then) para evitar TypeError
+assert(typeof addrsSync.then === 'function', 'El resultado implementa método .then() (protocolo Thenable / Promise)');
+assert(typeof addrsSync.catch === 'function', 'El resultado implementa método .catch()');
+
+// 7.3 Resolución asíncrona mediante .then() y Promise.resolve
+const thenRes = await Promise.resolve(addrsSync);
+assert(Array.isArray(thenRes), 'addrs.then() resuelve correctamente con el arreglo de direcciones');
+
+// 7.4 Compatibilidad dual de propiedades camelCase y snake_case
+const primerAddr = addrsSync[0];
+assert(typeof primerAddr.isDefault === 'boolean', 'Contiene propiedad isDefault');
+assert(typeof primerAddr.is_default === 'boolean', 'Contiene propiedad is_default (snake_case)');
+assert(primerAddr.isDefault === primerAddr.is_default, 'isDefault coincide con is_default');
+assert(typeof primerAddr.recipientName === 'string', 'Contiene propiedad recipientName');
+assert(typeof primerAddr.recipient_name === 'string', 'Contiene propiedad recipient_name');
+
+// 7.5 Simulación de llamada asíncrona como en Checkout: addressService.getAddresses(userId).then(...)
+const localPromise = addressService.getAddresses();
+let asyncCheckoutRes = null;
+await localPromise.then(res => {
+  asyncCheckoutRes = res;
+});
+assert(Array.isArray(asyncCheckoutRes), 'Checkout .then(...) recibe lista de direcciones sin error');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);
