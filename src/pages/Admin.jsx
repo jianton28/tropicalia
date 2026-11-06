@@ -2,25 +2,28 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { formatUsd } from '../services/bcvService';
+import { formatUsd, fetchTasaBCV, toBs, formatBs } from '../services/bcvService';
 import { cancelarOrdenConReversion } from '../services/inventoryService';
 import { abrirNotificacionWhatsApp, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
 import { 
   procesarBalanceCompletado, 
   recibirEfectivoEnCajaAdmin, 
-  TECHO_DEUDA_EFECTIVO 
+  TECHO_DEUDA_EFECTIVO,
+  calcularNetoDeudaEfectivo
 } from '../services/paymentService';
 
 export default function Admin() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
 
-  const [tab, setTab] = useState('activas'); // 'activas', 'pagos', 'cortes', 'locales', 'drivers', 'ordenes'
+  const [tab, setTab] = useState('activas'); // 'activas', 'pagos', 'cortes', 'liquidaciones_drivers', 'locales', 'drivers', 'ordenes'
   const [pagos, setPagos] = useState([]);
   const [cortes, setCortes] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [driverWithdrawals, setDriverWithdrawals] = useState([]);
   const [locales, setLocales] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
+  const [tasaBCV, setTasaBCV] = useState(875.65);
   const [filtroEstadoOrdenes, setFiltroEstadoOrdenes] = useState('todas'); // 'todas', 'activas', 'delivered', 'cancelled'
   const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState('');
@@ -31,6 +34,7 @@ export default function Admin() {
   }
 
   useEffect(() => {
+    fetchTasaBCV().then(r => setTasaBCV(r));
     recargarTodoAdmin();
 
     const channel = supabase.channel('admin-realtime')
@@ -39,6 +43,12 @@ export default function Admin() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_closures' }, () => {
         cargarCortes();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_withdrawals' }, () => {
+        cargarDriverWithdrawals();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_wallets' }, () => {
+        cargarDrivers();
       })
       .subscribe();
 
@@ -53,6 +63,7 @@ export default function Admin() {
       cargarPagos(),
       cargarCortes(),
       cargarDrivers(),
+      cargarDriverWithdrawals(),
       cargarLocales(),
       cargarOrdenes()
     ]);
@@ -126,6 +137,40 @@ export default function Admin() {
     } catch (err) {
       console.warn('Error en fallback de drivers:', err);
       setDrivers([]);
+    }
+  }
+
+  async function cargarDriverWithdrawals() {
+    // Intento 1: Join con driver_profiles vía Foreign Key
+    try {
+      const { data, error } = await supabase
+        .from('driver_withdrawals')
+        .select('*, driver_profiles!driver_withdrawals_driver_id_fkey(full_name, phone, vehicle_type, vehicle_plate)')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setDriverWithdrawals(data);
+        return;
+      }
+    } catch (e) {}
+
+    // Intento 2: Fallback in-memory
+    try {
+      const [resW, resD] = await Promise.all([
+        supabase.from('driver_withdrawals').select('*').order('created_at', { ascending: false }),
+        supabase.from('driver_profiles').select('id, full_name, phone, vehicle_type, vehicle_plate')
+      ]);
+
+      const dMap = new Map((resD.data || []).map(d => [d.id, d]));
+      const merged = (resW.data || []).map(w => ({
+        ...w,
+        driver_profiles: dMap.get(w.driver_id) || { full_name: 'Repartidor', phone: 'S/N' }
+      }));
+
+      setDriverWithdrawals(merged);
+    } catch (err) {
+      console.warn('Error en carga de driver_withdrawals:', err);
+      setDriverWithdrawals([]);
     }
   }
 
@@ -263,6 +308,94 @@ export default function Admin() {
     }
   }
 
+  async function liquidarRetiroDriver(retiro) {
+    const nombreDriver = retiro.driver_profiles?.full_name || 'el Repartidor';
+    const montoUsd = parseFloat(retiro.amount || 0);
+    const montoBs = toBs(montoUsd, tasaBCV);
+
+    const ref = prompt(
+      `Confirmar transferencia Pago Móvil a ${nombreDriver}:\n` +
+      `Monto: ${formatUsd(montoUsd)} (${formatBs(montoBs)})\n` +
+      `Banco: ${retiro.bank_name || 'N/A'}\n` +
+      `Cédula: ${retiro.id_doc || 'N/A'}\n` +
+      `Teléfono: ${retiro.phone || 'N/A'}\n\n` +
+      `Ingresa el número de referencia bancaria:`,
+      'PM-' + Math.floor(100000 + Math.random() * 900000)
+    );
+    if (!ref) return;
+
+    try {
+      const { error } = await supabase
+        .from('driver_withdrawals')
+        .update({
+          status: 'settled',
+          settlement_reference: ref.trim()
+        })
+        .eq('id', retiro.id);
+
+      if (error) throw error;
+
+      showToast(`✓ Retiro de ${formatUsd(montoUsd)} transferido a ${nombreDriver} con Ref: ${ref}`);
+      cargarDriverWithdrawals();
+      cargarDrivers();
+    } catch (err) {
+      alert('Error liquidando retiro de repartidor: ' + err.message);
+    }
+  }
+
+  async function rechazarRetiroDriver(retiro) {
+    const nombreDriver = retiro.driver_profiles?.full_name || 'el Repartidor';
+    const montoUsd = parseFloat(retiro.amount || 0);
+
+    if (!confirm(`¿Rechazar solicitud de retiro de ${formatUsd(montoUsd)} para ${nombreDriver} y reintegrar el saldo a su billetera?`)) return;
+
+    try {
+      // 1. Revertir saldo retenido en delivery_wallets
+      const { data: w } = await supabase
+        .from('delivery_wallets')
+        .select('prepaid_balance')
+        .eq('driver_id', retiro.driver_id)
+        .maybeSingle();
+
+      if (w) {
+        const saldoReintegrado = parseFloat(((parseFloat(w.prepaid_balance || 0)) + montoUsd).toFixed(2));
+        await supabase
+          .from('delivery_wallets')
+          .update({ prepaid_balance: saldoReintegrado })
+          .eq('driver_id', retiro.driver_id);
+      }
+
+      // 2. Marcar retiro como rejected
+      const { error } = await supabase
+        .from('driver_withdrawals')
+        .update({ status: 'rejected' })
+        .eq('id', retiro.id);
+
+      if (error) throw error;
+
+      showToast(`❌ Solicitud rechazada. ${formatUsd(montoUsd)} reintegrados a la billetera de ${nombreDriver}.`);
+      cargarDriverWithdrawals();
+      cargarDrivers();
+    } catch (err) {
+      alert('Error al rechazar retiro: ' + err.message);
+    }
+  }
+
+  function notificarDeudaWhatsApp(driver, deuda) {
+    const tlf = (driver.phone || '').replace(/\D/g, '');
+    if (!tlf) {
+      alert('El repartidor no tiene número de teléfono registrado.');
+      return;
+    }
+    const phoneIntl = tlf.startsWith('58') ? tlf : (tlf.startsWith('0') ? '58' + tlf.slice(1) : '58' + tlf);
+    const msg = encodeURIComponent(
+      `Hola ${driver.full_name}, te saludamos desde la Administración de Tropicalia CRB.\n` +
+      `Te recordamos que tienes una deuda pendiente de entrega por efectivo en calle de $${deuda.toFixed(2)} (límite permitido: $${TECHO_DEUDA_EFECTIVO.toFixed(2)}).\n` +
+      `Por favor, acércate a rendir el efectivo o saldarlo para mantener tu cuenta en línea sin bloqueos.\n¡Gracias por tu trabajo!`
+    );
+    window.open(`https://wa.me/${phoneIntl}?text=${msg}`, '_blank');
+  }
+
   async function toggleLocal(local) {
     const nuevo = !local.is_active;
     await supabase.from('businesses').update({ is_active: nuevo }).eq('id', local.id);
@@ -361,13 +494,19 @@ export default function Admin() {
           <h3 style={{ color: pagos.length > 0 ? '#ef4444' : '#fff' }}>{pagos.length}</h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <small>💰 Liquidaciones Pendientes</small>
+          <small>💰 Cortes Restaurantes</small>
           <h3 style={{ color: '#60a5fa' }}>
             {cortes.filter(c => c.status === 'pending_settlement').length}
           </h3>
         </div>
+        <div className="kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+          <small>🛵 Retiros Drivers Pendientes</small>
+          <h3 style={{ color: '#a78bfa' }}>
+            {driverWithdrawals.filter(w => w.status === 'pending').length}
+          </h3>
+        </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
-          <small>📈 Ventas Globales Entregadas</small>
+          <small>📈 Ventas Entregadas</small>
           <h3 style={{ color: '#34d399' }}>{formatUsd(totalVentasEntregadas)}</h3>
         </div>
       </div>
@@ -391,7 +530,25 @@ export default function Admin() {
           className={`btn-tab ${tab === 'cortes' ? 'activo' : ''}`}
           onClick={() => setTab('cortes')}
         >
-          💰 Liquidaciones y Cortes ({cortes.length})
+          💰 Cortes Cocinas ({cortes.length})
+        </button>
+        <button
+          className={`btn-tab ${tab === 'liquidaciones_drivers' ? 'activo' : ''}`}
+          onClick={() => setTab('liquidaciones_drivers')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          🛵 Liquidación Repartidores {driverWithdrawals.filter(w => w.status === 'pending').length > 0 && (
+            <span style={{
+              background: '#ef4444',
+              color: '#fff',
+              fontSize: '0.72rem',
+              padding: '1px 6px',
+              borderRadius: '999px',
+              fontWeight: 800
+            }}>
+              {driverWithdrawals.filter(w => w.status === 'pending').length}
+            </span>
+          )}
         </button>
         <button
           className={`btn-tab ${tab === 'locales' ? 'activo' : ''}`}
@@ -403,7 +560,7 @@ export default function Admin() {
           className={`btn-tab ${tab === 'drivers' ? 'activo' : ''}`}
           onClick={() => setTab('drivers')}
         >
-          🛵 Repartidores ({drivers.length})
+          🛵 Flota Drivers ({drivers.length})
         </button>
         <button
           className={`btn-tab ${tab === 'ordenes' ? 'activo' : ''}`}
@@ -675,7 +832,254 @@ export default function Admin() {
         </div>
       )}
 
-      {/* 4. RESTAURANTES */}
+      {/* 4. LIQUIDACIÓN DE REPARTIDORES (RETIROS DIGITALES Y ARQUEO DE EFECTIVO) */}
+      {tab === 'liquidaciones_drivers' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          
+          {/* SECCIÓN 1: SOLICITUDES DE RETIRO PAGO MÓVIL */}
+          <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem' }}>
+                  💸 Solicitudes de Retiro de Ganancias (Pago Móvil)
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
+                  Transferencias solicitadas por motorizados para cobrar fletes prepagados y digitales.
+                </p>
+              </div>
+              <button
+                onClick={cargarDriverWithdrawals}
+                className="btn-secundario"
+                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px' }}
+              >
+                🔄 Actualizar Retiros
+              </button>
+            </div>
+
+            {driverWithdrawals.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px', background: '#fdfbf7', borderRadius: '12px', border: '1px dashed #d6cbbe' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '6px' }}>🛵</div>
+                <strong style={{ color: '#374151' }}>No hay solicitudes de retiro registradas.</strong>
+                <p style={{ color: '#9ca3af', margin: '4px 0 0 0', fontSize: '0.82rem' }}>
+                  Cuando un repartidor solicite cobrar su balance de billetera aparecerá aquí para auditoría y transferencia.
+                </p>
+              </div>
+            ) : (
+              <div className="tabla-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Repartidor</th>
+                      <th>Monto USD</th>
+                      <th>Equivalente BCV</th>
+                      <th>Datos Pago Móvil</th>
+                      <th>Estado</th>
+                      <th style={{ textAlign: 'center' }}>Acciones de Transferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {driverWithdrawals.map(w => {
+                      const f = new Date(w.created_at);
+                      const fechaStr = `${f.toLocaleDateString()} ${f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                      const esPendiente = w.status === 'pending';
+                      const montoUsd = parseFloat(w.amount || 0);
+                      const montoBs = toBs(montoUsd, tasaBCV);
+
+                      return (
+                        <tr key={w.id}>
+                          <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{fechaStr}</td>
+                          <td>
+                            <strong>{w.driver_profiles?.full_name || 'Repartidor'}</strong>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                              {w.driver_profiles?.vehicle_type?.toUpperCase()} • {w.driver_profiles?.vehicle_plate || 'S/P'}
+                            </div>
+                          </td>
+                          <td>
+                            <strong style={{ color: '#10b981', fontSize: '1.05rem' }}>{formatUsd(montoUsd)}</strong>
+                          </td>
+                          <td style={{ color: '#374151', fontWeight: 600, fontSize: '0.88rem' }}>
+                            {formatBs(montoBs)}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.82rem' }}>
+                              <div><strong>Banco:</strong> {w.bank_name || 'N/A'}</div>
+                              <div><strong>Cédula:</strong> {w.id_doc || 'N/A'}</div>
+                              <div><strong>Teléfono:</strong> {w.phone || 'N/A'}</div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge ${
+                              esPendiente 
+                                ? 'badge-pending' 
+                                : w.status === 'settled' 
+                                  ? 'badge-on_the_way' 
+                                  : 'badge-cancelled'
+                            }`}>
+                              {esPendiente ? 'Pendiente Transferir' : w.status === 'settled' ? 'Transferido' : 'Rechazado'}
+                            </span>
+                            {w.settlement_reference && (
+                              <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '2px' }}>
+                                Ref: {w.settlement_reference}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              {esPendiente ? (
+                                <>
+                                  <button
+                                    onClick={() => liquidarRetiroDriver(w)}
+                                    className="btn-primario"
+                                    style={{
+                                      padding: '5px 10px',
+                                      fontSize: '0.76rem',
+                                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                                      color: '#fff',
+                                      borderRadius: '6px'
+                                    }}
+                                    title="Marcar como pagado e ingresar referencia bancaria"
+                                  >
+                                    ✓ Transferido
+                                  </button>
+                                  <button
+                                    onClick={() => rechazarRetiroDriver(w)}
+                                    className="btn-secundario"
+                                    style={{
+                                      padding: '5px 8px',
+                                      fontSize: '0.76rem',
+                                      color: '#ef4444',
+                                      borderColor: '#fca5a5',
+                                      borderRadius: '6px'
+                                    }}
+                                    title="Rechazar y devolver los fondos a la billetera del repartidor"
+                                  >
+                                    ✕ Rechazar
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Procesado</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SECCIÓN 2: CONTROL Y FISCALIZACIÓN DE DEUDA EN CALLE */}
+          <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem' }}>
+                  💵 Fiscalización de Efectivo en Calle & Arqueo de Deuda
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
+                  El repartidor retiene su flete automáticamente en mano; la deuda en calle refleja únicamente el neto de alimentos adeudado a la plataforma/cocina (Tope: $25.00).
+                </p>
+              </div>
+              <button
+                onClick={cargarDrivers}
+                className="btn-secundario"
+                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px' }}
+              >
+                🔄 Actualizar Arqueo
+              </button>
+            </div>
+
+            <div className="tabla-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Repartidor</th>
+                    <th>Teléfono</th>
+                    <th>Saldo a Favor (Prepagado)</th>
+                    <th>Deuda Efectivo (Tope $25)</th>
+                    <th>Estado Operativo</th>
+                    <th style={{ textAlign: 'center' }}>Acciones de Arqueo y Cobro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drivers.map(d => {
+                    const w = d.delivery_wallets?.[0] || d.delivery_wallets;
+                    const saldo = parseFloat(w?.prepaid_balance || 0);
+                    const deuda = parseFloat(w?.cash_debt || 0);
+                    const bloqueado = deuda >= TECHO_DEUDA_EFECTIVO;
+
+                    return (
+                      <tr key={d.id}>
+                        <td>
+                          <strong>{d.full_name}</strong>
+                          <div style={{ fontSize: '0.74rem', color: '#6b7280' }}>
+                            {d.vehicle_type?.toUpperCase()} • {d.vehicle_plate || 'S/P'}
+                          </div>
+                        </td>
+                        <td>{d.phone || 'S/N'}</td>
+                        <td style={{ color: '#10b981', fontWeight: 'bold' }}>{formatUsd(saldo)}</td>
+                        <td style={{ color: bloqueado ? '#ef4444' : 'var(--golden-orange)', fontWeight: 'bold' }}>
+                          {formatUsd(deuda)} {bloqueado && '⚠️ (Bloqueado)'}
+                        </td>
+                        <td>
+                          <span className={`badge ${bloqueado ? 'badge-cancelled' : d.is_online ? 'badge-on_the_way' : 'badge-delivered'}`}>
+                            {bloqueado ? '⛔ BLOQUEADO' : d.is_online ? 'En Línea' : 'Desconectado'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRecibirEfectivoDriver(d.id, d.full_name, deuda)}
+                              disabled={deuda <= 0}
+                              className="btn-primario"
+                              style={{
+                                padding: '5px 10px',
+                                fontSize: '0.76rem',
+                                background: deuda > 0 ? '#10b981' : '#9ca3af',
+                                cursor: deuda > 0 ? 'pointer' : 'not-allowed',
+                                color: '#fff',
+                                borderRadius: '6px',
+                                fontWeight: 700
+                              }}
+                              title="Registrar dinero en efectivo entregado por el repartidor"
+                            >
+                              💵 Recibir Efectivo
+                            </button>
+                            {deuda > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => notificarDeudaWhatsApp(d, deuda)}
+                                className="btn-secundario"
+                                style={{
+                                  padding: '5px 8px',
+                                  fontSize: '0.76rem',
+                                  background: '#25D366',
+                                  color: '#000',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  borderRadius: '6px'
+                                }}
+                                title="Enviar recordatorio de cobro por WhatsApp"
+                              >
+                                💬 WhatsApp
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. RESTAURANTES */}
       {tab === 'locales' && (
         <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
           <h3 style={{ margin: '0 0 14px 0', color: 'var(--dark-amaranth)' }}>Restaurantes en Plataforma</h3>

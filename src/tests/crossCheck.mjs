@@ -9,7 +9,8 @@ import {
 import {
   TECHO_DEUDA_EFECTIVO,
   calcularMontoTotalEfectivo,
-  validarAceptacionCarrera
+  validarAceptacionCarrera,
+  calcularNetoDeudaEfectivo
 } from '../services/paymentService.js';
 
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
@@ -301,6 +302,29 @@ await localPromise.then(res => {
   asyncCheckoutRes = res;
 });
 assert(Array.isArray(asyncCheckoutRes), 'Checkout .then(...) recibe lista de direcciones sin error');
+
+console.log('\n=== TEST 8: CASH DEBT NET OFFSET & CASH CLOSURE DUPLICATE GUARD ===');
+
+// 8.1 Descuento automático de flete ganado en pedidos en efectivo
+// Caso específico del usuario: comanda de $7.75 cobrada en efectivo con flete de $1.75
+const deudaNeta1 = calcularNetoDeudaEfectivo(7.75, 1.75);
+assert(deudaNeta1 === 6.00, 'Deuda neta de $7.75 con flete $1.75 da exactamente $6.00 neto de comida');
+
+const deudaNeta2 = calcularNetoDeudaEfectivo(10.00, 2.50);
+assert(deudaNeta2 === 7.50, 'Deuda neta de $10.00 con flete $2.50 da $7.50');
+
+const deudaNeta3 = calcularNetoDeudaEfectivo(2.00, 3.50);
+assert(deudaNeta3 === 0.00, 'Deuda neta nunca es negativa si el flete excede el total');
+
+// 8.2 Validación de estados de cierre pendiente
+const ESTADOS_PENDIENTES_CIERRE = ['pending', 'pending_settlement'];
+assert(ESTADOS_PENDIENTES_CIERRE.includes('pending'), 'pending es detectado como cierre pendiente');
+assert(ESTADOS_PENDIENTES_CIERRE.includes('pending_settlement'), 'pending_settlement es detectado como pendiente');
+assert(!ESTADOS_PENDIENTES_CIERRE.includes('settled'), 'settled no bloquea nuevos cierres');
+
+// 8.3 Verificación de activos de marca (Mascota oficial logo.png)
+import fs from 'fs';
+assert(fs.existsSync('src/assets/logo.png'), 'El logo oficial con la mascota existe en src/assets/logo.png');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);

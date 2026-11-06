@@ -964,3 +964,229 @@ h1, h2, h3, h4, .brand-title {
   align-items: center;
   line-height: 1;
 }
+
+/* ==============================================================================
+   HEADER SUPERIOR GLOBAL OFICIAL TROPICALIA (MODERNO CON MASCOTA Y TASA BCV)
+   ============================================================================== */
+.global-navbar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  background: linear-gradient(135deg, rgba(87, 24, 70, 0.98) 0%, rgba(130, 19, 58, 0.98) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(239, 157, 36, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  padding: 8px 16px;
+  transition: all 0.25s ease;
+}
+
+.navbar-inner-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.navbar-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.navbar-mascot-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.navbar-brand-link:hover .navbar-mascot-img {
+  transform: scale(1.08) rotate(-3deg);
+}
+
+.navbar-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.navbar-subtitle {
+  font-size: 0.60rem;
+  font-weight: 800;
+  color: var(--golden-orange);
+  letter-spacing: 0.12em;
+  margin-top: 2px;
+}
+
+.navbar-bcv-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bcv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.navbar-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.navbar-role-pill.admin-badge {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.5);
+}
+.navbar-role-pill.admin-badge:hover,
+.navbar-role-pill.admin-badge.active-role {
+  background: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+}
+
+.navbar-role-pill.kitchen-badge {
+  background: rgba(239, 157, 36, 0.25);
+  color: #fed7aa;
+  border: 1px solid rgba(239, 157, 36, 0.5);
+}
+.navbar-role-pill.kitchen-badge:hover,
+.navbar-role-pill.kitchen-badge.active-role {
+  background: var(--golden-orange);
+  color: #000;
+  font-weight: 800;
+}
+
+.navbar-role-pill.delivery-badge {
+  background: rgba(16, 185, 129, 0.25);
+  color: #a7f3d0;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+.navbar-role-pill.delivery-badge:hover,
+.navbar-role-pill.delivery-badge.active-role {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.navbar-auth-btn, .navbar-user-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: all 0.2s ease;
+}
+.navbar-auth-btn:hover, .navbar-user-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.navbar-cart-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--golden-orange) 0%, #f59e0b 100%);
+  color: #111827;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(239, 157, 36, 0.35);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+}
+
+.navbar-cart-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 18px rgba(239, 157, 36, 0.45);
+}
+
+.navbar-cart-button:active {
+  transform: scale(0.96);
+}
+
+.cart-count-badge {
+  background: #111827;
+  color: #ffffff;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+@media (max-width: 480px) {
+  .global-navbar {
+    padding: 7px 12px;
+  }
+  .navbar-mascot-img {
+    height: 34px;
+  }
+  .navbar-title {
+    font-size: 1.1rem;
+  }
+  .navbar-subtitle {
+    display: none;
+  }
+  .navbar-bcv-badge {
+    padding: 3px 8px;
+    font-size: 0.70rem;
+  }
+  .role-label {
+    display: none;
+  }
+  .navbar-role-pill {
+    padding: 5px 8px;
+  }
+}
+

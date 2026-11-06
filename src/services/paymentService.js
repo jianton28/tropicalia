@@ -11,6 +11,21 @@ export const COMISION_PLATAFORMA_PCT = 0.10;
 export const FLETE_BASE_DEFAULT = 2.50;
 
 /**
+ * Calcula la deuda neta de efectivo que debe entregar el repartidor tras retener
+ * inmediatamente en físico su comisión/flete ganado (ej. $7.75 total - $1.75 flete = $6.00 neto).
+ * Previene el doble cobro o endeudamiento artificial del repartidor.
+ * 
+ * @param {number|string} montoTotal 
+ * @param {number|string} fleteGanado 
+ * @returns {number} Monto neto adeudado
+ */
+export function calcularNetoDeudaEfectivo(montoTotal, fleteGanado) {
+  const total = parseFloat(montoTotal || 0);
+  const flete = parseFloat(fleteGanado || 0);
+  return Math.max(0, parseFloat((total - flete).toFixed(2)));
+}
+
+/**
  * Valida y calcula de forma robusta el monto total en efectivo de una comanda,
  * asegurando que nunca sea 0 para prevenir fugas de caja en entregas de alto valor.
  * 
@@ -154,12 +169,19 @@ export async function procesarBalanceCompletado({ orden, driverId }) {
       // Validar monto total en efectivo de la orden (sin fugas)
       const montoEfectivoTotal = calcularMontoTotalEfectivo(orden);
 
-      // Sumar al saldo en efectivo retenido (deuda en calle)
-      nuevaDeuda = parseFloat((deudaPrevia + montoEfectivoTotal).toFixed(2));
+      // DESCUENTO AUTOMÁTICO DE COMISIÓN/FLETE GANADO EN EFECTIVO:
+      // El cliente paga el total de la orden en efectivo (ej. $7.75) al motorizado.
+      // El repartidor retiene de inmediato en mano su flete ($1.75).
+      // Por ende, la deuda a rendir en caja aumenta ÚNICAMENTE por el neto de la comida ($6.00).
+      const montoNetoDeuda = calcularNetoDeudaEfectivo(montoEfectivoTotal, fleteGanado);
+
+      // Sumar al saldo en efectivo retenido (deuda neta en calle)
+      nuevaDeuda = parseFloat((deudaPrevia + montoNetoDeuda).toFixed(2));
       isBlocked = nuevaDeuda >= TECHO_DEUDA_EFECTIVO;
 
-      // Se acredita su ganancia de flete a su saldo principal
-      nuevoSaldo = parseFloat((saldoPrevio + fleteGanado).toFixed(2));
+      // El flete ya fue cobrado y retenido físicamente en mano por el repartidor,
+      // por lo que NO se abona a prepaid_balance para prevenir duplicidad de pagos digitales.
+      nuevoSaldo = saldoPrevio;
 
       const { data: wUp, error: errW } = await supabase
         .from('delivery_wallets')
@@ -181,16 +203,16 @@ export async function procesarBalanceCompletado({ orden, driverId }) {
           {
             driver_id: driverId,
             order_id: orden.id,
-            amount: montoEfectivoTotal,
+            amount: montoNetoDeuda,
             type: 'cash_debt',
-            notes: `Efectivo retenido en calle por comanda #ORD-${orden.id.slice(0, 8)} ($${montoEfectivoTotal.toFixed(2)})`
+            notes: `Deuda neta retenida por comanda #ORD-${orden.id.slice(0, 8)}: Total $${montoEfectivoTotal.toFixed(2)} - Flete retenido $${fleteGanado.toFixed(2)} = Neto a rendir $${montoNetoDeuda.toFixed(2)}`
           },
           {
             driver_id: driverId,
             order_id: orden.id,
             amount: fleteGanado,
-            type: 'delivery_fee_credit',
-            notes: `Flete acreditado por carrera #ORD-${orden.id.slice(0, 8)}`
+            type: 'delivery_fee_offset',
+            notes: `Flete de $${fleteGanado.toFixed(2)} retenido en efectivo por el repartidor (auto-liquidado en bolsillo)`
           }
         ]);
       } catch (e) {

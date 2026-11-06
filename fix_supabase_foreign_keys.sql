@@ -83,6 +83,11 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_delivery_wallets_driver_id ON public.delivery_wallets(driver_id);
 CREATE INDEX IF NOT EXISTS idx_products_business_id ON public.products(business_id);
 
+-- 4.1 PREVENCIÓN DE CIERRES DE CAJA DUPLICADOS A NIVEL DE BASE DE DATOS
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_pending_closure_per_business 
+ON public.cash_closures (business_id) 
+WHERE (status IN ('pending', 'pending_settlement'));
+
 -- 5. RECARGA INMEDIATA DE LA CACHÉ DE ESQUEMA DE SUPABASE (POSTGREST)
 -- Esto actualiza el catálogo interno de relaciones sin necesidad de reiniciar el servidor
 NOTIFY pgrst, 'reload schema';

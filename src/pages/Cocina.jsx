@@ -56,6 +56,7 @@ export default function Cocina() {
   const [productos, setProductos] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [mermas, setMermas] = useState([]);
+  const [cierrePendiente, setCierrePendiente] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Tabs internas
@@ -155,38 +156,84 @@ export default function Cocina() {
     setLoading(false);
   }
 
+  async function cargarEstadoCierre(businessId) {
+    if (!businessId) return;
+    try {
+      const { data } = await supabase
+        .from('cash_closures')
+        .select('*')
+        .eq('business_id', businessId)
+        .in('status', ['pending', 'pending_settlement'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        setCierrePendiente(data[0]);
+      } else {
+        setCierrePendiente(null);
+      }
+    } catch (e) {
+      console.warn('Verificando estado de cierre:', e);
+    }
+  }
+
   async function initCocina() {
     setLoading(true);
-    const { data: lista } = await supabase.from('businesses').select('*').order('created_at', { ascending: true });
-    setTodosLosLocales(lista || []);
 
     let neg = null;
     if (user) {
+      // 1. Aislamiento Estricto: Buscar exclusivamente el restaurante donde el usuario sea owner_id
       const { data: userNeg } = await supabase
         .from('businesses')
         .select('*')
         .eq('owner_id', user.id)
         .maybeSingle();
       neg = userNeg;
+
+      // 2. Si no es owner directo, verificar vinculación en kitchen_profiles
+      if (!neg) {
+        const { data: kp } = await supabase
+          .from('kitchen_profiles')
+          .select('business_id, businesses(*)')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (kp?.businesses) {
+          neg = kp.businesses;
+        }
+      }
     }
 
-    if (!neg && lista && lista.length > 0) {
-      neg = lista[0];
+    // 3. Fallback administrativo: Si el rol es admin, permitir inspección segura del primer negocio
+    if (!neg && (user?.email?.includes('admin') || user?.email?.endsWith('@tropicalia.lat'))) {
+      const { data: primerNeg } = await supabase
+        .from('businesses')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      neg = primerNeg;
     }
 
     if (!neg) {
-      alert('No se encontró un restaurante asociado a tu cuenta.');
+      setLocal(null);
+      localRef.current = null;
+      setTodosLosLocales([]);
       setLoading(false);
       return;
     }
 
+    // Aislamiento completo: Solo se mantiene en memoria el local asignado
     setLocal(neg);
     localRef.current = neg;
+    setTodosLosLocales([neg]);
+
     await Promise.all([
       cargarComandas(neg.id),
       cargarInventario(neg.id),
       cargarProductosYRecetas(neg.id),
-      cargarMermas(neg.id)
+      cargarMermas(neg.id),
+      cargarEstadoCierre(neg.id)
     ]);
     setLoading(false);
   }
@@ -655,6 +702,25 @@ export default function Cocina() {
   }
 
   async function solicitarCorteCaja() {
+    if (cierrePendiente) {
+      alert(`⚠️ Ya existe una solicitud de cierre pendiente de aprobación por ${formatUsd(cierrePendiente.net_amount)}. Por control contable, no puedes solicitar un nuevo corte hasta que la administración confirme la transferencia previa.`);
+      return;
+    }
+
+    // Doble validación en tiempo real contra Supabase para evitar cierres duplicados
+    const { data: existePendiente } = await supabase
+      .from('cash_closures')
+      .select('id, net_amount, status')
+      .eq('business_id', local.id)
+      .in('status', ['pending', 'pending_settlement'])
+      .maybeSingle();
+
+    if (existePendiente) {
+      setCierrePendiente(existePendiente);
+      alert(`⚠️ Ya existe una liquidación pendiente por ${formatUsd(existePendiente.net_amount)}. La administración debe marcarla como completada antes de generar un nuevo corte.`);
+      return;
+    }
+
     const hoyInicio = new Date();
     hoyInicio.setHours(0, 0, 0, 0);
     const entregadasHoy = comandas.filter(o => o.status === 'delivered' && new Date(o.created_at) >= hoyInicio);
@@ -668,18 +734,19 @@ export default function Cocina() {
     const comision = bruto * 0.10;
     const neto = bruto - comision;
 
-    const { error } = await supabase.from('cash_closures').insert([{
+    const { data: nuevoCorte, error } = await supabase.from('cash_closures').insert([{
       business_id: local.id,
       gross_amount: bruto,
       commission_amount: comision,
       net_amount: neto,
       status: 'pending_settlement'
-    }]);
+    }]).select().single();
 
-    if (!error) {
+    if (!error && nuevoCorte) {
+      setCierrePendiente(nuevoCorte);
       alert(`✅ Solicitud de liquidación enviada por ${formatUsd(neto)}. Administración procesará tu transferencia.`);
     } else {
-      alert('Error al enviar corte: ' + error.message);
+      alert('Error al enviar corte: ' + (error?.message || 'Intente de nuevo.'));
     }
   }
 
@@ -877,32 +944,22 @@ export default function Cocina() {
                 </span>
               </div>
             )}
-            {todosLosLocales.length > 1 && (
-              <div style={{ marginTop: '6px' }}>
-                <select
-                  value={local?.id || ''}
-                  onChange={(e) => {
-                    const sel = todosLosLocales.find(l => l.id === e.target.value);
-                    if (sel) cambiarLocal(sel);
-                  }}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(255, 255, 255, 0.4)',
-                    borderRadius: '8px',
-                    padding: '4px 10px',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {todosLosLocales.map(loc => (
-                    <option key={loc.id} value={loc.id} style={{ color: '#000' }}>
-                      🏢 {loc.name} {loc.is_active ? '(Abierto)' : '(Pausado)'}
-                    </option>
-                  ))}
-                </select>
+            {local && (
+              <div style={{ marginTop: '8px' }}>
+                <span style={{
+                  background: 'rgba(255, 255, 255, 0.16)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.35)',
+                  borderRadius: '999px',
+                  padding: '4px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  🔒 Cocina Oficial Exclusiva • {local.name}
+                </span>
               </div>
             )}
           </div>
@@ -1547,18 +1604,56 @@ export default function Cocina() {
                 <canvas ref={chartCanvasRef} />
               </div>
 
+              {/* AVISO DE CIERRE PENDIENTE DE APROBACIÓN */}
+              {cierrePendiente && (
+                <div style={{
+                  background: '#fffbeb',
+                  border: '1.5px solid #f59e0b',
+                  borderRadius: '14px',
+                  padding: '14px 18px',
+                  marginTop: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
+                }}>
+                  <span style={{ fontSize: '1.6rem' }}>⏳</span>
+                  <div style={{ flex: 1 }}>
+                    <strong style={{ color: '#92400e', fontSize: '0.9rem', display: 'block', marginBottom: '2px' }}>
+                      Cierre de Caja en Proceso de Liquidación ({formatUsd(cierrePendiente.net_amount)})
+                    </strong>
+                    <span style={{ color: '#b45309', fontSize: '0.8rem', lineHeight: 1.4 }}>
+                      Tienes una solicitud de liquidación pendiente de pago por parte de administración. Por control contable, el envío de nuevos cortes se encuentra bloqueado hasta que el administrador confirme la transferencia anterior.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* BOTÓN DE SOLICITUD DE LIQUIDACIÓN / CORTE */}
               <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '16px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <span style={{ fontSize: '0.85rem', color: '#4b5563' }}>
-                  ¿Deseas cerrar caja y transferir tus ingresos disponibles?
-                </span>
+                <div>
+                  <span style={{ fontSize: '0.85rem', color: '#4b5563', display: 'block', fontWeight: 600 }}>
+                    {cierrePendiente ? 'Liquidación actual bloqueada por corte previo en curso.' : '¿Deseas cerrar caja y transferir tus ingresos disponibles?'}
+                  </span>
+                  <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>
+                    {cierrePendiente ? 'Estado: Esperando confirmación bancaria del administrador.' : 'Se aplicará la comisión estándar del 10% y el neto irá a tu cuenta bancaria.'}
+                  </small>
+                </div>
                 <button
                   type="button"
                   onClick={solicitarCorteCaja}
                   className="btn-primario"
-                  style={{ fontSize: '0.85rem', padding: '10px 18px' }}
+                  disabled={Boolean(cierrePendiente)}
+                  style={{
+                    fontSize: '0.85rem',
+                    padding: '10px 20px',
+                    opacity: cierrePendiente ? 0.55 : 1,
+                    cursor: cierrePendiente ? 'not-allowed' : 'pointer',
+                    background: cierrePendiente ? '#6b7280' : 'var(--dark-amaranth)',
+                    boxShadow: cierrePendiente ? 'none' : '0 4px 12px rgba(130, 19, 58, 0.25)'
+                  }}
                 >
-                  💰 Solicitar Liquidación Bancaria
+                  {cierrePendiente ? '🔒 Liquidación en Proceso' : '💰 Solicitar Liquidación Bancaria'}
                 </button>
               </div>
 

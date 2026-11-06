@@ -34,8 +34,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className={`app-container ${isStaffRoute ? 'wide-layout' : ''}`}>
-        {/* Navbar superior solo en rutas de administración / cocina */}
-        {isStaffRoute && <Navbar />}
+        {/* Header Superior Global Oficial Tropicalia en todas las páginas */}
+        <Navbar />
 
         <div style={{ flex: 1 }}>
           <Routes>

@@ -388,23 +388,16 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         </div>
       )}
 
-      {/* HEADER OFICIAL FIGMA (GRADIENTE AMARANTO / VIOLETA) */}
+      {/* HEADER DE BIENVENIDA Y UBICACIÓN (FIGMA AMARANTO) */}
       <header className="figma-header">
-        <div className="figma-header-top">
-          <h1 className="figma-header-title">
-            {nombreUsuario}
+        <div className="figma-header-top" style={{ marginBottom: '10px' }}>
+          <h1 className="figma-header-title" style={{ fontSize: '1.6rem' }}>
+            ¡Hola, {nombreUsuario}! 👋
           </h1>
-          <Link to="/checkout" className="figma-cart-pill" aria-label="Ir al carrito">
-            <span>🛒</span>
-            <span>{totalCount}</span>
-          </Link>
-        </div>
-
-        {/* Pastilla de ubicación y tasa BCV */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="figma-delivery-pill"
+            style={{ marginBottom: 0 }}
             onClick={() => {
               setTempDireccion(direccion);
               setShowAddressModal(true);
@@ -412,15 +405,11 @@ export default function Home({ onTriggerSearch, searchOpen }) {
             title="Cambiar dirección de entrega"
           >
             <span>📍</span>
-            <span style={{ maxWidth: '190px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Entregar en: {direccion}
+            <span style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {direccion}
             </span>
             <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>▼</span>
           </button>
-
-          <span style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 600 }}>
-            💵 BCV: {formatBs(tasaBCV)}
-          </span>
         </div>
 
         {/* Buscador Global Inteligente con IA y Sinónimos */}

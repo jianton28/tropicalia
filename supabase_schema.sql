@@ -234,11 +234,16 @@ CREATE TABLE IF NOT EXISTS public.cash_closures (
     gross_amount NUMERIC(10, 2) DEFAULT 0.00,
     commission_amount NUMERIC(10, 2) DEFAULT 0.00,
     net_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
-    status TEXT DEFAULT 'pending_settlement', -- 'pending_settlement', 'settled'
+    status TEXT DEFAULT 'pending_settlement', -- 'pending_settlement', 'pending', 'settled'
     settlement_reference TEXT,
     settled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Restricción estricta de base de datos para prevenir cierres de caja duplicados por negocio
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_pending_closure_per_business 
+ON public.cash_closures (business_id) 
+WHERE (status IN ('pending', 'pending_settlement'));
 
 -- 12. ÍNDICES DE RENDIMIENTO RECOMENDADOS
 CREATE INDEX IF NOT EXISTS idx_orders_business_id ON public.orders(business_id);
@@ -758,16 +763,21 @@ BEGIN
 
     -- 3. Transacción atómica según método de pago
     IF v_es_efectivo THEN
-        -- Sumar monto de la orden a la deuda en calle
-        v_nueva_deuda := v_nueva_deuda + v_monto_total;
+        -- DESCUENTO AUTOMÁTICO DE FLETE GANADO EN EFECTIVO:
+        -- El repartidor retiene en mano su ganancia de flete. La deuda que rinde a la cocina/plataforma
+        -- aumenta únicamente por el neto de la comida (total - flete), evitando endeudamiento inflado o duplicidad.
+        v_nueva_deuda := v_nueva_deuda + GREATEST(0, v_monto_total - v_flete_ganado);
         -- Bloquear si supera o iguala el techo de $25
         v_is_blocked := v_nueva_deuda >= v_techo_deuda;
-        -- Acreditar ganancia de flete a saldo a favor
-        v_nuevo_saldo := v_nuevo_saldo + v_flete_ganado;
+        -- v_nuevo_saldo permanece intacto (el flete ya fue retenido en físico)
 
-        -- Registrar transacción de deuda
+        -- Registrar transacción de deuda neta
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
-        VALUES (p_driver_id, p_order_id, v_monto_total, 'cash_debt', 'Cobro de efectivo en calle retenido');
+        VALUES (p_driver_id, p_order_id, GREATEST(0, v_monto_total - v_flete_ganado), 'cash_debt', 'Cobro neto de comida a entregar en caja');
+
+        -- Registrar deducción/retención de flete
+        INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
+        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_offset', 'Flete retenido en efectivo por el repartidor');
     ELSE
         -- Métodos digitales: Acreditar ganancia de flete
         v_nuevo_saldo := v_nuevo_saldo + v_flete_ganado;
