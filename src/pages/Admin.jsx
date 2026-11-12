@@ -299,12 +299,18 @@ export default function Admin() {
     if (!confirm('¿Confirmas que la transferencia fue realizada al restaurante?')) return;
     const { error } = await supabase
       .from('cash_closures')
-      .update({ status: 'settled' })
-      .eq('id', corteId);
+      .update({
+        status: 'settled',
+        settled_at: new Date().toISOString()
+      })
+      .eq('id', corteId)
+      .in('status', ['pending', 'pending_settlement']);
 
     if (!error) {
       showToast('💰 Liquidación marcada como realizada.');
       cargarCortes();
+    } else {
+      alert('Error liquidando corte: ' + error.message);
     }
   }
 
@@ -331,7 +337,8 @@ export default function Admin() {
           status: 'settled',
           settlement_reference: ref.trim()
         })
-        .eq('id', retiro.id);
+        .eq('id', retiro.id)
+        .eq('status', 'pending');
 
       if (error) throw error;
 
@@ -350,7 +357,23 @@ export default function Admin() {
     if (!confirm(`¿Rechazar solicitud de retiro de ${formatUsd(montoUsd)} para ${nombreDriver} y reintegrar el saldo a su billetera?`)) return;
 
     try {
-      // 1. Revertir saldo retenido en delivery_wallets
+      // 1. Marcar retiro como rejected con candado optimista para prevenir doble reintegro
+      const { data: retiroRechazado, error } = await supabase
+        .from('driver_withdrawals')
+        .update({ status: 'rejected' })
+        .eq('id', retiro.id)
+        .eq('status', 'pending')
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!retiroRechazado) {
+        showToast('Este retiro ya fue procesado anteriormente.');
+        cargarDriverWithdrawals();
+        return;
+      }
+
+      // 2. Revertir saldo retenido en delivery_wallets una sola vez
       const { data: w } = await supabase
         .from('delivery_wallets')
         .select('prepaid_balance')
@@ -364,14 +387,6 @@ export default function Admin() {
           .update({ prepaid_balance: saldoReintegrado })
           .eq('driver_id', retiro.driver_id);
       }
-
-      // 2. Marcar retiro como rejected
-      const { error } = await supabase
-        .from('driver_withdrawals')
-        .update({ status: 'rejected' })
-        .eq('id', retiro.id);
-
-      if (error) throw error;
 
       showToast(`❌ Solicitud rechazada. ${formatUsd(montoUsd)} reintegrados a la billetera de ${nombreDriver}.`);
       cargarDriverWithdrawals();
@@ -505,7 +520,7 @@ export default function Admin() {
         <div className="kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <small>💰 Cortes Restaurantes</small>
           <h3 style={{ color: '#60a5fa' }}>
-            {cortes.filter(c => c.status === 'pending_settlement').length}
+            {cortes.filter(c => ['pending', 'pending_settlement'].includes(c.status)).length}
           </h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
@@ -803,7 +818,7 @@ export default function Admin() {
                   {cortes.map(c => {
                     const f = new Date(c.created_at);
                     const fechaStr = `${f.toLocaleDateString()} ${f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                    const esPendiente = c.status === 'pending_settlement';
+                    const esPendiente = ['pending', 'pending_settlement'].includes(c.status);
                     return (
                       <tr key={c.id}>
                         <td>{fechaStr}</td>

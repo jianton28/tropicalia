@@ -120,20 +120,28 @@ export default function Cocina() {
     if (!user) return;
     initCocina();
 
-    // Suscripción Realtime blindada contra cierres obsoletos
+    // Suscripción Realtime blindada por negocio (evita alertas cruzadas de otras cocinas)
     const channel = supabase.channel('cocina-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
-        playBeepSound();
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         const curId = localRef.current?.id || local?.id;
-        if (curId) cargarComandas(curId);
+        if (curId && (!payload?.new?.business_id || payload.new.business_id === curId)) {
+          playBeepSound();
+          cargarComandas(curId);
+        }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         const curId = localRef.current?.id || local?.id;
-        if (curId) cargarComandas(curId);
+        const bizId = payload?.new?.business_id || payload?.old?.business_id;
+        if (curId && (!bizId || bizId === curId)) {
+          cargarComandas(curId);
+        }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, (payload) => {
         const curId = localRef.current?.id || local?.id;
-        if (curId) cargarInventario(curId);
+        const bizId = payload?.new?.business_id || payload?.old?.business_id;
+        if (curId && (!bizId || bizId === curId)) {
+          cargarInventario(curId);
+        }
       })
       .subscribe();
 
@@ -204,8 +212,8 @@ export default function Cocina() {
       }
     }
 
-    // 3. Fallback administrativo: Si el rol es admin, permitir inspección segura del primer negocio
-    if (!neg && (user?.email?.includes('admin') || user?.email?.endsWith('@tropicalia.lat'))) {
+    // 3. Fallback administrativo: Exclusivo para administradores corporativos (@tropicalia.lat)
+    if (!neg && user?.email?.toLowerCase().endsWith('@tropicalia.lat')) {
       const { data: primerNeg } = await supabase
         .from('businesses')
         .select('*')
@@ -489,9 +497,17 @@ export default function Cocina() {
     const orden = comandas.find(o => o.id === ordenId);
     if (!orden) return;
 
+    if (orden.status === 'pending_payment_verification' && ['cooking', 'ready', 'delivered'].includes(nuevoEstado)) {
+      alert('⏳ Este pedido digital aún requiere validación del comprobante por Administración antes de iniciar preparación.');
+      return;
+    }
+
     const payload = { status: nuevoEstado };
     if (nuevoEstado === 'on_the_way') {
       payload.delivery_status = 'on_the_way';
+    }
+    if (nuevoEstado === 'delivered') {
+      payload.delivered_at = orden.delivered_at || new Date().toISOString();
     }
 
     if (nuevoEstado === 'cooking') {
@@ -723,16 +739,43 @@ export default function Cocina() {
 
     const hoyInicio = new Date();
     hoyInicio.setHours(0, 0, 0, 0);
-    const entregadasHoy = comandas.filter(o => o.status === 'delivered' && new Date(o.created_at) >= hoyInicio);
-    const bruto = entregadasHoy.reduce((acc, o) => acc + parseFloat(o.subtotal_food || o.total || 0), 0);
+
+    // Prevenir doble conteo si ya existió otro cierre liquidado en el mismo día
+    const { data: ultimoLiquidado } = await supabase
+      .from('cash_closures')
+      .select('id, created_at, settled_at')
+      .eq('business_id', local.id)
+      .eq('status', 'settled')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const fechaCortePrevio = ultimoLiquidado?.created_at ? new Date(ultimoLiquidado.created_at) : null;
+    const tieneCorteHoy = Boolean(fechaCortePrevio && fechaCortePrevio > hoyInicio);
+
+    const entregadasHoy = comandas.filter(o => {
+      if (o.status !== 'delivered') return false;
+      const fechaOrden = new Date(o.delivered_at || o.created_at);
+      return tieneCorteHoy ? fechaOrden > fechaCortePrevio : fechaOrden >= hoyInicio;
+    });
+
+    const bruto = parseFloat(entregadasHoy.reduce((acc, o) => {
+      if (o.subtotal_food !== null && o.subtotal_food !== undefined) {
+        return acc + parseFloat(o.subtotal_food);
+      }
+      const total = parseFloat(o.total || 0);
+      const fee = o.delivery_type === 'delivery' ? parseFloat(o.delivery_fee || 0) : 0;
+      const tip = parseFloat(o.driver_tip || 0);
+      return acc + Math.max(0, total - fee - tip);
+    }, 0).toFixed(2));
 
     if (bruto <= 0) {
-      alert('No tienes órdenes entregadas hoy pendientes por liquidar.');
+      alert('No tienes órdenes entregadas pendientes por liquidar en este turno.');
       return;
     }
 
-    const comision = bruto * 0.10;
-    const neto = bruto - comision;
+    const comision = parseFloat((bruto * 0.10).toFixed(2));
+    const neto = parseFloat((bruto - comision).toFixed(2));
 
     const { data: nuevoCorte, error } = await supabase.from('cash_closures').insert([{
       business_id: local.id,
@@ -1148,7 +1191,25 @@ export default function Cocina() {
 
                       <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          {['pending', 'confirmed', 'paid', 'pending_payment_verification'].includes(ord.status) && (
+                          {ord.status === 'pending_payment_verification' && (
+                            <div
+                              style={{
+                                flex: 1,
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: 'rgba(239, 157, 36, 0.14)',
+                                border: '1px solid rgba(239, 157, 36, 0.35)',
+                                color: '#ef9d24',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                textAlign: 'center'
+                              }}
+                            >
+                              ⏳ Esperando verificación de pago por Administración
+                            </div>
+                          )}
+
+                          {['pending', 'confirmed', 'paid'].includes(ord.status) && (
                             <button
                               type="button"
                               onClick={() => cambiarEstadoComanda(ord.id, 'cooking')}

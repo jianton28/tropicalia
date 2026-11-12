@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase.js';
  * Revierte los insumos y stock de un pedido cancelado, devolviéndolos al inventario disponible.
  * @param {Object} order - Objeto de comanda con sus items
  */
-export async function revertirStockDeOrden(order) {
+export async function revertirStockDeOrden(order, sb = supabase) {
   if (!order || !Array.isArray(order.items) || order.items.length === 0) {
     return { success: true, count: 0 };
   }
@@ -25,7 +25,7 @@ export async function revertirStockDeOrden(order) {
     // 2. Consultar recetas vinculadas a estos productos
     let recetas = [];
     if (productIds.length > 0) {
-      const { data: recData } = await supabase
+      const { data: recData } = await sb
         .from('product_recipes')
         .select('*')
         .in('product_id', productIds);
@@ -33,7 +33,7 @@ export async function revertirStockDeOrden(order) {
     }
 
     // 3. Consultar todos los insumos actuales del restaurante
-    const { data: insumos } = await supabase
+    const { data: insumos } = await sb
       .from('inventory_items')
       .select('*')
       .eq('business_id', businessId);
@@ -57,7 +57,7 @@ export async function revertirStockDeOrden(order) {
             const devuelto = parseFloat(r.quantity_required || 0) * cantOrdenada;
             const nuevaCantidad = parseFloat(ins.quantity || 0) + devuelto;
 
-            await supabase
+            await sb
               .from('inventory_items')
               .update({ quantity: nuevaCantidad })
               .eq('id', ins.id);
@@ -72,7 +72,7 @@ export async function revertirStockDeOrden(order) {
         const insDirecto = insumosPorNombre.get(nombreItem);
         if (insDirecto) {
           const nuevaCantidad = parseFloat(insDirecto.quantity || 0) + cantOrdenada;
-          await supabase
+          await sb
             .from('inventory_items')
             .update({ quantity: nuevaCantidad })
             .eq('id', insDirecto.id);
@@ -84,10 +84,10 @@ export async function revertirStockDeOrden(order) {
     }
 
     // 5. Registrar en la bitácora de cocina (kitchen_logs)
-    const { error: logErr } = await supabase.from('kitchen_logs').insert([{
+    const { error: logErr } = await sb.from('kitchen_logs').insert([{
       business_id: businessId,
       log_type: 'reversion_cancelacion',
-      item_name: `Orden #${order.id.slice(0, 8)}`,
+      item_name: `Orden #${String(order.id).slice(0, 8)}`,
       quantity: items.length,
       amount_usd: parseFloat(order.total || 0),
       notes: `Reversión automática de insumos devueltos al stock (${revertedCount} items/ingredientes restaurados)`
@@ -95,10 +95,10 @@ export async function revertirStockDeOrden(order) {
 
     if (logErr) {
       // Fallback si la restricción CHECK de PostgreSQL en kitchen_logs aún no incluye 'reversion_cancelacion'
-      await supabase.from('kitchen_logs').insert([{
+      await sb.from('kitchen_logs').insert([{
         business_id: businessId,
         log_type: 'merma',
-        item_name: `Devolución Orden #${order.id.slice(0, 8)}`,
+        item_name: `Devolución Orden #${String(order.id).slice(0, 8)}`,
         quantity: items.length,
         amount_usd: parseFloat(order.total || 0),
         notes: `[REVERSIÓN DE STOCK] Insumos devueltos al stock por cancelación (${revertedCount} items/ingredientes restaurados)`
@@ -116,7 +116,7 @@ export async function revertirStockDeOrden(order) {
  * Descuenta los insumos de una comanda al entrar a cocina / preparación
  * @param {Object} order - Objeto de comanda
  */
-export async function descontarStockDeOrden(order) {
+export async function descontarStockDeOrden(order, sb = supabase) {
   if (!order || !Array.isArray(order.items) || order.items.length === 0) {
     return { success: true, count: 0 };
   }
@@ -128,14 +128,14 @@ export async function descontarStockDeOrden(order) {
     const productIds = items.map(i => i.product_id || i.id).filter(Boolean);
     let recetas = [];
     if (productIds.length > 0) {
-      const { data: recData } = await supabase
+      const { data: recData } = await sb
         .from('product_recipes')
         .select('*')
         .in('product_id', productIds);
       recetas = recData || [];
     }
 
-    const { data: insumos } = await supabase
+    const { data: insumos } = await sb
       .from('inventory_items')
       .select('*')
       .eq('business_id', businessId);
@@ -154,7 +154,7 @@ export async function descontarStockDeOrden(order) {
           if (ins) {
             const gasto = parseFloat(r.quantity_required || 0) * cant;
             const nuevaCant = Math.max(0, parseFloat(ins.quantity || 0) - gasto);
-            await supabase
+            await sb
               .from('inventory_items')
               .update({ quantity: nuevaCant })
               .eq('id', ins.id);
@@ -166,7 +166,7 @@ export async function descontarStockDeOrden(order) {
         const ins = insumosPorNombre.get(nombre);
         if (ins) {
           const nuevaCant = Math.max(0, parseFloat(ins.quantity || 0) - cant);
-          await supabase
+          await sb
             .from('inventory_items')
             .update({ quantity: nuevaCant })
             .eq('id', ins.id);
@@ -188,11 +188,11 @@ export async function descontarStockDeOrden(order) {
  * @param {string} motivo - Motivo de la cancelación
  * @param {string} canceladoPor - 'cliente' | 'cocina' | 'admin'
  */
-export async function cancelarOrdenConReversion(orderId, motivo = 'Cancelado por el usuario', canceladoPor = 'cliente') {
+export async function cancelarOrdenConReversion(orderId, motivo = 'Cancelado por el usuario', canceladoPor = 'cliente', sb = supabase) {
   if (!orderId) throw new Error('ID de orden no especificado');
 
   // 1. Obtener la orden actual
-  const { data: orden, error: ordError } = await supabase
+  const { data: orden, error: ordError } = await sb
     .from('orders')
     .select('*')
     .eq('id', orderId)
@@ -212,14 +212,14 @@ export async function cancelarOrdenConReversion(orderId, motivo = 'Cancelado por
   }
 
   // 3. Ejecutar reversión de stock si la orden estaba en preparación o activa
-  const resReversion = await revertirStockDeOrden(orden);
+  const resReversion = await revertirStockDeOrden(orden, sb);
 
   // 4. Actualizar el estado de la orden a 'cancelled'
   const fechaHora = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
   const notaCancelacion = `[Cancelado por ${canceladoPor} a las ${fechaHora}: ${motivo}]`;
   const notasFinales = orden.notes ? `${orden.notes} • ${notaCancelacion}` : notaCancelacion;
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await sb
     .from('orders')
     .update({
       status: 'cancelled',

@@ -9,6 +9,7 @@ import {
   validarAceptacionCarrera, 
   procesarBalanceCompletado, 
   amortizarDeudaConSaldo, 
+  solicitarRetiroDriver,
   TECHO_DEUDA_EFECTIVO 
 } from '../services/paymentService';
 
@@ -359,6 +360,7 @@ export default function Delivery() {
       await supabase.from('orders').update({
         delivery_status: 'delivered',
         status: 'delivered',
+        delivered_at: new Date().toISOString(),
         delivery_photo_url: fotoUrl
       }).eq('id', pedidoActivo.id);
 
@@ -478,26 +480,16 @@ export default function Delivery() {
 
     setRetirando(true);
     try {
-      // 1. Deducir saldo
-      const nuevoSaldo = saldo - monto;
-      const { error: errW } = await supabase.from('delivery_wallets').update({
-        prepaid_balance: nuevoSaldo
-      }).eq('driver_id', user.id);
+      const resRetiro = await solicitarRetiroDriver({
+        driverId: user.id,
+        amount: monto,
+        bankName: pmBanco,
+        idDoc: pmCedula,
+        phone: pmTelefono
+      });
 
-      if (errW) throw errW;
-
-      // 2. Registrar solicitud
-      try {
-        await supabase.from('driver_withdrawals').insert([{
-          driver_id: user.id,
-          amount: monto,
-          bank_name: pmBanco,
-          id_doc: pmCedula,
-          phone: pmTelefono,
-          status: 'pending'
-        }]);
-      } catch (e) {
-        console.warn('Fallback guardado retiro:', e);
+      if (resRetiro?.wallet) {
+        setWallet(resRetiro.wallet);
       }
 
       showToast(`💸 Solicitud de retiro por ${formatUsd(monto)} enviada. Se transferirá a tu Pago Móvil.`);

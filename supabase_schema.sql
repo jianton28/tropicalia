@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     slug TEXT UNIQUE,
+    category TEXT DEFAULT 'Comida',
     phone TEXT,
     telegram_chat_id TEXT,
     is_active BOOLEAN DEFAULT TRUE,
@@ -25,6 +26,21 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     lat NUMERIC(10, 6) DEFAULT 10.4806,
     lng NUMERIC(10, 6) DEFAULT -66.9036,
+    balance NUMERIC(10, 2) DEFAULT 0.00,
+    total_sales NUMERIC(10, 2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Comida';
+
+-- 2.1 TABLA: restaurant_verifications (Expediente de Verificación Sanitaria y Fiscal)
+CREATE TABLE IF NOT EXISTS public.restaurant_verifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    business_id UUID NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    rif TEXT,
+    sanitary_permit_url TEXT,
+    status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+    reviewed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -139,6 +155,9 @@ CREATE TABLE IF NOT EXISTS public.driver_profiles (
     phone TEXT,
     vehicle_type TEXT DEFAULT 'moto',
     vehicle_plate TEXT,
+    id_doc_url TEXT,
+    license_doc_url TEXT,
+    cash_debt NUMERIC(10, 2) DEFAULT 0.00,
     is_online BOOLEAN DEFAULT FALSE,
     pagomovil_bank TEXT,
     pagomovil_id TEXT,
@@ -146,7 +165,10 @@ CREATE TABLE IF NOT EXISTS public.driver_profiles (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Si la tabla driver_profiles ya existía sin las columnas de Pago Móvil:
+-- Si la tabla driver_profiles ya existía sin las columnas de Pago Móvil y recaudos:
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS id_doc_url TEXT;
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS license_doc_url TEXT;
+ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS cash_debt NUMERIC(10, 2) DEFAULT 0.00;
 ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_bank TEXT;
 ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_id TEXT;
 ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS pagomovil_phone TEXT;
@@ -570,11 +592,13 @@ CREATE POLICY "ZeroTrust: Dueño actualiza negocio"
 ON public.businesses FOR UPDATE
 USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid()));
 
--- RLS Orders: Inserción protegida por esquema de validez
+-- RLS Orders: Inserción protegida por esquema de validez y propiedad de usuario
 DROP POLICY IF EXISTS "ZeroTrust: Insercion de pedidos validos" ON public.orders;
 CREATE POLICY "ZeroTrust: Insercion de pedidos validos"
 ON public.orders FOR INSERT
 WITH CHECK (
+    auth.uid() IS NOT NULL AND
+    (customer_id = auth.uid() OR client_id = auth.uid()) AND
     total > 0 AND 
     jsonb_array_length(items) > 0 AND
     customer_phone IS NOT NULL AND
@@ -586,9 +610,14 @@ CREATE POLICY "ZeroTrust: Clientes leen sus pedidos"
 ON public.orders FOR SELECT
 USING (
     customer_id = auth.uid() OR
+    client_id = auth.uid() OR
     business_id IN (SELECT id FROM public.businesses WHERE owner_id = auth.uid()) OR
-    driver_id = auth.uid() OR
-    (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')) OR
+    business_id IN (SELECT business_id FROM public.kitchen_profiles WHERE id = auth.uid()) OR
+    (
+      delivery_type = 'delivery' AND
+      EXISTS (SELECT 1 FROM public.driver_profiles WHERE id = auth.uid()) AND
+      (driver_id = auth.uid() OR (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way')))
+    ) OR
     EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
 );
 
@@ -651,6 +680,10 @@ BEGIN
         RAISE EXCEPTION 'EMPTY_CART: El pedido debe contener al menos un plato.';
     END IF;
 
+    IF COALESCE((p_order_payload->>'bot_verified')::BOOLEAN, FALSE) IS NOT TRUE THEN
+        RAISE EXCEPTION 'BOT_VERIFICATION_REQUIRED: Debes completar la verificación de seguridad anti-bot.';
+    END IF;
+
     -- 3. Restricción de Tasa (Rate Limiting de Pedidos): Máximo 1 pedido cada 20 segundos por teléfono
     v_rate_limit_key := 'order_rate_' || trim(v_customer_phone);
     v_allowed := public.verificar_rate_limit(v_rate_limit_key, 2, 30, 60);
@@ -706,7 +739,7 @@ BEGIN
         COALESCE((p_order_payload->>'total_bs')::NUMERIC, 0),
         COALESCE(p_order_payload->>'status', 'pending'),
         p_idempotency_key,
-        TRUE
+        COALESCE((p_order_payload->>'bot_verified')::BOOLEAN, TRUE)
     ) RETURNING id INTO v_new_order_id;
 
     -- 5. Registro de auditoría
@@ -734,15 +767,25 @@ DECLARE
     v_es_efectivo BOOLEAN;
     v_monto_total NUMERIC;
     v_flete_ganado NUMERIC;
+    v_subtotal_food NUMERIC;
     v_nueva_deuda NUMERIC;
     v_nuevo_saldo NUMERIC;
     v_is_blocked BOOLEAN;
     v_techo_deuda NUMERIC := 25.00;
 BEGIN
+    -- 0. Autorización Zero-Trust: solo el propio repartidor asignado o Admin
+    IF auth.uid() IS DISTINCT FROM p_driver_id AND NOT public.is_admin() THEN
+        RAISE EXCEPTION 'UNAUTHORIZED: No autorizado para liquidar la billetera de otro repartidor.';
+    END IF;
+
     -- 1. Obtener orden
     SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
     IF v_order IS NULL THEN
         RAISE EXCEPTION 'ORDER_NOT_FOUND: Orden no encontrada.';
+    END IF;
+
+    IF v_order.driver_id IS NOT NULL AND v_order.driver_id IS DISTINCT FROM p_driver_id AND NOT public.is_admin() THEN
+        RAISE EXCEPTION 'DRIVER_MISMATCH: La orden está asignada a otro repartidor.';
     END IF;
 
     -- 2. Asegurar existencia de billetera
@@ -756,36 +799,40 @@ BEGIN
     v_es_efectivo := v_order.payment_method IN ('efectivo', 'efectivo_bs');
     v_monto_total := COALESCE(v_order.total, 0);
     v_flete_ganado := COALESCE(v_order.delivery_fee, 0) + COALESCE(v_order.driver_tip, 0);
+    v_subtotal_food := COALESCE(v_order.subtotal_food, GREATEST(0, v_monto_total - v_flete_ganado));
 
     v_nueva_deuda := COALESCE(v_wallet.cash_debt, 0);
     v_nuevo_saldo := COALESCE(v_wallet.prepaid_balance, 0);
-    v_is_blocked := v_wallet.is_blocked;
+    v_is_blocked := COALESCE(v_wallet.is_blocked, FALSE);
 
     -- 3. Transacción atómica según método de pago
     IF v_es_efectivo THEN
         -- DESCUENTO AUTOMÁTICO DE FLETE GANADO EN EFECTIVO:
-        -- El repartidor retiene en mano su ganancia de flete. La deuda que rinde a la cocina/plataforma
-        -- aumenta únicamente por el neto de la comida (total - flete), evitando endeudamiento inflado o duplicidad.
-        v_nueva_deuda := v_nueva_deuda + GREATEST(0, v_monto_total - v_flete_ganado);
+        -- El repartidor retiene en mano su ganancia de flete ($1.75). La deuda que rinde a caja
+        -- aumenta únicamente por el neto de la comida ($7.75 - $1.75 = $6.00), evitando doble cobro.
+        v_nueva_deuda := ROUND(v_nueva_deuda + GREATEST(0, v_monto_total - v_flete_ganado), 2);
         -- Bloquear si supera o iguala el techo de $25
         v_is_blocked := v_nueva_deuda >= v_techo_deuda;
         -- v_nuevo_saldo permanece intacto (el flete ya fue retenido en físico)
 
-        -- Registrar transacción de deuda neta
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
         VALUES (p_driver_id, p_order_id, GREATEST(0, v_monto_total - v_flete_ganado), 'cash_debt', 'Cobro neto de comida a entregar en caja');
 
-        -- Registrar deducción/retención de flete
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
         VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_offset', 'Flete retenido en efectivo por el repartidor');
     ELSE
         -- Métodos digitales: Acreditar ganancia de flete
-        v_nuevo_saldo := v_nuevo_saldo + v_flete_ganado;
+        v_nuevo_saldo := ROUND(v_nuevo_saldo + v_flete_ganado, 2);
 
-        -- Asentar venta en balance del restaurante (neto 90%)
+        INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
+        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_credit', 'Flete acreditado por pedido digital');
+    END IF;
+
+    -- Asentar venta neta (90%) en el balance acumulado del restaurante (efectivo o digital)
+    IF v_order.business_id IS NOT NULL AND v_subtotal_food > 0 THEN
         UPDATE public.businesses
-        SET balance = COALESCE(balance, 0) + (COALESCE(v_order.subtotal_food, 0) * 0.90),
-            total_sales = COALESCE(total_sales, 0) + COALESCE(v_order.subtotal_food, 0)
+        SET balance = COALESCE(balance, 0) + ROUND(v_subtotal_food * 0.90, 2),
+            total_sales = COALESCE(total_sales, 0) + v_subtotal_food
         WHERE id = v_order.business_id;
     END IF;
 
@@ -799,7 +846,8 @@ BEGIN
     -- Actualizar estado de orden a entregado
     UPDATE public.orders
     SET status = 'delivered',
-        delivered_at = NOW()
+        delivery_status = 'delivered',
+        delivered_at = COALESCE(delivered_at, NOW())
     WHERE id = p_order_id;
 
     -- Log de auditoría financiera
@@ -818,6 +866,122 @@ BEGIN
         'cash_debt', v_nueva_deuda,
         'prepaid_balance', v_nuevo_saldo,
         'is_blocked', v_is_blocked
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 17.8 INCREMENTAR BALANCE DEL RESTAURANTE (SOPORTE PICKUP / FALLBACK SEGURO)
+CREATE OR REPLACE FUNCTION public.increment_business_balance(
+    b_id UUID,
+    amount NUMERIC
+) RETURNS VOID AS $$
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'UNAUTHORIZED';
+    END IF;
+    UPDATE public.businesses
+    SET balance = COALESCE(balance, 0) + COALESCE(amount, 0)
+    WHERE id = b_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 17.9 AMORTIZACIÓN SEGURA DE DEUDA CON SALDO A FAVOR DEL REPARTIDOR
+CREATE OR REPLACE FUNCTION public.amortizar_deuda_con_saldo_seguro(
+    p_driver_id UUID,
+    p_monto NUMERIC
+) RETURNS JSONB AS $$
+DECLARE
+    v_wallet RECORD;
+    v_abono NUMERIC;
+    v_nuevo_saldo NUMERIC;
+    v_nueva_deuda NUMERIC;
+    v_is_blocked BOOLEAN;
+BEGIN
+    IF auth.uid() IS DISTINCT FROM p_driver_id AND NOT public.is_admin() THEN
+        RAISE EXCEPTION 'UNAUTHORIZED';
+    END IF;
+
+    SELECT * INTO v_wallet FROM public.delivery_wallets WHERE driver_id = p_driver_id FOR UPDATE;
+    IF v_wallet IS NULL THEN
+        RAISE EXCEPTION 'WALLET_NOT_FOUND';
+    END IF;
+
+    v_abono := ROUND(LEAST(COALESCE(v_wallet.prepaid_balance, 0), COALESCE(v_wallet.cash_debt, 0), COALESCE(p_monto, 0)), 2);
+    IF v_abono <= 0 THEN
+        RAISE EXCEPTION 'INVALID_AMORTIZATION: No hay saldo o deuda disponible para amortizar.';
+    END IF;
+
+    v_nuevo_saldo := ROUND(COALESCE(v_wallet.prepaid_balance, 0) - v_abono, 2);
+    v_nueva_deuda := ROUND(COALESCE(v_wallet.cash_debt, 0) - v_abono, 2);
+    v_is_blocked := v_nueva_deuda >= COALESCE(v_wallet.debt_ceiling, 25.00);
+
+    UPDATE public.delivery_wallets
+    SET prepaid_balance = v_nuevo_saldo,
+        cash_debt = v_nueva_deuda,
+        is_blocked = v_is_blocked
+    WHERE driver_id = p_driver_id
+    RETURNING * INTO v_wallet;
+
+    INSERT INTO public.delivery_transactions (driver_id, amount, type, notes)
+    VALUES (p_driver_id, v_abono, 'debt_payment', 'Amortización segura con saldo a favor');
+
+    RETURN jsonb_build_object(
+        'success', TRUE,
+        'abono_real', v_abono,
+        'wallet', to_jsonb(v_wallet)
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 17.10 SOLICITUD ATÓMICA DE RETIRO PAGO MÓVIL PARA REPARTIDORES (ZERO-TRUST RLS)
+CREATE OR REPLACE FUNCTION public.solicitar_retiro_driver_seguro(
+    p_driver_id UUID,
+    p_amount NUMERIC,
+    p_bank_name TEXT,
+    p_id_doc TEXT,
+    p_phone TEXT
+) RETURNS JSONB AS $$
+DECLARE
+    v_wallet RECORD;
+    v_withdrawal RECORD;
+    v_monto NUMERIC := ROUND(COALESCE(p_amount, 0), 2);
+    v_nuevo_saldo NUMERIC;
+BEGIN
+    IF auth.uid() IS DISTINCT FROM p_driver_id AND NOT public.is_admin() THEN
+        RAISE EXCEPTION 'UNAUTHORIZED: No puedes solicitar retiros para otro repartidor.';
+    END IF;
+
+    IF v_monto <= 0 THEN
+        RAISE EXCEPTION 'INVALID_AMOUNT: El monto del retiro debe ser mayor a 0.';
+    END IF;
+
+    SELECT * INTO v_wallet FROM public.delivery_wallets WHERE driver_id = p_driver_id FOR UPDATE;
+    IF v_wallet IS NULL THEN
+        RAISE EXCEPTION 'WALLET_NOT_FOUND: Billetera del repartidor no encontrada.';
+    END IF;
+
+    IF v_monto > COALESCE(v_wallet.prepaid_balance, 0) THEN
+        RAISE EXCEPTION 'INSUFFICIENT_BALANCE: El monto solicitado supera tu saldo disponible.';
+    END IF;
+
+    v_nuevo_saldo := ROUND(COALESCE(v_wallet.prepaid_balance, 0) - v_monto, 2);
+
+    UPDATE public.delivery_wallets
+    SET prepaid_balance = v_nuevo_saldo
+    WHERE driver_id = p_driver_id
+    RETURNING * INTO v_wallet;
+
+    INSERT INTO public.driver_withdrawals (driver_id, amount, bank_name, id_doc, phone, status)
+    VALUES (p_driver_id, v_monto, p_bank_name, p_id_doc, p_phone, 'pending')
+    RETURNING * INTO v_withdrawal;
+
+    INSERT INTO public.delivery_transactions (driver_id, amount, type, notes)
+    VALUES (p_driver_id, v_monto, 'withdrawal', 'Solicitud de retiro Pago Móvil retenida para transferencia');
+
+    RETURN jsonb_build_object(
+        'success', TRUE,
+        'withdrawal', to_jsonb(v_withdrawal),
+        'wallet', to_jsonb(v_wallet)
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

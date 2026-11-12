@@ -93,17 +93,11 @@ BEGIN
     -- 1. Verificación directa en la tabla de administradores
     EXISTS (SELECT 1 FROM public.app_admins WHERE user_id = auth.uid())
     OR
-    -- 2. Verificación en claims del JWT (App Metadata o User Metadata)
-    (auth.jwt() ->> 'role' = 'admin')
-    OR
-    ((auth.jwt() -> 'user_metadata' ->> 'role') = 'admin')
-    OR
+    -- 2. Verificación segura en claims de servidor (únicamente app_metadata, nunca user_metadata manipulable por el cliente)
     ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
     OR
-    -- 3. Verificación de dominio corporativo de administración
+    -- 3. Verificación estricta de dominio corporativo oficial
     ((auth.jwt() ->> 'email') ILIKE '%@tropicalia.lat')
-    OR
-    ((auth.jwt() ->> 'email') ILIKE '%admin%')
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
@@ -128,6 +122,17 @@ BEGIN
       SELECT 1 FROM public.kitchen_profiles 
       WHERE business_id = p_business_id AND id = auth.uid()
     )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- Función para verificar si el usuario actual es un repartidor registrado
+CREATE OR REPLACE FUNCTION public.is_driver()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.driver_profiles
+    WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
@@ -384,12 +389,14 @@ USING (
   client_id = auth.uid()
 );
 
--- Inserción: Solo pueden insertar pedidos con su propio user_id
+-- Inserción: Solo pueden insertar pedidos con su propio auth.uid() (Zero-Trust contra suplantación)
+DROP POLICY IF EXISTS "ZeroTrust: Insercion de pedidos validos" ON public.orders;
 DROP POLICY IF EXISTS "orders_client_insert" ON public.orders;
 CREATE POLICY "orders_client_insert"
 ON public.orders FOR INSERT
 WITH CHECK (
-  (customer_id = auth.uid() OR client_id = auth.uid() OR auth.uid() IS NOT NULL) AND
+  auth.uid() IS NOT NULL AND
+  (customer_id = auth.uid() OR client_id = auth.uid()) AND
   total > 0 AND
   jsonb_array_length(items) > 0
 );
@@ -430,31 +437,38 @@ WITH CHECK (
   kitchen_id = auth.uid()
 );
 
+-- Limpiar política heredada de supabase_schema.sql si existiese para evitar OR permisivo
+DROP POLICY IF EXISTS "ZeroTrust: Clientes leen sus pedidos" ON public.orders;
+
 -- 10.3 REPARTIDORES:
--- Lectura: Carreras asignadas a él O carreras disponibles para entrega sin conductor asignado
+-- Lectura: Exclusiva para usuarios en driver_profiles (evita fuga cruzada a clientes o cocinas ajenas)
 DROP POLICY IF EXISTS "orders_driver_select" ON public.orders;
 CREATE POLICY "orders_driver_select"
 ON public.orders FOR SELECT
 USING (
+  public.is_driver() AND
   delivery_type = 'delivery' AND (
     driver_id = auth.uid() OR
     (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way'))
   )
 );
 
--- Actualización por Repartidor: Aceptar carrera disponible o actualizar su propia entrega
+-- Actualización por Repartidor: Exclusiva para usuarios en driver_profiles
 DROP POLICY IF EXISTS "orders_driver_update" ON public.orders;
 CREATE POLICY "orders_driver_update"
 ON public.orders FOR UPDATE
 USING (
+  public.is_driver() AND
   delivery_type = 'delivery' AND (
     driver_id = auth.uid() OR
     (driver_id IS NULL AND status IN ('pending', 'cooking', 'ready', 'on_the_way'))
   )
 )
 WITH CHECK (
+  public.is_driver() AND
   delivery_type = 'delivery' AND (
-    driver_id = auth.uid()
+    driver_id = auth.uid() OR
+    (driver_id IS NULL AND delivery_status = 'pending' AND status IN ('pending', 'cooking', 'ready'))
   )
 );
 
@@ -670,6 +684,25 @@ CREATE POLICY "rate_limits_admin_all"
 ON public.rate_limits FOR ALL
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
+
+-- 16.3 restaurant_verifications (Expedientes sanitarios/fiscales de restaurantes)
+ALTER TABLE public.restaurant_verifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "restaurant_verifications_admin_all" ON public.restaurant_verifications;
+CREATE POLICY "restaurant_verifications_admin_all"
+ON public.restaurant_verifications FOR ALL
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "restaurant_verifications_kitchen_select" ON public.restaurant_verifications;
+CREATE POLICY "restaurant_verifications_kitchen_select"
+ON public.restaurant_verifications FOR SELECT
+USING (public.is_kitchen_owner(business_id));
+
+DROP POLICY IF EXISTS "restaurant_verifications_kitchen_insert" ON public.restaurant_verifications;
+CREATE POLICY "restaurant_verifications_kitchen_insert"
+ON public.restaurant_verifications FOR INSERT
+WITH CHECK (public.is_kitchen_owner(business_id));
 
 -- ==============================================================================
 -- FIN DEL SCRIPT DE POLÍTICAS RLS ZERO-TRUST

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/tests/crossCheck.mjs"
+    "test": "node src/tests/crossCheck.mjs && node src/tests/integrationSuite.mjs"
   },
   "repository": {
     "type": "git",

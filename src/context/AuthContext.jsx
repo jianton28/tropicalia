@@ -14,9 +14,9 @@ export function AuthProvider({ children }) {
   async function resolveRole(authUser) {
     if (!authUser) return null;
     
-    // 1. Administrador: Verificación estricta (correo oficial del dominio o tabla app_admins)
+    // 1. Administrador: Verificación estricta (correo oficial @tropicalia.lat, app_metadata o tabla app_admins)
     const emailLower = authUser.email?.toLowerCase() || '';
-    if (emailLower.includes('admin') || emailLower.endsWith('@tropicalia.lat')) {
+    if (emailLower.endsWith('@tropicalia.lat') || authUser.app_metadata?.role === 'admin') {
       return 'admin';
     }
 
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
 
       if (adm) return 'admin';
 
-      // 2. Cocina / Restaurante: Verificación en tabla businesses (owner_id)
+      // 2. Cocina / Restaurante: Verificación en tabla businesses (owner_id) o kitchen_profiles
       const { data: neg } = await supabase
         .from('businesses')
         .select('id')
@@ -38,6 +38,16 @@ export function AuthProvider({ children }) {
         .maybeSingle();
 
       if (neg) {
+        return 'restaurant';
+      }
+
+      const { data: kp } = await supabase
+        .from('kitchen_profiles')
+        .select('id')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (kp) {
         return 'restaurant';
       }
 
