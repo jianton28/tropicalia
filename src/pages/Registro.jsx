@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/common/PasswordInput';
 import SecurityVerification from '../components/common/SecurityVerification';
 import { securityService } from '../services/securityService';
+import { User, ChefHat, Bike } from '../components/common/Icons';
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ export default function Registro() {
     }
 
     if (!botVerified) {
-      setErrorMsg('⚠️ Por favor completa la verificación de seguridad anti-bot antes de registrarte.');
+      setErrorMsg('Por favor completa la verificación de seguridad anti-bot antes de registrarte.');
       return;
     }
 
@@ -190,10 +191,14 @@ export default function Registro() {
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
               fontSize: '0.82rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            👤 Cliente
+            <User size={15} /> Cliente
           </button>
           <button
             type="button"
@@ -207,10 +212,14 @@ export default function Registro() {
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
               fontSize: '0.82rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            👨‍🍳 Cocina
+            <ChefHat size={15} /> Cocina
           </button>
           <button
             type="button"
@@ -224,10 +233,14 @@ export default function Registro() {
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
               fontSize: '0.82rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}
           >
-            🛵 Repartidor
+            <Bike size={15} /> Repartidor
           </button>
         </div>
 
@@ -310,9 +323,9 @@ export default function Registro() {
             <div style={{ background: '#f8f5f6', border: '1px solid rgba(130,19,58,0.3)', borderRadius: '12px', padding: '14px', margin: '10px 0 14px 0' }}>
               <h4 style={{ margin: '0 0 10px 0', color: 'var(--dark-amaranth)', fontSize: '0.96rem' }}>Datos de Repartidor Independiente</h4>
               <select value={vehiculoTipo} onChange={e => setVehiculoTipo(e.target.value)}>
-                <option value="moto">🏍️ Moto</option>
-                <option value="bicicleta">🚲 Bicicleta</option>
-                <option value="auto">🚗 Automóvil</option>
+                <option value="moto">Moto</option>
+                <option value="bicicleta">Bicicleta</option>
+                <option value="auto">Automóvil</option>
               </select>
 
               <input

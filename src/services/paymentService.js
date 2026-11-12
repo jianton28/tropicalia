@@ -101,7 +101,7 @@ export function validarAceptacionCarrera({ orden, wallet }) {
     if (estaBloqueado) {
       return {
         permitido: false,
-        motivo: `⛔ Límite de efectivo alcanzado. Tienes una deuda de efectivo en calle de $${deudaActual.toFixed(2)} (tope permitido: $${TECHO_DEUDA_EFECTIVO.toFixed(2)}). Debes entregar el efectivo a caja o saldar con tu saldo a favor antes de aceptar más órdenes en efectivo.`
+        motivo: `Límite de efectivo alcanzado. Tienes una deuda de efectivo en calle de $${deudaActual.toFixed(2)} (tope permitido: $${TECHO_DEUDA_EFECTIVO.toFixed(2)}). Debes entregar el efectivo a caja o saldar con tu saldo a favor antes de aceptar más órdenes en efectivo.`
       };
     }
   }

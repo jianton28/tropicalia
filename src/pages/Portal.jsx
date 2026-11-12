@@ -11,7 +11,25 @@ import PasswordInput from '../components/common/PasswordInput';
 import MapAddressPicker from '../components/common/MapAddressPicker';
 import SecurityVerification from '../components/common/SecurityVerification';
 import { securityService } from '../services/securityService';
-import logoImg from '../assets/logo.png';
+import tropiHeadImg from '../assets/tropi_head.png';
+import {
+  WhatsAppIcon,
+  HeartOutlineIcon,
+  TrashVinoIcon,
+  ChefHat,
+  Bike,
+  Shield,
+  ShoppingBag,
+  User,
+  KeyRound,
+  Mail,
+  Sparkles,
+  Headphones,
+  CreditCard,
+  X,
+  MapPin,
+  Lock
+} from '../components/common/Icons';
 
 export default function Portal() {
   const navigate = useNavigate();
@@ -97,7 +115,7 @@ export default function Portal() {
       applyPendingPasswordUpdate()
         .then((ok) => {
           if (ok) {
-            setSuccessBanner('🎉 ¡Tu contraseña ha sido confirmada y actualizada exitosamente en Supabase!');
+            setSuccessBanner('Tu contraseña ha sido confirmada y actualizada exitosamente en Supabase.');
           }
         })
         .catch((err) => {
@@ -267,13 +285,13 @@ export default function Portal() {
     // 1. Verificación de Rate Limiting (Protección contra fuerza bruta)
     const rlCheck = securityService.checkLoginRateLimit(cleanEmail);
     if (rlCheck.blocked) {
-      setErrorMsg(`⛔ Has superado el límite de intentos permitidos. Por seguridad, tu acceso está temporalmente pausado. Intenta de nuevo en ${rlCheck.remainingSeconds} segundos.`);
+      setErrorMsg(`Has superado el límite de intentos permitidos. Por seguridad, tu acceso está temporalmente pausado. Intenta de nuevo en ${rlCheck.remainingSeconds} segundos.`);
       return;
     }
 
     // 2. Verificación Anti-Bot / Turnstile
     if (!botVerified) {
-      setErrorMsg('⚠️ Por favor completa la verificación de seguridad anti-bot antes de ingresar.');
+      setErrorMsg('Por favor completa la verificación de seguridad anti-bot antes de ingresar.');
       return;
     }
 
@@ -291,7 +309,7 @@ export default function Portal() {
       securityService.recordFailedLoginAttempt(cleanEmail);
       const postCheck = securityService.checkLoginRateLimit(cleanEmail);
       if (postCheck.blocked) {
-        setErrorMsg('⛔ 5 intentos fallidos alcanzados. Acceso bloqueado por 15 minutos para prevenir ataques de fuerza bruta.');
+        setErrorMsg('5 intentos fallidos alcanzados. Acceso bloqueado por 15 minutos para prevenir ataques de fuerza bruta.');
       } else {
         setErrorMsg(`Credenciales inválidas: ${err.message}. Intentos restantes: ${postCheck.attemptsLeft}`);
       }
@@ -304,11 +322,11 @@ export default function Portal() {
     if (e && e.preventDefault) e.preventDefault();
     const targetEmail = (recoveryEmail.trim() || email.trim()).toLowerCase();
     if (!targetEmail) {
-      setRecoveryMsg('⚠️ Por favor ingresa tu correo electrónico.');
+      setRecoveryMsg('Por favor ingresa tu correo electrónico.');
       return;
     }
     if (!securityService.validateEmail(targetEmail)) {
-      setRecoveryMsg('⚠️ Por favor ingresa un correo electrónico válido.');
+      setRecoveryMsg('Por favor ingresa un correo electrónico válido.');
       return;
     }
 
@@ -316,9 +334,9 @@ export default function Portal() {
     setRecoveryMsg('');
     try {
       await sendPasswordResetEmail(targetEmail);
-      setRecoveryMsg(`✅ ¡Enlace enviado! Revisa tu bandeja de entrada en ${targetEmail}. Al hacer clic en el enlace oficial de Tropicalia podrás ingresar tu nueva contraseña.`);
+      setRecoveryMsg(`Enlace enviado con éxito. Revisa tu bandeja de entrada en ${targetEmail}. Al hacer clic en el enlace oficial de Tropicalia podrás ingresar tu nueva contraseña.`);
     } catch (err) {
-      setRecoveryMsg(`❌ Error enviando enlace: ${err.message || 'Intenta de nuevo más tarde.'}`);
+      setRecoveryMsg(`Error enviando enlace: ${err.message || 'Intenta de nuevo más tarde.'}`);
     } finally {
       setRecoveryLoading(false);
     }
@@ -329,11 +347,11 @@ export default function Portal() {
     if (e && e.preventDefault) e.preventDefault();
     const targetEmail = (recoveryEmail.trim() || email.trim()).toLowerCase();
     if (!targetEmail) {
-      setRecoveryMsg('⚠️ Por favor ingresa tu correo electrónico.');
+      setRecoveryMsg('Por favor ingresa tu correo electrónico.');
       return;
     }
     if (!securityService.validateEmail(targetEmail)) {
-      setRecoveryMsg('⚠️ Por favor ingresa un correo electrónico válido.');
+      setRecoveryMsg('Por favor ingresa un correo electrónico válido.');
       return;
     }
 
@@ -341,9 +359,9 @@ export default function Portal() {
     setRecoveryMsg('');
     try {
       await resendVerificationEmail(targetEmail);
-      setRecoveryMsg(`✅ ¡Correo reenviado con éxito! Revisa tu bandeja de entrada o spam en ${targetEmail}.`);
+      setRecoveryMsg(`Correo reenviado con éxito. Revisa tu bandeja de entrada o spam en ${targetEmail}.`);
     } catch (err) {
-      setRecoveryMsg(`❌ Error reenviando correo: ${err.message || 'Intenta de nuevo más tarde.'}`);
+      setRecoveryMsg(`Error reenviando correo: ${err.message || 'Intenta de nuevo más tarde.'}`);
     } finally {
       setRecoveryLoading(false);
     }
@@ -353,11 +371,11 @@ export default function Portal() {
   async function handleApplyRecoveryPassword(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (!recoveryNewPwd || recoveryNewPwd.length < 6) {
-      setRecoveryFeedback('⚠️ La nueva contraseña debe tener al menos 6 caracteres.');
+      setRecoveryFeedback('La nueva contraseña debe tener al menos 6 caracteres.');
       return;
     }
     if (recoveryNewPwd !== recoveryConfirmPwd) {
-      setRecoveryFeedback('⚠️ Las contraseñas no coinciden.');
+      setRecoveryFeedback('Las contraseñas no coinciden.');
       return;
     }
 
@@ -366,13 +384,13 @@ export default function Portal() {
     try {
       const { error } = await supabase.auth.updateUser({ password: recoveryNewPwd });
       if (error) throw error;
-      setSuccessBanner('🎉 ¡Tu contraseña ha sido restablecida exitosamente! Ya puedes usar tu nueva clave.');
+      setSuccessBanner('Tu contraseña ha sido restablecida exitosamente. Ya puedes usar tu nueva clave.');
       setShowResetModal(false);
       setRecoveryNewPwd('');
       setRecoveryConfirmPwd('');
       navigate('/portal', { replace: true });
     } catch (err) {
-      setRecoveryFeedback(`❌ Error al actualizar contraseña: ${err.message}`);
+      setRecoveryFeedback(`Error al actualizar contraseña: ${err.message}`);
     } finally {
       setRecoverySubmitting(false);
     }
@@ -405,7 +423,7 @@ export default function Portal() {
       setNewAddrEsTercero(false);
       setNewAddrRecipientName('');
       setNewAddrRecipientPhone('');
-      alert('✅ Dirección registrada exitosamente.');
+      alert('Dirección registrada exitosamente.');
     } catch (err) {
       alert('Error guardando dirección: ' + err.message);
     } finally {
@@ -427,10 +445,10 @@ export default function Portal() {
         currentPassword: currentPwdForProfile
       });
 
-      setProfileFeedback('✅ Datos actualizados exitosamente. Si modificaste tu correo, revisa tu bandeja de entrada para confirmarlo.');
+      setProfileFeedback('Datos actualizados exitosamente. Si modificaste tu correo, revisa tu bandeja de entrada para confirmarlo.');
       setCurrentPwdForProfile('');
     } catch (err) {
-      setProfileFeedback('❌ Error: ' + err.message);
+      setProfileFeedback('Error: ' + err.message);
     } finally {
       setProfileSubmitting(false);
     }
@@ -449,12 +467,12 @@ export default function Portal() {
         confirmPassword: confirmPwd
       });
 
-      setPwdFeedback(`✅ ${res.message}`);
+      setPwdFeedback(res.message);
       setCurrentPwd('');
       setNewPwd('');
       setConfirmPwd('');
     } catch (err) {
-      setPwdFeedback('❌ ' + err.message);
+      setPwdFeedback('Error: ' + err.message);
     } finally {
       setPwdSubmitting(false);
     }
@@ -513,7 +531,7 @@ export default function Portal() {
           padding: '14px'
         }}>
           <img
-            src={logoImg}
+            src={tropiHeadImg}
             alt="Tropicalia CRB"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
@@ -591,7 +609,9 @@ export default function Portal() {
               }}
               title="Ver Pantalla de Bienvenida"
             >
-              ✨ Inicio
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Sparkles size={12} /> Inicio
+              </span>
             </button>
             <button
               type="button"
@@ -628,7 +648,7 @@ export default function Portal() {
             margin: '0 auto 10px auto',
             boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)'
           }}>
-            {user ? inicial : '👤'}
+            {user ? inicial : <User size={34} color="var(--dark-amaranth)" />}
           </div>
 
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', margin: '0 0 3px 0', color: '#ffffff' }}>
@@ -688,7 +708,7 @@ export default function Portal() {
         </div>
       )}
 
-      {/* FORMULARIO DE INICIO DE SESIÓN CON BOTÓN DE VISIBILIDAD DE MONO (🙈 / 🐵) */}
+      {/* FORMULARIO DE INICIO DE SESIÓN CON BOTÓN DE VISIBILIDAD DE OJO PLANO EN COLOR VINO */}
       {!user && showAuthForm && (
         <div style={{ padding: '20px' }}>
           {authRecoveryMode === 'forgot_password' ? (
@@ -700,13 +720,16 @@ export default function Portal() {
               boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>🔑 Recuperar Contraseña</h3>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <KeyRound size={18} color="var(--dark-amaranth)" /> Recuperar Contraseña
+                </h3>
                 <button
                   type="button"
                   onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center' }}
+                  aria-label="Cerrar"
                 >
-                  ✕
+                  <X size={16} />
                 </button>
               </div>
               <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
@@ -737,9 +760,9 @@ export default function Portal() {
 
               {recoveryMsg && (
                 <div style={{
-                  background: recoveryMsg.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
-                  border: `1px solid ${recoveryMsg.startsWith('✅') ? '#10b981' : '#ef4444'}`,
-                  color: recoveryMsg.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  background: (!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${(!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#10b981' : '#ef4444'}`,
+                  color: (!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#065f46' : '#b91c1c',
                   padding: '10px 14px',
                   borderRadius: '10px',
                   fontSize: '0.82rem',
@@ -768,13 +791,16 @@ export default function Portal() {
               boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>📩 Reenviar Confirmación</h3>
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Mail size={18} color="var(--dark-amaranth)" /> Reenviar Confirmación
+                </h3>
                 <button
                   type="button"
                   onClick={() => { setAuthRecoveryMode(null); setRecoveryMsg(''); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6b7280' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center' }}
+                  aria-label="Cerrar"
                 >
-                  ✕
+                  <X size={16} />
                 </button>
               </div>
               <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
@@ -805,9 +831,9 @@ export default function Portal() {
 
               {recoveryMsg && (
                 <div style={{
-                  background: recoveryMsg.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
-                  border: `1px solid ${recoveryMsg.startsWith('✅') ? '#10b981' : '#ef4444'}`,
-                  color: recoveryMsg.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  background: (!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${(!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#10b981' : '#ef4444'}`,
+                  color: (!recoveryMsg.toLowerCase().includes('error') && !recoveryMsg.toLowerCase().includes('por favor')) ? '#065f46' : '#b91c1c',
                   padding: '10px 14px',
                   borderRadius: '10px',
                   fontSize: '0.82rem',
@@ -844,7 +870,7 @@ export default function Portal() {
                   />
                 </div>
 
-                {/* Input interactivo con emoticón de mono 🙈 / 🐵 */}
+                {/* Input interactivo con ojo vectorial en color vino */}
                 <PasswordInput
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -934,8 +960,8 @@ export default function Portal() {
             padding: '24px',
             boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)'
           }}>
-            <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-              🔐 Establecer Nueva Contraseña
+            <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <KeyRound size={20} color="var(--dark-amaranth)" /> Establecer Nueva Contraseña
             </h3>
             <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#4b5563', lineHeight: 1.4 }}>
               Has accedido mediante un enlace oficial de recuperación. Por favor ingresa tu nueva contraseña para actualizarla en Supabase.
@@ -961,9 +987,9 @@ export default function Portal() {
 
               {recoveryFeedback && (
                 <div style={{
-                  background: recoveryFeedback.startsWith('✅') ? '#ecfdf5' : '#fee2e2',
-                  border: `1px solid ${recoveryFeedback.startsWith('✅') ? '#10b981' : '#ef4444'}`,
-                  color: recoveryFeedback.startsWith('✅') ? '#065f46' : '#b91c1c',
+                  background: (!recoveryFeedback.toLowerCase().includes('error') && !recoveryFeedback.toLowerCase().includes('debe') && !recoveryFeedback.toLowerCase().includes('no coinciden')) ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${(!recoveryFeedback.toLowerCase().includes('error') && !recoveryFeedback.toLowerCase().includes('debe') && !recoveryFeedback.toLowerCase().includes('no coinciden')) ? '#10b981' : '#ef4444'}`,
+                  color: (!recoveryFeedback.toLowerCase().includes('error') && !recoveryFeedback.toLowerCase().includes('debe') && !recoveryFeedback.toLowerCase().includes('no coinciden')) ? '#065f46' : '#b91c1c',
                   padding: '10px',
                   borderRadius: '10px',
                   fontSize: '0.8rem',
@@ -1122,7 +1148,7 @@ export default function Portal() {
           {/* ACCESOS DE ROL PARA PERSONAL */}
           {role === 'restaurant' && (
             <Link to="/cocina" className="user-menu-item" style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>
-              <span style={{ fontSize: '1.15rem' }}>👨‍🍳</span>
+              <ChefHat size={20} color="#92400e" />
               <span style={{ flex: 1, fontWeight: 700 }}>Panel de Cocina</span>
               <span>›</span>
             </Link>
@@ -1130,7 +1156,7 @@ export default function Portal() {
 
           {role === 'delivery' && (
             <Link to="/delivery" className="user-menu-item" style={{ background: '#d1fae5', borderColor: '#10b981', color: '#065f46' }}>
-              <span style={{ fontSize: '1.15rem' }}>🛵</span>
+              <Bike size={20} color="#065f46" />
               <span style={{ flex: 1, fontWeight: 700 }}>Panel de Repartidor</span>
               <span>›</span>
             </Link>
@@ -1138,7 +1164,7 @@ export default function Portal() {
 
           {role === 'admin' && (
             <Link to="/admin" className="user-menu-item" style={{ background: '#ede9fe', borderColor: '#8b5cf6', color: '#5b21b6' }}>
-              <span style={{ fontSize: '1.15rem' }}>🛡️</span>
+              <Shield size={20} color="#5b21b6" />
               <span style={{ flex: 1, fontWeight: 700 }}>Panel Administrador</span>
               <span>›</span>
             </Link>
@@ -1203,7 +1229,9 @@ export default function Portal() {
               </p>
             ) : historialOrdenes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '50px 10px' }}>
-                <div style={{ fontSize: '2.8rem', marginBottom: '10px' }}>🛍️</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+                  <ShoppingBag size={48} color="var(--dark-amaranth)" />
+                </div>
                 <p style={{ color: 'var(--dark-amaranth)', fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700 }}>
                   Aún no has realizado pedidos
                 </p>
@@ -1346,17 +1374,23 @@ export default function Portal() {
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>❤️ Mis Platos Favoritos</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <HeartOutlineIcon size={18} active={true} /> Mis Platos Favoritos
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
 
             {loadingFavoritos ? (
               <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Cargando favoritos...</p>
             ) : platosFavoritos.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 10px' }}>
-                <span style={{ fontSize: '2.5rem' }}>🤍</span>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                  <HeartOutlineIcon size={38} active={false} color="#9ca3af" />
+                </div>
                 <p style={{ color: '#6b7280', marginTop: '10px' }}>No tienes platos favoritos guardados aún.</p>
-                <small style={{ color: '#9ca3af' }}>Toca el corazón ❤️ en cualquier plato del catálogo para guardarlo aquí.</small>
+                <small style={{ color: '#9ca3af' }}>Toca el icono de favorito en cualquier plato del catálogo para guardarlo aquí.</small>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
@@ -1398,8 +1432,12 @@ export default function Portal() {
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>📍 Mis Direcciones de Entrega</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MapPin size={18} color="var(--dark-amaranth)" /> Mis Direcciones de Entrega
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
 
             {/* Lista de direcciones guardadas */}
@@ -1421,8 +1459,13 @@ export default function Portal() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '2px' }}>
                       <strong style={{ fontSize: '0.88rem', color: 'var(--dark-amaranth)' }}>
-                        {addr.esTercero ? `🎁 ${addr.alias}` : `🏠 ${addr.alias}`}
+                        {addr.alias}
                       </strong>
+                      {addr.esTercero && (
+                        <span style={{ background: '#fdf2f8', color: 'var(--dark-amaranth)', fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                          Tercero
+                        </span>
+                      )}
                       {addr.isDefault && (
                         <span style={{ background: '#10b981', color: '#fff', fontSize: '0.68rem', padding: '1px 6px', borderRadius: '999px', fontWeight: 800 }}>
                           Predeterminada
@@ -1457,9 +1500,11 @@ export default function Portal() {
                           addressService.deleteAddress(addr.id, user?.id).then(setDirecciones);
                         }
                       }}
-                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer', padding: '4px' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Eliminar dirección"
+                      aria-label="Eliminar dirección"
                     >
-                      🗑️
+                      <TrashVinoIcon size={16} />
                     </button>
                   </div>
                 </div>
@@ -1480,7 +1525,7 @@ export default function Portal() {
               <form onSubmit={handleCrearDireccion} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '14px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <strong style={{ fontSize: '0.9rem', color: 'var(--dark-amaranth)' }}>Registrar Ubicación</strong>
-                  <button type="button" onClick={() => setShowAddAddressForm(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>✕</button>
+                  <button type="button" onClick={() => setShowAddAddressForm(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Cerrar formulario"><X size={16} /></button>
                 </div>
 
                 <div style={{ marginBottom: '8px' }}>
@@ -1503,7 +1548,7 @@ export default function Portal() {
                       checked={newAddrEsTercero}
                       onChange={e => setNewAddrEsTercero(e.target.checked)}
                     />
-                    🎁 ¿Es un envío para otra persona (Tercero)?
+                    ¿Es un envío para otra persona (Tercero)?
                   </label>
 
                   {newAddrEsTercero && (
@@ -1580,8 +1625,12 @@ export default function Portal() {
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>👤 Mis Datos Personales</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={18} color="var(--dark-amaranth)" /> Mis Datos Personales
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
 
             {user ? (
@@ -1629,7 +1678,7 @@ export default function Portal() {
                 {(editEmail.trim().toLowerCase() !== user.email?.toLowerCase() || editPhone.trim() !== user.user_metadata?.phone) && (
                   <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '10px' }}>
                     <small style={{ color: '#92400e', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                      🔒 Por seguridad, ingresa tu contraseña actual para confirmar el cambio de correo o teléfono:
+                      Por seguridad, ingresa tu contraseña actual para confirmar el cambio de correo o teléfono:
                     </small>
                     <PasswordInput
                       value={currentPwdForProfile}
@@ -1643,12 +1692,19 @@ export default function Portal() {
                 <div style={{ background: '#f3f4f6', padding: '10px', borderRadius: '10px', fontSize: '0.78rem', color: '#4b5563' }}>
                   <strong>Rol de la cuenta:</strong> <span style={{ textTransform: 'uppercase', color: 'var(--dark-amaranth)', fontWeight: 800 }}>{role || 'Cliente'}</span>
                   <small style={{ display: 'block', color: '#6b7280', marginTop: '2px' }}>
-                    🔒 Tu rol está protegido e inmutable por las políticas de seguridad del backend.
+                    Tu rol está protegido e inmutable por las políticas de seguridad del backend.
                   </small>
                 </div>
 
                 {profileFeedback && (
-                  <div style={{ fontSize: '0.82rem', padding: '8px 10px', borderRadius: '8px', background: profileFeedback.startsWith('✅') ? '#ecfdf5' : '#fee2e2', color: profileFeedback.startsWith('✅') ? '#065f46' : '#b91c1c' }}>
+                  <div style={{
+                    fontSize: '0.82rem',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: (!profileFeedback.toLowerCase().includes('error')) ? '#ecfdf5' : '#fee2e2',
+                    border: `1px solid ${(!profileFeedback.toLowerCase().includes('error')) ? '#10b981' : '#ef4444'}`,
+                    color: (!profileFeedback.toLowerCase().includes('error')) ? '#065f46' : '#b91c1c'
+                  }}>
                     {profileFeedback}
                   </div>
                 )}
@@ -1672,14 +1728,18 @@ export default function Portal() {
       )}
 
       {/* =========================================================================
-          MODAL 5: CAMBIO SEGURO DE CONTRASEÑA (CON VISIBILIDAD DE MONO 🙈/🐵)
+          MODAL 5: CAMBIO SEGURO DE CONTRASEÑA
           ========================================================================= */}
       {modalType === 'clave' && (
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>🔐 Cambio Seguro de Contraseña</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <KeyRound size={18} color="var(--dark-amaranth)" /> Cambio Seguro de Contraseña
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
 
             <p style={{ fontSize: '0.82rem', color: '#4b5563', margin: '0 0 14px 0' }}>
@@ -1724,7 +1784,14 @@ export default function Portal() {
               </div>
 
               {pwdFeedback && (
-                <div style={{ fontSize: '0.82rem', padding: '10px', borderRadius: '8px', background: pwdFeedback.startsWith('✅') ? '#ecfdf5' : '#fee2e2', color: pwdFeedback.startsWith('✅') ? '#065f46' : '#b91c1c' }}>
+                <div style={{
+                  fontSize: '0.82rem',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: (!pwdFeedback.toLowerCase().includes('error')) ? '#ecfdf5' : '#fee2e2',
+                  border: `1px solid ${(!pwdFeedback.toLowerCase().includes('error')) ? '#10b981' : '#ef4444'}`,
+                  color: (!pwdFeedback.toLowerCase().includes('error')) ? '#065f46' : '#b91c1c'
+                }}>
                   {pwdFeedback}
                 </div>
               )}
@@ -1735,7 +1802,7 @@ export default function Portal() {
                 className="btn-primario"
                 style={{ width: '100%', padding: '12px', marginTop: '6px' }}
               >
-                {pwdSubmitting ? 'Verificando y enviando...' : '🔒 Enviar Verificación por Correo'}
+                {pwdSubmitting ? 'Verificando y enviando...' : 'Enviar Verificación por Correo'}
               </button>
             </form>
           </div>
@@ -1749,21 +1816,25 @@ export default function Portal() {
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>💳 Métodos de Pago Aceptados</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CreditCard size={18} color="var(--dark-amaranth)" /> Métodos de Pago Aceptados
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
               <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '10px' }}>
-                <strong>📱 Pago Móvil (Bs.)</strong> • Tasa oficial BCV. Banesco, Venezuela, Mercantil.
+                <strong>Pago Móvil (Bs.)</strong> • Tasa oficial BCV. Banesco, Venezuela, Mercantil.
               </div>
               <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '10px' }}>
-                <strong>🟡 Binance Pay (USDT)</strong> • Pagos instantáneos sin comisiones.
+                <strong>Binance Pay (USDT)</strong> • Pagos instantáneos sin comisiones.
               </div>
               <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '10px' }}>
-                <strong>🟣 Zelle & Zinli (USD)</strong> • Dólares digitales acreditados al instante.
+                <strong>Zelle & Zinli (USD)</strong> • Dólares digitales acreditados al instante.
               </div>
               <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '10px' }}>
-                <strong>💵 Efectivo & Punto de Venta</strong> • Contra entrega en mostrador o delivery.
+                <strong>Efectivo & Punto de Venta</strong> • Contra entrega en mostrador o delivery.
               </div>
             </div>
             <button onClick={() => setModalType(null)} className="btn-primario" style={{ width: '100%', marginTop: '14px' }}>
@@ -1774,26 +1845,44 @@ export default function Portal() {
       )}
 
       {/* =========================================================================
-          MODAL 7: SOPORTE OFICIAL (0414-1352503)
+          MODAL 7: SOPORTE OFICIAL (WHATSAPP)
           ========================================================================= */}
       {modalType === 'soporte' && (
         <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>🎧 Atención y Soporte</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Headphones size={20} color="var(--dark-amaranth)" /> Atención y Soporte
+              </h3>
+              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} />
+              </button>
             </div>
             <p style={{ fontSize: '0.85rem', color: '#4b5563', margin: '0 0 16px 0' }}>
-              Línea directa oficial de atención comercial y soporte al cliente de Tropicalia CRB: <strong>0414-1352503</strong> (+58 414 135 2503).
+              Canal oficial de atención comercial, pedidos y soporte al cliente de Tropicalia CRB.
             </p>
             <a
               href="https://wa.me/584141352503?text=Hola%20Tropicalia,%20necesito%20asistencia%20con%20mi%20cuenta"
               target="_blank"
               rel="noreferrer"
               className="btn-primario"
-              style={{ width: '100%', display: 'block', textAlign: 'center', background: '#25D366' }}
+              style={{
+                width: '100%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                textAlign: 'center',
+                background: '#25D366',
+                color: '#ffffff',
+                textDecoration: 'none',
+                padding: '12px',
+                fontWeight: 800,
+                boxSizing: 'border-box'
+              }}
             >
-              💬 Chatear por WhatsApp (0414-1352503)
+              <WhatsAppIcon size={20} color="#ffffff" />
+              <span>Chatear por WhatsApp</span>
             </a>
             <button onClick={() => setModalType(null)} className="btn-secundario" style={{ width: '100%', marginTop: '10px' }}>
               Cerrar

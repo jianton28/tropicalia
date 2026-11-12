@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { EyeOpenVinoIcon, EyeClosedVinoIcon } from './Icons';
 
 /**
  * Campo de contraseña interactivo con botón para mostrar/ocultar
- * utilizando los emoticones de mono 🙈 (oculto) y 🐵 (visible).
+ * utilizando iconos vectoriales planos de ojo abierto y ojo cerrado en color vino.
  */
 export default function PasswordInput({
   label = undefined,
@@ -51,6 +52,7 @@ export default function PasswordInput({
           onClick={() => setShowPassword(!showPassword)}
           tabIndex={-1}
           title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+          aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
           style={{
             position: 'absolute',
             right: '8px',
@@ -58,17 +60,17 @@ export default function PasswordInput({
             transform: 'translateY(-50%)',
             background: 'none',
             border: 'none',
-            fontSize: '1.35rem',
             cursor: 'pointer',
-            padding: '4px',
+            padding: '6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             lineHeight: 1,
-            userSelect: 'none'
+            userSelect: 'none',
+            color: 'var(--dark-amaranth)'
           }}
         >
-          {showPassword ? '🐵' : '🙈'}
+          {showPassword ? <EyeOpenVinoIcon size={20} /> : <EyeClosedVinoIcon size={20} />}
         </button>
       </div>
     </div>

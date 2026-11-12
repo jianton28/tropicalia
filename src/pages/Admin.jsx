@@ -11,6 +11,26 @@ import {
   TECHO_DEUDA_EFECTIVO,
   calcularNetoDeudaEfectivo
 } from '../services/paymentService';
+import {
+  Flame,
+  CreditCard,
+  DollarSign,
+  Bike,
+  TrendingUp,
+  Store,
+  ClipboardList,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  X,
+  AlertTriangle,
+  WhatsAppIcon,
+  Search,
+  Lock,
+  ShoppingBag,
+  Check
+} from '../components/common/Icons';
+import tropiHeadImg from '../assets/tropi_head.png';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -205,7 +225,7 @@ export default function Admin() {
       if (ord) {
         abrirNotificacionWhatsApp({ ...ord, status: 'pending' }, 'cooking', ord.businesses);
       }
-      showToast('✅ Pago verificado y aprobado. Notificación generada y orden enviada a cocina.');
+      showToast('Pago verificado y aprobado. Notificación generada y orden enviada a cocina.');
       recargarTodoAdmin();
     }
   }
@@ -220,7 +240,7 @@ export default function Admin() {
       if (ord) {
         abrirNotificacionWhatsApp(ord, 'cancelled', ord.businesses);
       }
-      showToast('❌ Pago rechazado y comanda cancelada. Insumos devueltos al stock.');
+      showToast('Pago rechazado y comanda cancelada. Insumos devueltos al stock.');
       recargarTodoAdmin();
     } catch (err) {
       alert('Error: ' + err.message);
@@ -254,7 +274,7 @@ export default function Admin() {
         abrirNotificacionWhatsApp(ord, 'delivered', ord.businesses);
       }
 
-      showToast('✅ Orden cerrada exitosamente con estado Entregada.');
+      showToast('Orden cerrada exitosamente con estado Entregada.');
       recargarTodoAdmin();
     } catch (err) {
       alert('Error al cerrar orden: ' + err.message);
@@ -273,7 +293,7 @@ export default function Admin() {
         abrirNotificacionWhatsApp(ord, 'cancelled', ord.businesses);
       }
 
-      showToast(`❌ Orden cancelada y cerrada. Se reintegraron ${res.reversionCount || 0} artículos al inventario.`);
+      showToast(`Orden cancelada y cerrada. Se reintegraron ${res.reversionCount || 0} artículos al inventario.`);
       recargarTodoAdmin();
     } catch (err) {
       alert('Error al cancelar la orden: ' + err.message);
@@ -288,7 +308,7 @@ export default function Admin() {
 
     try {
       const res = await recibirEfectivoEnCajaAdmin({ driverId, montoRecibido: abono });
-      showToast(`✅ Deuda saldada. Nueva deuda de ${nombre}: $${res.nuevaDeuda.toFixed(2)}`);
+      showToast(`Deuda saldada. Nueva deuda de ${nombre}: $${res.nuevaDeuda.toFixed(2)}`);
       cargarDrivers();
     } catch (err) {
       alert('Error recibiendo efectivo: ' + err.message);
@@ -307,7 +327,7 @@ export default function Admin() {
       .in('status', ['pending', 'pending_settlement']);
 
     if (!error) {
-      showToast('💰 Liquidación marcada como realizada.');
+      showToast('Liquidación marcada como realizada.');
       cargarCortes();
     } else {
       alert('Error liquidando corte: ' + error.message);
@@ -342,7 +362,7 @@ export default function Admin() {
 
       if (error) throw error;
 
-      showToast(`✓ Retiro de ${formatUsd(montoUsd)} transferido a ${nombreDriver} con Ref: ${ref}`);
+      showToast(`Retiro de ${formatUsd(montoUsd)} transferido a ${nombreDriver} con Ref: ${ref}`);
       cargarDriverWithdrawals();
       cargarDrivers();
     } catch (err) {
@@ -388,7 +408,7 @@ export default function Admin() {
           .eq('driver_id', retiro.driver_id);
       }
 
-      showToast(`❌ Solicitud rechazada. ${formatUsd(montoUsd)} reintegrados a la billetera de ${nombreDriver}.`);
+      showToast(`Solicitud rechazada. ${formatUsd(montoUsd)} reintegrados a la billetera de ${nombreDriver}.`);
       cargarDriverWithdrawals();
       cargarDrivers();
     } catch (err) {
@@ -471,9 +491,9 @@ export default function Admin() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.6rem'
+            padding: '6px'
           }}>
-            🌴
+            <img src={tropiHeadImg} alt="Tropicalia" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
           </div>
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', margin: 0, color: '#fff', fontWeight: 700 }}>
@@ -508,29 +528,29 @@ export default function Admin() {
       {/* TARJETAS KPI */}
       <div className="kpi-grid" style={{ marginBottom: '22px' }}>
         <div className="kpi-card" style={{ borderLeft: '4px solid var(--golden-orange)' }}>
-          <small>🔥 Comandas Activas</small>
+          <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Flame size={13} color="var(--golden-orange)" /> Comandas Activas</small>
           <h3 style={{ color: ordenesActivas.length > 0 ? 'var(--golden-orange)' : '#fff' }}>
             {ordenesActivas.length}
           </h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #ef4444' }}>
-          <small>💳 Pagos por Validar</small>
+          <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CreditCard size={13} color="#ef4444" /> Pagos por Validar</small>
           <h3 style={{ color: pagos.length > 0 ? '#ef4444' : '#fff' }}>{pagos.length}</h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <small>💰 Cortes Restaurantes</small>
+          <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><DollarSign size={13} color="#3b82f6" /> Cortes Restaurantes</small>
           <h3 style={{ color: '#60a5fa' }}>
             {cortes.filter(c => ['pending', 'pending_settlement'].includes(c.status)).length}
           </h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-          <small>🛵 Retiros Drivers Pendientes</small>
+          <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Bike size={13} color="#8b5cf6" /> Retiros Drivers Pendientes</small>
           <h3 style={{ color: '#a78bfa' }}>
             {driverWithdrawals.filter(w => w.status === 'pending').length}
           </h3>
         </div>
         <div className="kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
-          <small>📈 Ventas Entregadas</small>
+          <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><TrendingUp size={13} color="#10b981" /> Ventas Entregadas</small>
           <h3 style={{ color: '#34d399' }}>{formatUsd(totalVentasEntregadas)}</h3>
         </div>
       </div>
@@ -542,26 +562,28 @@ export default function Admin() {
           onClick={() => setTab('activas')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          🔥 Comandas Activas ({ordenesActivas.length})
+          <Flame size={14} /> Comandas Activas ({ordenesActivas.length})
         </button>
         <button
           className={`btn-tab ${tab === 'pagos' ? 'activo' : ''}`}
           onClick={() => setTab('pagos')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          💳 Validar Pagos ({pagos.length})
+          <CreditCard size={14} /> Validar Pagos ({pagos.length})
         </button>
         <button
           className={`btn-tab ${tab === 'cortes' ? 'activo' : ''}`}
           onClick={() => setTab('cortes')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          💰 Cortes Cocinas ({cortes.length})
+          <DollarSign size={14} /> Cortes Cocinas ({cortes.length})
         </button>
         <button
           className={`btn-tab ${tab === 'liquidaciones_drivers' ? 'activo' : ''}`}
           onClick={() => setTab('liquidaciones_drivers')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          🛵 Liquidación Repartidores {driverWithdrawals.filter(w => w.status === 'pending').length > 0 && (
+          <Bike size={14} /> Liquidación Repartidores {driverWithdrawals.filter(w => w.status === 'pending').length > 0 && (
             <span style={{
               background: '#ef4444',
               color: '#fff',
@@ -577,20 +599,23 @@ export default function Admin() {
         <button
           className={`btn-tab ${tab === 'locales' ? 'activo' : ''}`}
           onClick={() => setTab('locales')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          🏪 Restaurantes ({locales.length})
+          <Store size={14} /> Restaurantes ({locales.length})
         </button>
         <button
           className={`btn-tab ${tab === 'drivers' ? 'activo' : ''}`}
           onClick={() => setTab('drivers')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          🛵 Flota Drivers ({drivers.length})
+          <Bike size={14} /> Flota Drivers ({drivers.length})
         </button>
         <button
           className={`btn-tab ${tab === 'ordenes' ? 'activo' : ''}`}
           onClick={() => setTab('ordenes')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          📋 Todas las Órdenes ({ordenes.length})
+          <ClipboardList size={14} /> Todas las Órdenes ({ordenes.length})
         </button>
       </nav>
 
@@ -599,8 +624,8 @@ export default function Admin() {
         <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem' }}>
-                🔥 Comandas en Curso (Control y Cierre Inmediato)
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Flame size={18} color="var(--dark-amaranth)" /> Comandas en Curso (Control y Cierre Inmediato)
               </h3>
               <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
                 Como administrador puedes forzar el cierre de cualquier orden activa en cualquier momento (marcar como Entregada o Cancelar con reposición de inventario).
@@ -609,15 +634,17 @@ export default function Admin() {
             <button
               onClick={recargarTodoAdmin}
               className="btn-secundario"
-              style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px' }}
+              style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              🔄 Actualizar
+              <RefreshCw size={12} /> Actualizar
             </button>
           </div>
 
           {ordenesActivas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '36px', background: '#fdfbf7', borderRadius: '14px', border: '1px dashed #d6cbbe' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🎉</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                <CheckCircle2 size={40} color="#10b981" />
+              </div>
               <strong style={{ color: '#374151' }}>No hay comandas activas pendientes en este momento.</strong>
               <p style={{ color: '#9ca3af', margin: '4px 0 0 0', fontSize: '0.85rem' }}>Todas las órdenes han sido completadas o cerradas.</p>
             </div>
@@ -648,7 +675,7 @@ export default function Admin() {
                       </td>
                       <td>
                         <span style={{ fontSize: '0.8rem' }}>
-                          {o.delivery_type === 'delivery' ? '🛵 Delivery' : '🛍️ Pickup'}
+                          {o.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'}
                         </span>
                       </td>
                       <td>
@@ -673,11 +700,14 @@ export default function Admin() {
                               border: 'none',
                               fontWeight: 700,
                               borderRadius: '8px',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
                             }}
                             title="Abrir WhatsApp directo hacia el cliente con resumen preformateado"
                           >
-                            💬 WhatsApp
+                            <WhatsAppIcon size={14} color="#000000" /> WhatsApp
                           </button>
                           <button
                             type="button"
@@ -693,7 +723,7 @@ export default function Admin() {
                             }}
                             title="Forzar cierre marcando como entregada"
                           >
-                            ✓ Cerrar (Entregada)
+                            Cerrar (Entregada)
                           </button>
                           <button
                             type="button"
@@ -709,7 +739,7 @@ export default function Admin() {
                             }}
                             title="Forzar cierre cancelando con devolución de stock"
                           >
-                            ✕ Cerrar (Cancelar)
+                            Cerrar (Cancelar)
                           </button>
                         </div>
                       </td>
@@ -728,7 +758,9 @@ export default function Admin() {
           <h3 style={{ margin: '0 0 14px 0', color: 'var(--dark-amaranth)' }}>Pagos Digitales en Verificación</h3>
           {pagos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px', background: '#fdfbf7', borderRadius: '12px' }}>
-              <p style={{ color: '#78716c', margin: 0 }}>✅ No hay pagos pendientes por conciliar.</p>
+              <p style={{ color: '#78716c', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <CheckCircle2 size={16} color="#10b981" /> No hay pagos pendientes por conciliar.
+              </p>
             </div>
           ) : (
             <div className="tabla-container">
@@ -768,8 +800,8 @@ export default function Admin() {
                       </td>
                       <td>
                         {ord.payment_receipt_url ? (
-                          <a href={ord.payment_receipt_url} target="_blank" rel="noreferrer" className="btn-secundario" style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '6px' }}>
-                            🔍 Ver Capture
+                          <a href={ord.payment_receipt_url} target="_blank" rel="noreferrer" className="btn-secundario" style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Search size={13} /> Ver Capture
                           </a>
                         ) : (
                           <span style={{ color: '#888', fontSize: '0.8rem' }}>Sin capture</span>
@@ -777,11 +809,11 @@ export default function Admin() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px' }}>
-                          <button onClick={() => aprobarPago(ord.id)} className="btn-primario" style={{ padding: '6px 12px', fontSize: '0.78rem', background: '#10b981', color: '#fff', borderRadius: '6px' }}>
-                            ✓ Aprobar
+                          <button onClick={() => aprobarPago(ord.id)} className="btn-primario" style={{ padding: '6px 12px', fontSize: '0.78rem', background: '#10b981', color: '#fff', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Check size={13} /> Aprobar
                           </button>
-                          <button onClick={() => rechazarPago(ord.id)} className="btn-secundario" style={{ padding: '6px 12px', fontSize: '0.78rem', borderColor: '#ef4444', color: '#dc2626', borderRadius: '6px' }}>
-                            ✕ Rechazar
+                          <button onClick={() => rechazarPago(ord.id)} className="btn-secundario" style={{ padding: '6px 12px', fontSize: '0.78rem', borderColor: '#ef4444', color: '#dc2626', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <X size={13} /> Rechazar
                           </button>
                         </div>
                       </td>
@@ -838,9 +870,9 @@ export default function Admin() {
                             <button
                               onClick={() => liquidarCorte(c.id)}
                               className="btn-primario"
-                              style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', borderRadius: '6px' }}
+                              style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
-                              ✓ Marcar Transferido
+                              <Check size={13} /> Marcar Transferido
                             </button>
                           ) : (
                             <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Procesado</span>
@@ -864,8 +896,8 @@ export default function Admin() {
           <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
-                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem' }}>
-                  💸 Solicitudes de Retiro de Ganancias (Pago Móvil)
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <DollarSign size={20} color="var(--dark-amaranth)" /> Solicitudes de Retiro de Ganancias (Pago Móvil)
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
                   Transferencias solicitadas por motorizados para cobrar fletes prepagados y digitales.
@@ -874,15 +906,17 @@ export default function Admin() {
               <button
                 onClick={cargarDriverWithdrawals}
                 className="btn-secundario"
-                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px' }}
+                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                🔄 Actualizar Retiros
+                <RefreshCw size={13} /> Actualizar Retiros
               </button>
             </div>
 
             {driverWithdrawals.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px', background: '#fdfbf7', borderRadius: '12px', border: '1px dashed #d6cbbe' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '6px' }}>🛵</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                  <Bike size={36} color="#9ca3af" />
+                </div>
                 <strong style={{ color: '#374151' }}>No hay solicitudes de retiro registradas.</strong>
                 <p style={{ color: '#9ca3af', margin: '4px 0 0 0', fontSize: '0.82rem' }}>
                   Cuando un repartidor solicite cobrar su balance de billetera aparecerá aquí para auditoría y transferencia.
@@ -960,11 +994,14 @@ export default function Admin() {
                                       fontSize: '0.76rem',
                                       background: 'linear-gradient(135deg, #10b981, #059669)',
                                       color: '#fff',
-                                      borderRadius: '6px'
+                                      borderRadius: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
                                     }}
                                     title="Marcar como pagado e ingresar referencia bancaria"
                                   >
-                                    ✓ Transferido
+                                    <Check size={13} /> Transferido
                                   </button>
                                   <button
                                     onClick={() => rechazarRetiroDriver(w)}
@@ -974,11 +1011,14 @@ export default function Admin() {
                                       fontSize: '0.76rem',
                                       color: '#ef4444',
                                       borderColor: '#fca5a5',
-                                      borderRadius: '6px'
+                                      borderRadius: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
                                     }}
                                     title="Rechazar y devolver los fondos a la billetera del repartidor"
                                   >
-                                    ✕ Rechazar
+                                    <X size={13} /> Rechazar
                                   </button>
                                 </>
                               ) : (
@@ -999,8 +1039,8 @@ export default function Admin() {
           <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
-                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem' }}>
-                  💵 Fiscalización de Efectivo en Calle & Arqueo de Deuda
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <DollarSign size={20} color="var(--dark-amaranth)" /> Fiscalización de Efectivo en Calle & Arqueo de Deuda
                 </h3>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
                   El repartidor retiene su flete automáticamente en mano; la deuda en calle refleja únicamente el neto de alimentos adeudado a la plataforma/cocina (Tope: $25.00).
@@ -1009,9 +1049,9 @@ export default function Admin() {
               <button
                 onClick={cargarDrivers}
                 className="btn-secundario"
-                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px' }}
+                style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                🔄 Actualizar Arqueo
+                <RefreshCw size={13} /> Actualizar Arqueo
               </button>
             </div>
 
@@ -1045,11 +1085,11 @@ export default function Admin() {
                         <td>{d.phone || 'S/N'}</td>
                         <td style={{ color: '#10b981', fontWeight: 'bold' }}>{formatUsd(saldo)}</td>
                         <td style={{ color: bloqueado ? '#ef4444' : 'var(--golden-orange)', fontWeight: 'bold' }}>
-                          {formatUsd(deuda)} {bloqueado && '⚠️ (Bloqueado)'}
+                          {formatUsd(deuda)} {bloqueado && '(Bloqueado)'}
                         </td>
                         <td>
                           <span className={`badge ${bloqueado ? 'badge-cancelled' : d.is_online ? 'badge-on_the_way' : 'badge-delivered'}`}>
-                            {bloqueado ? '⛔ BLOQUEADO' : d.is_online ? 'En Línea' : 'Desconectado'}
+                            {bloqueado ? 'BLOQUEADO' : d.is_online ? 'En Línea' : 'Desconectado'}
                           </span>
                         </td>
                         <td>
@@ -1066,11 +1106,14 @@ export default function Admin() {
                                 cursor: deuda > 0 ? 'pointer' : 'not-allowed',
                                 color: '#fff',
                                 borderRadius: '6px',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
                               }}
                               title="Registrar dinero en efectivo entregado por el repartidor"
                             >
-                              💵 Recibir Efectivo
+                              <DollarSign size={13} /> Recibir Efectivo
                             </button>
                             {deuda > 0 && (
                               <button
@@ -1084,11 +1127,14 @@ export default function Admin() {
                                   color: '#000',
                                   border: 'none',
                                   fontWeight: 700,
-                                  borderRadius: '6px'
+                                  borderRadius: '6px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
                                 }}
                                 title="Enviar recordatorio de cobro por WhatsApp"
                               >
-                                💬 WhatsApp
+                                <WhatsAppIcon size={14} color="#000000" /> WhatsApp
                               </button>
                             )}
                           </div>
@@ -1176,7 +1222,7 @@ export default function Admin() {
                       <td>{d.phone || 'S/N'}</td>
                       <td style={{ color: '#10b981', fontWeight: 'bold' }}>{formatUsd(saldo)}</td>
                       <td style={{ color: bloqueado ? '#ef4444' : 'var(--golden-orange)', fontWeight: 'bold' }}>
-                        {formatUsd(deuda)} {bloqueado && '⚠️ (Bloqueado)'}
+                        {formatUsd(deuda)} {bloqueado && '(Bloqueado)'}
                       </td>
                       <td>
                         <span className={`badge ${d.is_online ? 'badge-on_the_way' : 'badge-delivered'}`}>
@@ -1196,11 +1242,14 @@ export default function Admin() {
                             cursor: deuda > 0 ? 'pointer' : 'not-allowed',
                             color: '#fff',
                             borderRadius: '6px',
-                            fontWeight: 700
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
                           }}
                           title="Registrar recepción de efectivo para rebajar deuda en calle"
                         >
-                          💵 Recibir Efectivo
+                          <DollarSign size={13} /> Recibir Efectivo
                         </button>
                       </td>
                     </tr>
@@ -1298,10 +1347,13 @@ export default function Admin() {
                                   borderRadius: '6px',
                                   fontSize: '0.74rem',
                                   fontWeight: 700,
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
                                 }}
                               >
-                                ✓ Entregar
+                                <Check size={12} /> Entregar
                               </button>
                               <button
                                 type="button"
@@ -1314,10 +1366,13 @@ export default function Admin() {
                                   borderRadius: '6px',
                                   fontSize: '0.74rem',
                                   fontWeight: 700,
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
                                 }}
                               >
-                                ✕ Cancelar
+                                <X size={12} /> Cancelar
                               </button>
                             </div>
                           ) : (

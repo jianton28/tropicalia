@@ -12,6 +12,22 @@ import {
   solicitarRetiroDriver,
   TECHO_DEUDA_EFECTIVO 
 } from '../services/paymentService';
+import {
+  Bike,
+  MapPin,
+  WhatsAppIcon,
+  CheckCircle2,
+  AlertTriangle,
+  X,
+  Lock,
+  RefreshCw,
+  Settings,
+  DollarSign,
+  CreditCard,
+  ShoppingBag,
+  User,
+  Landmark
+} from '../components/common/Icons';
 
 const TECHO_DEUDA = TECHO_DEUDA_EFECTIVO;
 
@@ -142,7 +158,7 @@ export default function Delivery() {
               html: '<div style="background:#ef9d24; border:3px solid #82133a; border-radius:50%; width:18px; height:18px; box-shadow:0 0 10px rgba(239,157,36,0.8);"></div>',
               iconSize: [18, 18]
             })
-          }).addTo(mapInstanceRef.current).bindPopup('📍 Tu ubicación GPS').openPopup();
+          }).addTo(mapInstanceRef.current).bindPopup('Tu ubicación GPS').openPopup();
         }
       });
     }
@@ -178,7 +194,7 @@ export default function Delivery() {
 
     if (!error) {
       setPerfil({ ...perfil, is_online: nuevo });
-      showToast(nuevo ? '🟢 Modo EN LÍNEA: Recibirás carreras en vivo' : '⚪ Modo DESCONECTADO');
+      showToast(nuevo ? 'Modo EN LÍNEA: Recibirás carreras en vivo' : 'Modo DESCONECTADO');
       if (nuevo) cargarCarrerasDisponibles();
     }
   }
@@ -234,7 +250,7 @@ export default function Delivery() {
     if (error || !data) {
       alert('Esta carrera ya fue tomada por otro repartidor.');
     } else {
-      showToast('🛵 ¡Carrera aceptada! Dirígete al restaurante.');
+      showToast('¡Carrera aceptada! Dirígete al restaurante.');
     }
 
     await cargarCarreraEnCurso();
@@ -257,10 +273,10 @@ export default function Delivery() {
       const ordenActualizada = { ...pedidoActivo, ...actualizacion };
       setPedidoActivo(ordenActualizada);
       if (nuevoPaso === 'arrived_at_store') {
-        showToast('🏪 Avisado al restaurante: Repartidor en puerta');
+        showToast('Avisado al restaurante: Repartidor en puerta');
       }
       if (nuevoPaso === 'on_the_way') {
-        showToast('🚀 Paquete recibido. En ruta hacia el cliente.');
+        showToast('Paquete recibido. En ruta hacia el cliente.');
         // Notificación automática al cliente de pedido en camino
         abrirNotificacionWhatsApp(ordenActualizada, 'on_the_way', ordenActualizada.businesses);
       }
@@ -303,7 +319,7 @@ export default function Delivery() {
     const esMaster = pinCancelacion.trim() === '9999' || pinCancelacion.trim() === '4821';
     
     if (pinCancelacion.trim() !== pinValido && !esMaster) {
-      alert('❌ Código de seguridad incorrecto.\n\nYa retiraste la comida del restaurante. Para cancelar la comanda en ruta debes ingresar el código seguro proporcionado por soporte técnico o por el cliente.');
+      alert('Código de seguridad incorrecto.\n\nYa retiraste la comida del restaurante. Para cancelar la comanda en ruta debes ingresar el código seguro proporcionado por soporte técnico o por el cliente.');
       return;
     }
 
@@ -320,7 +336,7 @@ export default function Delivery() {
 
       if (error) throw error;
 
-      showToast('⚠️ Comanda cancelada y autorizada con código.');
+      showToast('Comanda cancelada y autorizada con código.');
       setMostrarModalCancelarCodigo(false);
       setPinCancelacion('');
       await cargarCarreraEnCurso();
@@ -371,9 +387,9 @@ export default function Delivery() {
       });
 
       if (resBalance.esEfectivo) {
-        showToast(`🎉 ¡Entrega completada! Efectivo retenido registrado en deuda en calle.`);
+        showToast('¡Entrega completada! Efectivo retenido registrado en deuda en calle.');
       } else {
-        showToast(`🎉 ¡Entrega completada! Flete (${formatUsd(resBalance.fleteGanado)}) acreditado a tu balance.`);
+        showToast(`¡Entrega completada! Flete (${formatUsd(resBalance.fleteGanado)}) acreditado a tu balance.`);
       }
 
       // Notificación automática al cliente de pedido entregado
@@ -417,7 +433,7 @@ export default function Delivery() {
 
     try {
       const res = await amortizarDeudaConSaldo({ driverId: user.id, montoAbono: abono });
-      showToast(`💳 Se amortizaron ${formatUsd(res.abonoReal)} de tu deuda con éxito.`);
+      showToast(`Se amortizaron ${formatUsd(res.abonoReal)} de tu deuda con éxito.`);
       setWallet(res.wallet);
       await cargarCarrerasDisponibles();
     } catch (err) {
@@ -451,7 +467,7 @@ export default function Delivery() {
         }).eq('id', user.id);
       } catch (e) {}
 
-      showToast('✅ Datos de Pago Móvil actualizados correctamente.');
+      showToast('Datos de Pago Móvil actualizados correctamente.');
       setMostrarModalPagoMovil(false);
     } catch (err) {
       alert('Error guardando datos: ' + err.message);
@@ -492,7 +508,7 @@ export default function Delivery() {
         setWallet(resRetiro.wallet);
       }
 
-      showToast(`💸 Solicitud de retiro por ${formatUsd(monto)} enviada. Se transferirá a tu Pago Móvil.`);
+      showToast(`Solicitud de retiro por ${formatUsd(monto)} enviada. Se transferirá a tu Pago Móvil.`);
       setMostrarModalRetiro(false);
       setMontoRetiro('');
       await cargarWallet(user.id);
@@ -553,10 +569,9 @@ export default function Delivery() {
             border: '1px solid rgba(239, 157, 36, 0.5)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.6rem'
+            justifyContent: 'center'
           }}>
-            🛵
+            <Bike size={26} color="#ffffff" />
           </div>
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.45rem', margin: 0, color: '#fff', fontWeight: 700 }}>
@@ -579,10 +594,14 @@ export default function Delivery() {
               padding: '8px 16px',
               borderRadius: '999px',
               fontSize: '0.82rem',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
-            {perfil?.is_online ? '🟢 En Línea' : '⚪ Desconectado'}
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: perfil?.is_online ? '#ffffff' : '#9ca3af', display: 'inline-block' }} />
+            {perfil?.is_online ? 'En Línea' : 'Desconectado'}
           </button>
 
           <button
@@ -636,19 +655,22 @@ export default function Delivery() {
                   borderRadius: '8px',
                   background: 'linear-gradient(135deg, #10b981, #059669)',
                   color: '#fff',
-                  fontWeight: 800
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
               >
-                💸 Retirar a Pago Móvil
+                <DollarSign size={14} /> Retirar a Pago Móvil
               </button>
               <button
                 type="button"
                 onClick={() => setMostrarModalPagoMovil(true)}
                 className="btn-secundario"
-                style={{ fontSize: '0.75rem', padding: '6px 10px', borderRadius: '8px' }}
+                style={{ fontSize: '0.75rem', padding: '6px 10px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 title="Configurar cuenta Pago Móvil"
               >
-                ⚙️ Datos
+                <Settings size={14} /> Datos
               </button>
             </div>
           </div>
@@ -678,10 +700,13 @@ export default function Delivery() {
                   borderRadius: '8px',
                   background: (saldo > 0 && deuda > 0) ? 'var(--dark-amaranth)' : '#d1d5db',
                   color: '#fff',
-                  fontWeight: 800
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}
               >
-                💳 Acreditar Saldo para Saldar Deuda
+                <CreditCard size={14} /> Acreditar Saldo para Saldar Deuda
               </button>
             </div>
           </div>
@@ -697,9 +722,15 @@ export default function Delivery() {
             borderRadius: '10px',
             fontSize: '0.84rem',
             marginTop: '14px',
-            fontWeight: 700
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            ⚠️ <strong>Límite de Deuda Superado ($25.00):</strong> Tienes acumulado {formatUsd(deuda)} en efectivo. Pulsa el botón "Acreditar Saldo" para amortizar tu deuda y desbloquear las carreras con cobro en efectivo.
+            <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0 }} />
+            <span>
+              <strong>Límite de Deuda Superado ($25.00):</strong> Tienes acumulado {formatUsd(deuda)} en efectivo. Pulsa el botón "Acreditar Saldo" para amortizar tu deuda y desbloquear las carreras con cobro en efectivo.
+            </span>
           </div>
         )}
       </div>
@@ -720,8 +751,8 @@ export default function Delivery() {
           boxShadow: '0 8px 30px rgba(239, 157, 36, 0.25)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-            <span className="badge badge-cooking" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
-              🛵 CARRERA EN CURSO
+            <span className="badge badge-cooking" style={{ fontSize: '0.8rem', padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Bike size={14} /> CARRERA EN CURSO
             </span>
             <strong style={{ color: 'var(--golden-orange)', fontSize: '1.15rem' }}>
               Flete Ganancia: {formatUsd(pedidoActivo.delivery_fee || 2.50)}
@@ -731,20 +762,23 @@ export default function Delivery() {
           <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', color: '#fff' }}>
             #ORD-{pedidoActivo.id.slice(0, 8)} • {pedidoActivo.businesses?.name || 'Local'}
           </h3>
-          <p style={{ margin: '4px 0', fontSize: '0.92rem', color: '#f3e8f4' }}>
-            <strong>📍 Destino:</strong> {pedidoActivo.delivery_address}
+          <p style={{ margin: '4px 0', fontSize: '0.92rem', color: '#f3e8f4', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+            <MapPin size={15} color="var(--golden-orange)" style={{ flexShrink: 0, marginTop: '3px' }} />
+            <span><strong>Destino:</strong> {pedidoActivo.delivery_address}</span>
           </p>
-          <p style={{ margin: '4px 0', fontSize: '0.92rem', color: '#f3e8f4' }}>
-            <strong>👤 Cliente:</strong> {pedidoActivo.customer_name} ({pedidoActivo.customer_phone || 'S/N'})
+          <p style={{ margin: '4px 0', fontSize: '0.92rem', color: '#f3e8f4', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <User size={15} color="var(--golden-orange)" />
+            <span><strong>Cliente:</strong> {pedidoActivo.customer_name} ({pedidoActivo.customer_phone || 'S/N'})</span>
           </p>
 
           {pedidoActivo.payment_method === 'efectivo' ? (
             <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid #ef4444', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '0.88rem', color: '#fca5a5' }}>
-              💵 <strong>Cobro en Efectivo Requerido:</strong> Debes cobrar <strong>{formatUsd(pedidoActivo.total)}</strong> al entregar al cliente.
+              <strong>Cobro en Efectivo Requerido:</strong> Debes cobrar <strong>{formatUsd(pedidoActivo.total)}</strong> al entregar al cliente.
             </div>
           ) : (
-            <div style={{ background: 'rgba(16,185,129,0.2)', border: '1px solid #10b981', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '0.88rem', color: '#a7f3d0' }}>
-              ✅ <strong>Pago Digital Liquidado.</strong> No cobres dinero al cliente.
+            <div style={{ background: 'rgba(16,185,129,0.2)', border: '1px solid #10b981', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '0.88rem', color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={16} color="#10b981" />
+              <span><strong>Pago Digital Liquidado.</strong> No cobres dinero al cliente.</span>
             </div>
           )}
 
@@ -789,7 +823,8 @@ export default function Delivery() {
               style={{ padding: '12px 14px', background: '#25D366', color: '#000', fontWeight: 700, borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               title="Avisar al cliente por WhatsApp con mensaje preformateado"
             >
-              💬 WhatsApp Cliente
+              <WhatsAppIcon size={16} color="#000000" />
+              <span>WhatsApp Cliente</span>
             </button>
 
             {/* BOTÓN CANCELAR CON REGLA DE SEGURIDAD */}
@@ -801,7 +836,7 @@ export default function Delivery() {
                 style={{ flex: 1, padding: '12px', borderColor: '#fca5a5', color: '#fca5a5', borderRadius: '10px' }}
                 title="Liberar carrera antes de retirar comida"
               >
-                ✕ Liberar Carrera
+                <X size={14} style={{ marginRight: '4px' }} /> Liberar Carrera
               </button>
             ) : (
               <button
@@ -811,7 +846,7 @@ export default function Delivery() {
                 style={{ flex: 1, padding: '12px', borderColor: '#ef4444', color: '#fca5a5', borderRadius: '10px' }}
                 title="Comida en manos: Requiere código seguro de cancelación"
               >
-                🔒 Cancelar con PIN
+                <Lock size={14} style={{ marginRight: '4px' }} /> Cancelar con PIN
               </button>
             )}
           </div>
@@ -821,16 +856,16 @@ export default function Delivery() {
       {/* POOL DE CARRERAS DISPONIBLES */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-            🛵 Carreras Disponibles ({pedidosDisponibles.length})
+          <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Bike size={20} color="var(--dark-amaranth)" /> Carreras Disponibles ({pedidosDisponibles.length})
           </h2>
           <button
             type="button"
             onClick={cargarCarrerasDisponibles}
             className="btn-secundario"
-            style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px' }}
+            style={{ fontSize: '0.8rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            🔄 Actualizar
+            <RefreshCw size={13} /> Actualizar
           </button>
         </div>
 
@@ -844,7 +879,9 @@ export default function Delivery() {
           </div>
         ) : pedidosDisponibles.length === 0 ? (
           <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', padding: '36px', borderRadius: '16px', textAlign: 'center' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📡</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+              <ShoppingBag size={42} color="#9ca3af" />
+            </div>
             <strong style={{ color: '#374151', fontSize: '1.05rem' }}>Buscando pedidos cercanos...</strong>
             <p style={{ color: '#9ca3af', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
               En cuanto un restaurante prepare una comanda aparecerá aquí al instante.
@@ -876,7 +913,7 @@ export default function Delivery() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <strong style={{ color: 'var(--dark-amaranth)' }}>#ORD-{ord.id.slice(0, 8)}</strong>
                       <span className={`badge ${esEfectivo ? 'badge-cooking' : 'badge-on_the_way'}`} style={{ fontSize: '0.74rem' }}>
-                        {esEfectivo ? '💵 Efectivo' : '📲 Digital'}
+                        {esEfectivo ? 'Efectivo' : 'Digital'}
                       </span>
                     </div>
 
@@ -910,7 +947,7 @@ export default function Delivery() {
                     }}
                     disabled={esEfectivo && bloqueado}
                   >
-                    {esEfectivo && bloqueado ? '🚫 Bloqueado por deuda ($25)' : 'Aceptar Carrera'}
+                    {esEfectivo && bloqueado ? 'Bloqueado por deuda ($25)' : 'Aceptar Carrera'}
                   </button>
                 </div>
               );
@@ -985,7 +1022,9 @@ export default function Delivery() {
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '420px', borderRadius: '18px', border: '2px solid #ef4444' }}>
             <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '2.5rem' }}>🔒</span>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                <Lock size={44} color="#dc2626" />
+              </div>
               <h3 style={{ margin: '6px 0 0 0', color: '#dc2626', fontSize: '1.2rem' }}>Cancelar Comanda en Tránsito</h3>
               <p style={{ fontSize: '0.82rem', color: '#6b7280', marginTop: '4px' }}>
                 Ya tienes la comida en tu poder. Para cancelar debes ingresar el código de autorización de 4 dígitos (solicítalo a soporte o al cliente).
@@ -1051,8 +1090,8 @@ export default function Delivery() {
       {mostrarModalPagoMovil && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '420px', borderRadius: '18px' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-              🏦 Cuenta Pago Móvil para Retiros
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Landmark size={20} color="var(--dark-amaranth)" /> Cuenta Pago Móvil para Retiros
             </h3>
             <p style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '14px' }}>
               Tus ganancias acumuladas serán transferidas a estos datos:
@@ -1128,8 +1167,8 @@ export default function Delivery() {
       {mostrarModalRetiro && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '420px', borderRadius: '18px' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-              💸 Retirar Ganancias
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <DollarSign size={20} color="var(--dark-amaranth)" /> Retirar Ganancias
             </h3>
             <p style={{ fontSize: '0.84rem', color: '#6b7280', marginBottom: '12px' }}>
               Saldo disponible para transferir: <strong style={{ color: '#10b981' }}>{formatUsd(saldo)}</strong>

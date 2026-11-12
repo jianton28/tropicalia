@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { User, ChefHat, Bike } from '../components/common/Icons';
 
 export default function Legal() {
   const [tab, setTab] = useState('clientes');
@@ -29,20 +30,23 @@ export default function Legal() {
         <button
           className={`btn-tab ${tab === 'clientes' ? 'activo' : ''}`}
           onClick={() => setTab('clientes')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          👤 Términos para Clientes
+          <User size={15} /> Términos para Clientes
         </button>
         <button
           className={`btn-tab ${tab === 'cocinas' ? 'activo' : ''}`}
           onClick={() => setTab('cocinas')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          👨‍🍳 Acuerdo con Restaurantes
+          <ChefHat size={15} /> Acuerdo con Restaurantes
         </button>
         <button
           className={`btn-tab ${tab === 'delivery' ? 'activo' : ''}`}
           onClick={() => setTab('delivery')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
-          🛵 Contrato Mercantil Repartidores
+          <Bike size={15} /> Contrato Mercantil Repartidores
         </button>
       </nav>
 

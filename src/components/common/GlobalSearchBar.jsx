@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { X, Sparkles } from 'lucide-react';
 import { semanticSearchService } from '../../services/semanticSearchService';
 
 /**
@@ -122,7 +123,7 @@ export default function GlobalSearchBar({
             title="Borrar búsqueda"
             aria-label="Borrar búsqueda"
           >
-            ✕
+            <X size={14} color="var(--dark-amaranth)" strokeWidth={2.5} />
           </button>
         )}
       </div>
@@ -186,7 +187,7 @@ export default function GlobalSearchBar({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>💡</span>
+            <Sparkles size={14} color="var(--golden-orange)" />
             <span>
               <strong>Búsqueda Semántica:</strong> "{localInput}" interpretado como{' '}
               <span style={{ color: 'var(--crimson-violet)', textDecoration: 'underline', fontWeight: 700 }}>

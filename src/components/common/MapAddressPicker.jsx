@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Navigation } from 'lucide-react';
 import L from 'leaflet';
 
 export default function MapAddressPicker({
@@ -125,7 +126,7 @@ export default function MapAddressPicker({
           gap: '4px'
         }}
       >
-        🎯 Mi GPS
+        <Navigation size={13} color="var(--dark-amaranth)" /> Mi GPS
       </button>
       <small style={{ color: '#64748b', fontSize: '0.72rem', display: 'block', marginTop: '4px' }}>
         Toca o arrastra el pin en el mapa para fijar la ubicación exacta de entrega.

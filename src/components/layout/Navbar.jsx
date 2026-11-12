@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { fetchTasaBCV, formatBs } from '../../services/bcvService';
-import logoImg from '../../assets/logo.png';
+import tropiHeadImg from '../../assets/tropi_head.png';
+import { Shield, ChefHat, Bike, User, ShoppingBag } from '../common/Icons';
 
 export default function Navbar() {
   const { user, role } = useAuth();
@@ -22,12 +23,13 @@ export default function Navbar() {
   return (
     <header className="global-navbar">
       <div className="navbar-inner-wrapper">
-        {/* Brand & Mascota Oficial */}
+        {/* Brand & Cabeza Mascota Oficial Tropi */}
         <Link to="/" className="navbar-brand-link" title="Ir al Inicio • Tropicalia">
           <img 
-            src={logoImg} 
-            alt="Mascota Tropicalia" 
+            src={tropiHeadImg} 
+            alt="Tropi Mascota" 
             className="navbar-mascot-img"
+            style={{ width: '38px', height: '38px', objectFit: 'contain' }}
           />
           <div className="navbar-brand-text">
             <span className="navbar-title">Tropicalia</span>
@@ -52,7 +54,9 @@ export default function Navbar() {
               className={`navbar-role-pill admin-badge ${location.pathname === '/admin' ? 'active-role' : ''}`}
               title="Consola Administrativa de Control Total"
             >
-              <span className="role-icon">🛡️</span>
+              <span className="role-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <Shield size={14} />
+              </span>
               <span className="role-label">Admin</span>
             </Link>
           )}
@@ -64,7 +68,9 @@ export default function Navbar() {
               className={`navbar-role-pill kitchen-badge ${location.pathname === '/cocina' ? 'active-role' : ''}`}
               title="Panel Operativo de Cocina"
             >
-              <span className="role-icon">👨‍🍳</span>
+              <span className="role-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <ChefHat size={14} />
+              </span>
               <span className="role-label">Cocina</span>
             </Link>
           )}
@@ -76,7 +82,9 @@ export default function Navbar() {
               className={`navbar-role-pill delivery-badge ${location.pathname === '/delivery' ? 'active-role' : ''}`}
               title="Panel de Repartos y Billetera"
             >
-              <span className="role-icon">🛵</span>
+              <span className="role-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <Bike size={14} />
+              </span>
               <span className="role-label">Repartos</span>
             </Link>
           )}
@@ -88,8 +96,9 @@ export default function Navbar() {
             </Link>
           ) : (
             !isAdmin && !isKitchen && !isDelivery && (
-              <Link to="/portal" className="navbar-user-btn" title="Mi Cuenta y Direcciones">
-                👤 {user.user_metadata?.full_name?.split(' ')[0] || 'Mi Cuenta'}
+              <Link to="/portal" className="navbar-user-btn" title="Mi Cuenta y Direcciones" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <User size={14} />
+                <span>{user.user_metadata?.full_name?.split(' ')[0] || 'Mi Cuenta'}</span>
               </Link>
             )
           )}
@@ -101,7 +110,9 @@ export default function Navbar() {
             aria-label={`Ver carrito de compras con ${totalCount} productos`}
             title="Ir al Carrito / Confirmar Pedido"
           >
-            <span className="cart-icon">🛒</span>
+            <span className="cart-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <ShoppingBag size={18} />
+            </span>
             <span className="cart-count-badge">{totalCount}</span>
           </Link>
         </div>

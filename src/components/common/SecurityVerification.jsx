@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Shield } from 'lucide-react';
 import { securityService } from '../../services/securityService.js';
 
 // Sitekey de Cloudflare Turnstile: Usa la variable de entorno o la clave de prueba oficial de Cloudflare
@@ -170,7 +171,7 @@ export default function SecurityVerification({
 
       {/* INSIGNIA ZERO-TRUST ELEGANTE Y LIMPIA */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '6px 12px', background: 'rgba(130, 19, 58, 0.04)', borderRadius: '999px', border: '1px solid rgba(130, 19, 58, 0.1)' }}>
-        <span style={{ fontSize: '0.85rem' }}>🛡️</span>
+        <Shield size={14} color="var(--dark-amaranth)" />
         <span style={{ fontSize: '0.74rem', color: 'var(--dark-amaranth)', fontWeight: 700 }}>
           {verified
             ? 'Protección Zero-Trust Activa • Conexión Segura'
@@ -180,7 +181,7 @@ export default function SecurityVerification({
 
       {errorMsg && (
         <div style={{ color: '#b91c1c', fontSize: '0.74rem', textAlign: 'center', marginTop: '4px', fontWeight: 700 }}>
-          ⚠️ {errorMsg}
+          {errorMsg}
         </div>
       )}
     </div>

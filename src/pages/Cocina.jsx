@@ -7,6 +7,25 @@ import { formatUsd } from '../services/bcvService';
 import { descontarStockDeOrden, cancelarOrdenConReversion } from '../services/inventoryService';
 import { abrirNotificacionWhatsApp } from '../services/whatsappService';
 import { procesarBalanceCompletado } from '../services/paymentService';
+import {
+  ChefHat,
+  ShoppingBag,
+  Bike,
+  KeyRound,
+  WhatsAppIcon,
+  TrashVinoIcon,
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  TrendingUp,
+  ClipboardList,
+  Store,
+  Clock,
+  Lock,
+  Package,
+  Sparkles,
+  DollarSign
+} from '../components/common/Icons';
 
 function playBeepSound() {
   try {
@@ -26,24 +45,8 @@ function playBeepSound() {
   }
 }
 
-function getIngredientEmoji(name = '') {
-  const n = name.toLowerCase();
-  if (n.includes('tomate')) return '🍅';
-  if (n.includes('queso') || n.includes('mozzarella') || n.includes('cheddar')) return '🧀';
-  if (n.includes('carne') || n.includes('res') || n.includes('pollo') || n.includes('tocineta')) return '🥩';
-  if (n.includes('leche') || n.includes('crema') || n.includes('lacteo')) return '🥛';
-  if (n.includes('pan') || n.includes('harina') || n.includes('masa')) return '🥖';
-  if (n.includes('papa') || n.includes('papas')) return '🥔';
-  if (n.includes('jamon') || n.includes('jamón') || n.includes('embutido')) return '🥓';
-  if (n.includes('cebolla')) return '🧅';
-  if (n.includes('lechuga') || n.includes('vegetal') || n.includes('cilantro')) return '🥬';
-  if (n.includes('salsa') || n.includes('ketchup') || n.includes('mayo')) return '🥫';
-  if (n.includes('azucar') || n.includes('azúcar') || n.includes('dulce')) return '🍬';
-  if (n.includes('aceite') || n.includes('vinagre')) return '🍾';
-  if (n.includes('huevo')) return '🥚';
-  if (n.includes('envase') || n.includes('bandeja') || n.includes('caja')) return '📦';
-  if (n.includes('cubierto') || n.includes('tenedor') || n.includes('cuchill') || n.includes('servilleta')) return '🍴';
-  return '🛒';
+function getIngredientEmoji() {
+  return null;
 }
 
 export default function Cocina() {
@@ -373,7 +376,7 @@ export default function Cocina() {
       .eq('id', keypadItem.id);
 
     if (!error) {
-      showNotification(`✅ Se sumaron +${delta} ${keypadItem.unit} a ${keypadItem.name}`);
+      showNotification(`Se sumaron +${delta} ${keypadItem.unit} a ${keypadItem.name}`);
       cerrarTecladoNumerico();
       await cargarInventario(local.id);
     } else {
@@ -401,7 +404,7 @@ export default function Cocina() {
 
       if (delErr) throw delErr;
 
-      showNotification(`🗑️ Ingrediente "${itemToDelete.name}" eliminado del inventario y de sus platos asociados.`);
+      showNotification(`Ingrediente "${itemToDelete.name}" eliminado del inventario y de sus platos asociados.`);
       setItemToDelete(null);
       setDeletingItem(false);
 
@@ -475,7 +478,7 @@ export default function Cocina() {
         notes: detalleNotas
       }]);
 
-      showNotification(`🗑️ Merma asentada: -${cantidadPerdida} ${ins.unit} de ${ins.name}`);
+      showNotification(`Merma asentada: -${cantidadPerdida} ${ins.unit} de ${ins.name}`);
       setMermaCantidad('');
       setMermaNotas('');
       setRegistrandoMerma(false);
@@ -498,7 +501,7 @@ export default function Cocina() {
     if (!orden) return;
 
     if (orden.status === 'pending_payment_verification' && ['cooking', 'ready', 'delivered'].includes(nuevoEstado)) {
-      alert('⏳ Este pedido digital aún requiere validación del comprobante por Administración antes de iniciar preparación.');
+      alert('Este pedido digital aún requiere validación del comprobante por Administración antes de iniciar preparación.');
       return;
     }
 
@@ -514,14 +517,14 @@ export default function Cocina() {
       await descontarStockDeOrden(orden);
       await cargarInventario(local.id);
       abrirNotificacionWhatsApp(orden, 'cooking', local);
-      showNotification(`👨‍🍳 Comanda en preparación. Notificación enviada por WhatsApp.`);
+      showNotification('Comanda en preparación. Notificación enviada por WhatsApp.');
     }
 
     if (nuevoEstado === 'ready') {
       abrirNotificacionWhatsApp(orden, 'ready', local);
       showNotification(orden.delivery_type === 'pickup'
-        ? '🥡 Pedido listo en barra. WhatsApp enviado al cliente.'
-        : '📦 Pedido empacado. Repartidores notificados.'
+        ? 'Pedido listo en barra. WhatsApp enviado al cliente.'
+        : 'Pedido empacado. Repartidores notificados.'
       );
     }
 
@@ -532,7 +535,7 @@ export default function Cocina() {
         console.warn('Balance en cocina:', e);
       }
       abrirNotificacionWhatsApp(orden, 'delivered', local);
-      showNotification('🎉 ¡Pedido completado y entregado al cliente! Notificación de WhatsApp enviada.');
+      showNotification('Pedido completado y entregado al cliente. Notificación de WhatsApp enviada.');
     }
 
     await supabase.from('orders').update(payload).eq('id', ordenId);
@@ -542,11 +545,11 @@ export default function Cocina() {
   async function handleConfirmarEntregaPickup(orden) {
     if (!orden) return;
     const codigoEsperado = (orden.delivery_code || (orden.id || '').slice(0, 4)).toUpperCase();
-    const codigoIngresado = prompt(`🔑 ENTREGA SEGURA EN MOSTRADOR (PICK UP)\nPor favor, verifica el código de retiro presentado por el cliente:\n(Código del sistema: ${codigoEsperado})`, codigoEsperado);
+    const codigoIngresado = prompt(`ENTREGA SEGURA EN MOSTRADOR (PICK UP)\nPor favor, verifica el código de retiro presentado por el cliente:\n(Código del sistema: ${codigoEsperado})`, codigoEsperado);
     if (!codigoIngresado) return;
 
     if (codigoIngresado.trim().toUpperCase() !== codigoEsperado) {
-      alert(`❌ Código incorrecto. El cliente debe mostrarte el código de retiro: ${codigoEsperado}`);
+      alert(`Código incorrecto. El cliente debe mostrarte el código de retiro: ${codigoEsperado}`);
       return;
     }
 
@@ -563,7 +566,7 @@ export default function Cocina() {
 
     try {
       const res = await cancelarOrdenConReversion(orden.id, motivo, 'cocina');
-      showNotification(`❌ Comanda cancelada. Se reintegraron ${res.reversionCount || 0} artículos al stock.`);
+      showNotification(`Comanda cancelada. Se reintegraron ${res.reversionCount || 0} artículos al stock.`);
       abrirNotificacionWhatsApp(orden, 'cancelled', local);
 
       await Promise.all([
@@ -659,7 +662,7 @@ export default function Cocina() {
         if (recErr) console.warn('Error asociando receta:', recErr);
       }
 
-      showNotification(`📖 Plato "${nuevoPlatoNombre}" agregado exitosamente a la carta.`);
+      showNotification(`Plato "${nuevoPlatoNombre}" agregado exitosamente a la carta.`);
       setNuevoPlatoNombre('');
       setNuevoPlatoPrecio('');
       setNuevoPlatoFoto('');
@@ -685,7 +688,7 @@ export default function Cocina() {
       const { error } = await supabase.from('products').delete().eq('id', plato.id);
       if (error) throw error;
 
-      showNotification(`🗑️ Plato "${plato.name}" eliminado de la carta.`);
+      showNotification(`Plato "${plato.name}" eliminado de la carta.`);
       await cargarProductosYRecetas(local.id);
     } catch (err) {
       console.error('Error eliminando plato:', err);
@@ -713,13 +716,13 @@ export default function Cocina() {
       notes: 'Venta presencial en mostrador'
     }]);
 
-    showNotification(`✅ Venta registrada: ${cant}x ${prod.name}`);
+    showNotification(`Venta registrada: ${cant}x ${prod.name}`);
     await cargarInventario(local.id);
   }
 
   async function solicitarCorteCaja() {
     if (cierrePendiente) {
-      alert(`⚠️ Ya existe una solicitud de cierre pendiente de aprobación por ${formatUsd(cierrePendiente.net_amount)}. Por control contable, no puedes solicitar un nuevo corte hasta que la administración confirme la transferencia previa.`);
+      alert(`Ya existe una solicitud de cierre pendiente de aprobación por ${formatUsd(cierrePendiente.net_amount)}. Por control contable, no puedes solicitar un nuevo corte hasta que la administración confirme la transferencia previa.`);
       return;
     }
 
@@ -733,7 +736,7 @@ export default function Cocina() {
 
     if (existePendiente) {
       setCierrePendiente(existePendiente);
-      alert(`⚠️ Ya existe una liquidación pendiente por ${formatUsd(existePendiente.net_amount)}. La administración debe marcarla como completada antes de generar un nuevo corte.`);
+      alert(`Ya existe una liquidación pendiente por ${formatUsd(existePendiente.net_amount)}. La administración debe marcarla como completada antes de generar un nuevo corte.`);
       return;
     }
 
@@ -787,7 +790,7 @@ export default function Cocina() {
 
     if (!error && nuevoCorte) {
       setCierrePendiente(nuevoCorte);
-      alert(`✅ Solicitud de liquidación enviada por ${formatUsd(neto)}. Administración procesará tu transferencia.`);
+      alert(`Solicitud de liquidación enviada por ${formatUsd(neto)}. Administración procesará tu transferencia.`);
     } else {
       alert('Error al enviar corte: ' + (error?.message || 'Intente de nuevo.'));
     }
@@ -1001,7 +1004,7 @@ export default function Cocina() {
                   alignItems: 'center',
                   gap: '6px'
                 }}>
-                  🔒 Cocina Oficial Exclusiva • {local.name}
+                  <Lock size={12} color="#ffffff" /> Cocina Oficial Exclusiva • {local.name}
                 </span>
               </div>
             )}
@@ -1021,10 +1024,14 @@ export default function Cocina() {
                   fontWeight: 800,
                   fontSize: '0.82rem',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}
               >
-                {local.is_active ? '🟢 Abierto' : '🔴 Pausado'}
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffffff', display: 'inline-block' }} />
+                {local.is_active ? 'Abierto' : 'Pausado'}
               </button>
             )}
 
@@ -1056,34 +1063,42 @@ export default function Cocina() {
         {/* PESTAÑAS DE CONTROL DE COCINA */}
         <nav style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '16px', scrollbarWidth: 'none' }}>
           {[
-            { id: 'comandas', label: `📋 Comandas (${comandasEnCurso.length})` },
-            { id: 'inventario', label: `🛒 Lista de Compras (${insumos.length})` },
-            { id: 'merma', label: `🗑️ Control de Merma` },
-            { id: 'ganancias', label: `📈 Ganancias & Reportes` },
-            { id: 'menu', label: `🍔 Platos (${productos.length})` },
-            { id: 'salon', label: `🏪 Venta Salón` }
-          ].map(tabItem => (
-            <button
-              key={tabItem.id}
-              type="button"
-              onClick={() => setTab(tabItem.id)}
-              style={{
-                background: tab === tabItem.id ? 'var(--dark-amaranth)' : '#ffffff',
-                color: tab === tabItem.id ? '#ffffff' : '#4b5563',
-                border: tab === tabItem.id ? '1px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
-                padding: '8px 16px',
-                borderRadius: '999px',
-                fontWeight: 700,
-                fontSize: '0.84rem',
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: tab === tabItem.id ? '0 4px 12px rgba(130, 19, 58, 0.25)' : 'none'
-              }}
-            >
-              {tabItem.label}
-            </button>
-          ))}
+            { id: 'comandas', label: `Comandas (${comandasEnCurso.length})`, icon: ClipboardList },
+            { id: 'inventario', label: `Lista de Compras (${insumos.length})`, icon: ShoppingBag },
+            { id: 'merma', label: 'Control de Merma', icon: TrashVinoIcon },
+            { id: 'ganancias', label: 'Ganancias y Reportes', icon: TrendingUp },
+            { id: 'menu', label: `Platos (${productos.length})`, icon: ChefHat },
+            { id: 'salon', label: 'Venta Salón', icon: Store }
+          ].map(tabItem => {
+            const TabIcon = tabItem.icon;
+            const isCurrent = tab === tabItem.id;
+            return (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => setTab(tabItem.id)}
+                style={{
+                  background: isCurrent ? 'var(--dark-amaranth)' : '#ffffff',
+                  color: isCurrent ? '#ffffff' : '#4b5563',
+                  border: isCurrent ? '1px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                  padding: '8px 16px',
+                  borderRadius: '999px',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isCurrent ? '0 4px 12px rgba(130, 19, 58, 0.25)' : 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <TabIcon size={14} color={isCurrent ? '#ffffff' : 'var(--dark-amaranth)'} />
+                <span>{tabItem.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         {/* ==============================================================================
@@ -1095,7 +1110,7 @@ export default function Cocina() {
               <p style={{ color: 'var(--text-muted)' }}>Cargando comandas...</p>
             ) : comandasEnCurso.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '50px 20px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e5e7eb' }}>
-                <span style={{ fontSize: '2.5rem' }}>👨‍🍳</span>
+                <ChefHat size={48} color="var(--dark-amaranth)" />
                 <p style={{ color: '#6b7280', margin: '8px 0 0 0', fontWeight: 600 }}>No hay pedidos pendientes en cocina en este momento.</p>
               </div>
             ) : (
@@ -1133,7 +1148,15 @@ export default function Cocina() {
                             borderRadius: '999px',
                             fontWeight: 800
                           }}>
-                            {esPickup ? '🥡 RETIRO EN BARRA' : '🛵 DELIVERY'}
+                            {esPickup ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <ShoppingBag size={12} /> RETIRO EN BARRA
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Bike size={12} /> DELIVERY
+                              </span>
+                            )}
                           </span>
                         </div>
 
@@ -1169,8 +1192,8 @@ export default function Cocina() {
                               alignItems: 'center'
                             }}>
                               <div>
-                                <span style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>
-                                  🔑 CÓDIGO DE RETIRO MOSTRADOR
+                                <span style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <KeyRound size={13} /> CÓDIGO DE RETIRO MOSTRADOR
                                 </span>
                                 <div style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--dark-amaranth)', letterSpacing: '3px' }}>
                                   {ord.delivery_code || (ord.id || '').slice(0, 4).toUpperCase()}
@@ -1202,10 +1225,14 @@ export default function Cocina() {
                                 color: '#ef9d24',
                                 fontSize: '0.82rem',
                                 fontWeight: 700,
-                                textAlign: 'center'
+                                textAlign: 'center',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
                               }}
                             >
-                              ⏳ Esperando verificación de pago por Administración
+                              <Clock size={14} /> Esperando verificación de pago por Administración
                             </div>
                           )}
 
@@ -1214,9 +1241,9 @@ export default function Cocina() {
                               type="button"
                               onClick={() => cambiarEstadoComanda(ord.id, 'cooking')}
                               className="btn-primario"
-                              style={{ flex: 1, padding: '10px', fontSize: '0.85rem' }}
+                              style={{ flex: 1, padding: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
-                              👨‍🍳 Iniciar Preparación
+                              <ChefHat size={16} /> Iniciar Preparación
                             </button>
                           )}
 
@@ -1233,10 +1260,14 @@ export default function Cocina() {
                                 fontWeight: 800,
                                 fontSize: '0.85rem',
                                 padding: '10px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
                               }}
                             >
-                              {esPickup ? '🥡 ¡Listo en Barra!' : '📦 ¡Listo para Despacho!'}
+                              {esPickup ? '¡Listo en Barra!' : '¡Listo para Despacho!'}
                             </button>
                           )}
 
@@ -1253,10 +1284,14 @@ export default function Cocina() {
                                 fontWeight: 800,
                                 fontSize: '0.85rem',
                                 padding: '10px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
                               }}
                             >
-                              🎉 Entregar a Cliente en Mostrador
+                              <CheckCircle2 size={16} /> Entregar a Cliente en Mostrador
                             </button>
                           )}
                         </div>
@@ -1278,10 +1313,10 @@ export default function Cocina() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: '4px'
+                              gap: '6px'
                             }}
                           >
-                            💬 WhatsApp Cliente
+                            <WhatsAppIcon size={16} color="#ffffff" /> WhatsApp Cliente
                           </button>
 
                           <button
@@ -1295,10 +1330,14 @@ export default function Cocina() {
                               borderRadius: '999px',
                               fontSize: '0.78rem',
                               fontWeight: 700,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px'
                             }}
                           >
-                            ✕ Cancelar
+                            <X size={14} /> Cancelar
                           </button>
                         </div>
                       </div>
@@ -1320,8 +1359,8 @@ export default function Cocina() {
             {/* BARRA SUPERIOR DE DESPENSA */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
               <div>
-                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-                  🛒 Lista de Compras y Despensa
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShoppingBag size={20} color="var(--dark-amaranth)" /> Lista de Compras y Despensa
                 </h3>
                 <small style={{ color: '#6b7280' }}>
                   Toca el botón <strong>+</strong> para abrir el teclado numérico y reabastecer stock.
@@ -1331,7 +1370,7 @@ export default function Cocina() {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="🔍 Buscar ingrediente..."
+                  placeholder="Buscar ingrediente..."
                   value={busquedaInsumo}
                   onChange={e => setBusquedaInsumo(e.target.value)}
                   style={{
@@ -1392,7 +1431,6 @@ export default function Cocina() {
                   const cant = parseFloat(ins.quantity || 0);
                   const min = parseFloat(ins.min_threshold || 0);
                   const bajo = cant <= min;
-                  const emoji = getIngredientEmoji(ins.name);
 
                   return (
                     <div
@@ -1401,7 +1439,7 @@ export default function Cocina() {
                       style={{ animationDelay: `${index * 35}ms` }}
                     >
                       <div className="shopping-card-icon">
-                        {emoji}
+                        <Package size={22} color="var(--dark-amaranth)" />
                       </div>
 
                       <div className="shopping-card-info">
@@ -1419,7 +1457,15 @@ export default function Cocina() {
                             color: bajo ? '#dc2626' : '#059669',
                             border: `1px solid ${bajo ? '#fca5a5' : '#a7f3d0'}`
                           }}>
-                            {bajo ? '⚠️ Crítico' : '✓ Óptimo'}
+                            {bajo ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <AlertTriangle size={11} /> Crítico
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <CheckCircle2 size={11} /> Óptimo
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -1443,8 +1489,9 @@ export default function Cocina() {
                           onClick={() => setItemToDelete(ins)}
                           title={`Eliminar ${ins.name} de la base de datos y recetas`}
                           aria-label={`Eliminar ${ins.name}`}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
-                          🗑️
+                          <TrashVinoIcon size={18} />
                         </button>
                       </div>
                     </div>
@@ -1465,7 +1512,7 @@ export default function Cocina() {
             {/* FORMULARIO DE REGISTRO DE MERMA */}
             <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '1.4rem' }}>🗑️</span>
+                <TrashVinoIcon size={20} />
                 <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
                   Registrar Merma / Pérdida
                 </h3>
@@ -1550,9 +1597,12 @@ export default function Cocina() {
 
             {/* HISTORIAL RECIENTE DE MERMAS ASENTADAS */}
             <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-              <h3 style={{ margin: '0 0 12px 0', color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-                📋 Historial de Mermas Registradas
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <ClipboardList size={20} color="var(--dark-amaranth)" />
+                <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
+                  Historial de Mermas Registradas
+                </h3>
+              </div>
 
               {mermas.length === 0 ? (
                 <p style={{ color: '#6b7280', fontSize: '0.88rem' }}>No hay mermas registradas recientemente en tu local.</p>
@@ -1622,8 +1672,8 @@ export default function Cocina() {
             <div className="chart-box-container">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
                 <div>
-                  <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem' }}>
-                    📊 Rendimiento de Ventas
+                  <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <TrendingUp size={20} color="var(--dark-amaranth)" /> Rendimiento de Ventas
                   </h3>
                   <small style={{ color: '#6b7280' }}>
                     Visualiza la curva de ingresos brutos por comensales y pedidos despachados.
@@ -1678,7 +1728,7 @@ export default function Cocina() {
                   gap: '12px',
                   boxShadow: '0 2px 8px rgba(245, 158, 11, 0.1)'
                 }}>
-                  <span style={{ fontSize: '1.6rem' }}>⏳</span>
+                  <Clock size={24} color="#f59e0b" />
                   <div style={{ flex: 1 }}>
                     <strong style={{ color: '#92400e', fontSize: '0.9rem', display: 'block', marginBottom: '2px' }}>
                       Cierre de Caja en Proceso de Liquidación ({formatUsd(cierrePendiente.net_amount)})
@@ -1711,10 +1761,21 @@ export default function Cocina() {
                     opacity: cierrePendiente ? 0.55 : 1,
                     cursor: cierrePendiente ? 'not-allowed' : 'pointer',
                     background: cierrePendiente ? '#6b7280' : 'var(--dark-amaranth)',
-                    boxShadow: cierrePendiente ? 'none' : '0 4px 12px rgba(130, 19, 58, 0.25)'
+                    boxShadow: cierrePendiente ? 'none' : '0 4px 12px rgba(130, 19, 58, 0.25)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                 >
-                  {cierrePendiente ? '🔒 Liquidación en Proceso' : '💰 Solicitar Liquidación Bancaria'}
+                  {cierrePendiente ? (
+                    <>
+                      <Lock size={14} /> Liquidación en Proceso
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign size={14} /> Solicitar Liquidación Bancaria
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1734,7 +1795,9 @@ export default function Cocina() {
             {/* PÁGINA IZQUIERDA: CARTA DEL RESTAURANTE */}
             <div className="menu-book-page page-left">
               <div className="menu-book-header">
-                <h3 className="menu-book-title">📖 Nuestra Carta</h3>
+                <h3 className="menu-book-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ChefHat size={18} color="var(--dark-amaranth)" /> Nuestra Carta
+                </h3>
                 <div className="menu-book-subtitle">Tropicalia CRB • Menú Principal</div>
               </div>
 
@@ -1742,7 +1805,7 @@ export default function Cocina() {
               <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
                   type="text"
-                  placeholder="🔍 Buscar plato en la carta..."
+                  placeholder="Buscar plato en la carta..."
                   value={busquedaMenu}
                   onChange={e => setBusquedaMenu(e.target.value)}
                   className="form-input-figma"
@@ -1757,7 +1820,9 @@ export default function Cocina() {
               <div className="menu-dishes-scroll">
                 {productos.filter(p => p.name.toLowerCase().includes(busquedaMenu.toLowerCase())).length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '36px 14px', color: '#a8a29e' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🍽️</div>
+                    <div style={{ marginBottom: '8px' }}>
+                      <ShoppingBag size={32} color="#a8a29e" />
+                    </div>
                     <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay platos que coincidan con la búsqueda.</p>
                   </div>
                 ) : (
@@ -1773,7 +1838,7 @@ export default function Cocina() {
                       return (
                         <div key={p.id} className="menu-dish-item">
                           {/* Miniatura / Foto */}
-                          <div className="menu-dish-thumb">
+                          <div className="menu-dish-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {p.image_url ? (
                               <img
                                 src={p.image_url}
@@ -1782,7 +1847,7 @@ export default function Cocina() {
                                 onError={(e) => { e.target.style.display = 'none'; }}
                               />
                             ) : (
-                              getIngredientEmoji(p.name)
+                              <ShoppingBag size={22} color="var(--dark-amaranth)" />
                             )}
                           </div>
 
@@ -1797,7 +1862,7 @@ export default function Cocina() {
                             {/* Ingredientes de la receta */}
                             <div className="menu-dish-recipe">
                               {ingredientesTexto ? (
-                                <span>📋 <em>{ingredientesTexto}</em></span>
+                                <span><em>{ingredientesTexto}</em></span>
                               ) : (
                                 <span style={{ color: '#a8a29e', fontStyle: 'italic' }}>Sin receta de insumos asociada</span>
                               )}
@@ -1819,7 +1884,7 @@ export default function Cocina() {
                                   cursor: 'pointer'
                                 }}
                               >
-                                {p.is_available ? '🟢 Disponible' : '🔴 Pausado'}
+                                {p.is_available ? 'Disponible' : 'Pausado'}
                               </button>
 
                               <button
@@ -1840,7 +1905,7 @@ export default function Cocina() {
                                 }}
                                 title="Eliminar plato de la carta"
                               >
-                                🗑️ Eliminar
+                                <TrashVinoIcon size={14} /> Eliminar
                               </button>
                             </div>
                           </div>
@@ -1854,7 +1919,9 @@ export default function Cocina() {
             {/* PÁGINA DERECHA: PANEL PARA AGREGAR NUEVOS PLATOS */}
             <div className="menu-book-page page-right">
               <div className="menu-book-header">
-                <h3 className="menu-book-title" style={{ color: 'var(--golden-orange)' }}>✨ Nuevo Plato</h3>
+                <h3 className="menu-book-title" style={{ color: 'var(--golden-orange)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={18} color="var(--golden-orange)" /> Nuevo Plato
+                </h3>
                 <div className="menu-book-subtitle">Panel de Creación & Receta de Insumos</div>
               </div>
 
@@ -1916,12 +1983,12 @@ export default function Cocina() {
                   {/* Píldoras de presets rápidos */}
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
                     {[
-                      { label: '🍔 Burger', url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80' },
-                      { label: '🍕 Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80' },
-                      { label: '🥗 Ensalada', url: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80' },
-                      { label: '🍟 Papas', url: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?w=500&auto=format&fit=crop&q=80' },
-                      { label: '🥤 Bebida', url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=500&auto=format&fit=crop&q=80' },
-                      { label: '🍰 Postre', url: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80' }
+                      { label: 'Burger', url: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Pizza', url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Ensalada', url: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Papas', url: 'https://images.unsplash.com/photo-1576107232684-1279f3908594?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Bebida', url: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=500&auto=format&fit=crop&q=80' },
+                      { label: 'Postre', url: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80' }
                     ].map(p => (
                       <button
                         key={p.label}
@@ -1945,8 +2012,8 @@ export default function Cocina() {
 
                 {/* 3. Ingredientes y Cantidades (Receta) */}
                 <div style={{ background: '#fdfbf7', border: '1px dashed #d6cbbe', borderRadius: '12px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--dark-amaranth)', display: 'block', marginBottom: '2px' }}>
-                    📦 Ingredientes de la Receta
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <Package size={16} color="var(--dark-amaranth)" /> Ingredientes de la Receta
                   </label>
                   <p style={{ margin: '0 0 8px 0', fontSize: '0.72rem', color: '#78716c' }}>
                     Selecciona los ingredientes registrados y anota cuánto consume 1 plato:
@@ -2011,8 +2078,9 @@ export default function Cocina() {
                             onClick={() => handleQuitarIngredienteDeReceta(ing.ingredientId)}
                             className="recipe-chip-remove"
                             title="Quitar de la receta"
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            ✕
+                            <X size={12} />
                           </button>
                         </span>
                       ))
@@ -2035,7 +2103,7 @@ export default function Cocina() {
                     boxShadow: '0 4px 14px rgba(239, 157, 36, 0.3)'
                   }}
                 >
-                  {guardandoPlato ? 'Guardando en Carta...' : '📖 Guardar Plato en la Carta'}
+                  {guardandoPlato ? 'Guardando en Carta...' : 'Guardar Plato en la Carta'}
                 </button>
               </form>
             </div>
@@ -2095,9 +2163,9 @@ export default function Cocina() {
               <button
                 type="button"
                 onClick={cerrarTecladoNumerico}
-                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', fontSize: '1rem' }}
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ✕
+                <X size={18} color="#6b7280" />
               </button>
             </div>
 
@@ -2171,7 +2239,7 @@ export default function Cocina() {
               className="btn-primario"
               style={{ width: '100%', padding: '14px', fontSize: '1rem', marginTop: '16px' }}
             >
-              ✓ Confirmar y Sumar al Stock
+              Confirmar y Sumar al Stock
             </button>
 
           </div>
@@ -2186,7 +2254,9 @@ export default function Cocina() {
           <div className="modal-figma-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px', margin: 'auto' }}>
             
             <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-              <span style={{ fontSize: '2.5rem' }}>🗑️</span>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                <TrashVinoIcon size={44} />
+              </div>
               <h3 style={{ margin: '8px 0 4px 0', color: '#b91c1c', fontSize: '1.3rem' }}>
                 ¿Eliminar {itemToDelete.name}?
               </h3>
@@ -2197,8 +2267,9 @@ export default function Cocina() {
 
             {platosAfectados.length > 0 && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '12px', marginBottom: '16px' }}>
-                <strong style={{ color: '#991b1b', fontSize: '0.82rem', display: 'block', marginBottom: '4px' }}>
-                  ⚠️ Se removerá de las recetas de los siguientes {platosAfectados.length} platos:
+                <strong style={{ color: '#991b1b', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <AlertTriangle size={15} color="#b91c1c" />
+                  Se removerá de las recetas de los siguientes {platosAfectados.length} platos:
                 </strong>
                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8rem', color: '#7f1d1d' }}>
                   {platosAfectados.map(p => (

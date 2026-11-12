@@ -11,7 +11,7 @@ const DICCIONARIO_SEMANTICO = {
       'cheeseburger', 'doble carne', 'smash', 'smash burger', 'angus', 'bacon burger',
       'torta de carne', 'cuarto de libra', 'pan de papa', 'brioche'
     ],
-    etiquetaVisual: '🍔 Hamburguesas'
+    etiquetaVisual: 'Hamburguesas'
   },
   pizzas: {
     categoriaPrincipal: 'Pizzas',
@@ -20,7 +20,7 @@ const DICCIONARIO_SEMANTICO = {
       'pepperoni', 'peperoni', 'calzone', 'focaccia', 'napolitana', 'cuatro quesos',
       '4 quesos', 'champiñones', 'jamon y queso', 'masa madre'
     ],
-    etiquetaVisual: '🍕 Pizzas'
+    etiquetaVisual: 'Pizzas'
   },
   sushi_asiatica: {
     categoriaPrincipal: 'Sushi',
@@ -30,7 +30,7 @@ const DICCIONARIO_SEMANTICO = {
       'salmon', 'salmón', 'atun', 'atún', 'edamame', 'ramen', 'gyoza', 'wok',
       'arroz chino', 'yakimeshi', 'dinamita', 'dragón roll', 'dragon roll'
     ],
-    etiquetaVisual: '🍣 Sushi y Asiática'
+    etiquetaVisual: 'Sushi y Asiática'
   },
   hotdogs: {
     categoriaPrincipal: 'Comida Rápida',
@@ -39,7 +39,7 @@ const DICCIONARIO_SEMANTICO = {
       'perro', 'perros', 'salchicha', 'salchichas', 'con todo', 'perro con queso',
       'chistorra', 'salchipapa', 'salchipapas'
     ],
-    etiquetaVisual: '🌭 Perros Calientes'
+    etiquetaVisual: 'Perros Calientes'
   },
   postres_dulces: {
     categoriaPrincipal: 'Platos Dulces',
@@ -50,7 +50,7 @@ const DICCIONARIO_SEMANTICO = {
       'galleta', 'galletas', 'cookie', 'cookies', 'brownie', 'brownies', 'alfajor',
       'tres leches', 'quesillo', 'fresa', 'vainilla', 'nutella', 'dulce de leche', 'arequipe'
     ],
-    etiquetaVisual: '🍰 Postres y Dulces'
+    etiquetaVisual: 'Postres y Dulces'
   },
   bebidas: {
     categoriaPrincipal: 'Bebidas',
@@ -61,7 +61,7 @@ const DICCIONARIO_SEMANTICO = {
       'agua', 'water', 'cerveza', 'cervezas', 'beer', 'polar', 'solera', 'te', 'té',
       'iced tea', 'nestea', 'limonada', 'papelon con limon', 'papelón'
     ],
-    etiquetaVisual: '🥤 Bebidas y Refrescos'
+    etiquetaVisual: 'Bebidas y Refrescos'
   },
   cafe: {
     categoriaPrincipal: 'Bebidas',
@@ -69,7 +69,7 @@ const DICCIONARIO_SEMANTICO = {
       'cafe', 'café', 'coffee', 'espresso', 'expreso', 'capuchino', 'cappuccino',
       'latte', 'marron', 'marrón', 'guayoyo', 'mokaccino', 'moca', 'americano'
     ],
-    etiquetaVisual: '☕ Café'
+    etiquetaVisual: 'Café'
   },
   pollo_wings: {
     categoriaPrincipal: 'Platos Salados',
@@ -78,7 +78,7 @@ const DICCIONARIO_SEMANTICO = {
       'nuggets', 'tenders', 'crispy', 'crujiente', 'broaster', 'pechuga',
       'pollo frito', 'pollo a la canasta', 'strips'
     ],
-    etiquetaVisual: '🍗 Pollo y Alitas'
+    etiquetaVisual: 'Pollo y Alitas'
   },
   carnes_parrilla: {
     categoriaPrincipal: 'Platos Salados',
@@ -87,7 +87,7 @@ const DICCIONARIO_SEMANTICO = {
       'churrasco', 'steak', 'lomito', 'solomo', 'punta trasera', 'costillas',
       'ribs', 'picanha', 'chorizo', 'morcilla', 'chinchurria', 'carne mechada'
     ],
-    etiquetaVisual: '🥩 Carnes y Parrilla'
+    etiquetaVisual: 'Carnes y Parrilla'
   },
   pastas_italiana: {
     categoriaPrincipal: 'Platos Salados',
@@ -96,7 +96,7 @@ const DICCIONARIO_SEMANTICO = {
       'penne', 'lasaña', 'lasagna', 'raviolis', 'ravioli', 'bolognesa',
       'carbonara', 'alfredo', 'pomodoro', 'pesto', 'canelones'
     ],
-    etiquetaVisual: '🍝 Pastas'
+    etiquetaVisual: 'Pastas'
   },
   comida_venezolana: {
     categoriaPrincipal: 'Platos Salados',
@@ -106,7 +106,7 @@ const DICCIONARIO_SEMANTICO = {
       'cachapas', 'tequeño', 'tequeños', 'tequeno', 'tequenos', 'queso de mano',
       'pabellon', 'pabellón', 'hallaquita', 'tajadas'
     ],
-    etiquetaVisual: '🫓 Tradicional Venezolana'
+    etiquetaVisual: 'Tradicional Venezolana'
   },
   snacks_pasapalos: {
     categoriaPrincipal: 'Platos Salados',
@@ -115,7 +115,7 @@ const DICCIONARIO_SEMANTICO = {
       'papas fritas', 'papas francesas', 'aros de cebolla', 'onion rings',
       'tostones', 'patacones', 'nachos', 'deditos de queso'
     ],
-    etiquetaVisual: '🍟 Snacks y Pasapalos'
+    etiquetaVisual: 'Snacks y Pasapalos'
   },
   mexicana: {
     categoriaPrincipal: 'Platos Salados',
@@ -124,7 +124,7 @@ const DICCIONARIO_SEMANTICO = {
       'nachos', 'fajita', 'fajitas', 'guacamole', 'jalapeno', 'jalapeño',
       'pico de gallo', 'totopos'
     ],
-    etiquetaVisual: '🌮 Comida Mexicana'
+    etiquetaVisual: 'Comida Mexicana'
   },
   saludable_ensaladas: {
     categoriaPrincipal: 'Platos Salados',
@@ -133,7 +133,7 @@ const DICCIONARIO_SEMANTICO = {
       'caesar', 'vegetariano', 'vegano', 'vegan', 'light', 'fitness', 'bowl',
       'poke', 'quinoa', 'sin gluten', 'gluten free'
     ],
-    etiquetaVisual: '🥗 Saludable y Ensaladas'
+    etiquetaVisual: 'Saludable y Ensaladas'
   },
   mariscos_pescado: {
     categoriaPrincipal: 'Platos Salados',
@@ -142,7 +142,7 @@ const DICCIONARIO_SEMANTICO = {
       'shrimp', 'ceviche', 'cebiche', 'calamar', 'calamares', 'pulpo', 'filet',
       'pargo', 'corvina'
     ],
-    etiquetaVisual: '🦐 Mariscos y Pescados'
+    etiquetaVisual: 'Mariscos y Pescados'
   }
 };
 
@@ -236,13 +236,13 @@ export const semanticSearchService = {
    */
   obtenerSugerenciasRapidas() {
     return [
-      { id: 'burger', label: '🍔 Burgers', query: 'burger' },
-      { id: 'pizza', label: '🍕 Pizzas', query: 'pizza' },
-      { id: 'sushi', label: '🍣 Sushi', query: 'sushi' },
-      { id: 'alitas', label: '🍗 Alitas', query: 'alitas' },
-      { id: 'tequenos', label: '🧀 Tequeños', query: 'tequeños' },
-      { id: 'postre', label: '🍰 Postres', query: 'postre' },
-      { id: 'bebidas', label: '🥤 Bebidas', query: 'bebida' }
+      { id: 'burger', label: 'Burgers', query: 'burger' },
+      { id: 'pizza', label: 'Pizzas', query: 'pizza' },
+      { id: 'sushi', label: 'Sushi', query: 'sushi' },
+      { id: 'alitas', label: 'Alitas', query: 'alitas' },
+      { id: 'tequenos', label: 'Tequeños', query: 'tequeños' },
+      { id: 'postre', label: 'Postres', query: 'postre' },
+      { id: 'bebidas', label: 'Bebidas', query: 'bebida' }
     ];
   },
 

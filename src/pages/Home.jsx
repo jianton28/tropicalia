@@ -8,13 +8,29 @@ import { getProductImageUrl } from '../services/imageService';
 import { favoritesService } from '../services/favoritesService';
 import { semanticSearchService } from '../services/semanticSearchService';
 import GlobalSearchBar from '../components/common/GlobalSearchBar';
-import logoImg from '../assets/logo.png';
+import tropiHeadImg from '../assets/tropi_head.png';
+import {
+  HeartOutlineIcon,
+  StarOutlineIcon,
+  Search,
+  MapPin,
+  Clock,
+  Sparkles,
+  ShoppingBag,
+  Store,
+  ChefHat,
+  Bike,
+  Shield,
+  X,
+  Check,
+  ArrowRight
+} from '../components/common/Icons';
 
 const CATEGORIAS_FIGMA = [
   'Todos',
   'Platos Salados',
   'Platos Dulces',
-  '❤️ Favoritos',
+  'Favoritos',
   'Hamburguesas',
   'Pizzas',
   'Sushi',
@@ -98,7 +114,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
       e.stopPropagation();
     }
     const isNowFav = await favoritesService.toggleFavorite(productId, user?.id);
-    showToast(isNowFav ? '❤️ Agregado a tus favoritos' : '🤍 Eliminado de tus favoritos');
+    showToast(isNowFav ? 'Agregado a tus favoritos' : 'Eliminado de tus favoritos');
   }
 
   useEffect(() => {
@@ -285,7 +301,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
 
   // Filtrado por categoría y búsqueda
   const productosFiltrados = useMemo(() => {
-    const coleccionBase = (categoriaActiva === '❤️ Favoritos' && todosLosProductos.length > 0)
+    const coleccionBase = (categoriaActiva === 'Favoritos' && todosLosProductos.length > 0)
       ? todosLosProductos
       : productos;
 
@@ -303,7 +319,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
       // Filtro de categoría
       if (categoriaActiva === 'Todos') return true;
 
-      if (categoriaActiva === '❤️ Favoritos') {
+      if (categoriaActiva === 'Favoritos') {
         return favorites.includes(p.id);
       }
 
@@ -403,13 +419,18 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         <div className="figma-header-top" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img
-              src={logoImg}
-              alt="Tropicalia Mascota"
-              style={{ height: '32px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+              src={tropiHeadImg}
+              alt="Tropi Mascota"
+              style={{ height: '38px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
             />
-            <h1 className="figma-header-title">
-              {nombreUsuario === 'Bienvenido' ? 'Bienvenido' : `Bienvenido, ${nombreUsuario}`}
-            </h1>
+            <div>
+              <span style={{ fontSize: '0.64rem', textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.88, fontWeight: 800, color: '#fce7f3', display: 'block', lineHeight: 1 }}>
+                TROPICALIA CRB
+              </span>
+              <h1 className="figma-header-title" style={{ margin: 0, lineHeight: 1.2 }}>
+                {nombreUsuario === 'Bienvenido' ? 'Bienvenido' : `Bienvenido, ${nombreUsuario}`}
+              </h1>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -423,11 +444,14 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 800,
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
                 title="Panel Admin"
               >
-                🛡️ Admin
+                <Shield size={12} strokeWidth={2.4} /> Admin
               </Link>
             )}
             {role === 'restaurant' && (
@@ -440,10 +464,13 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 800,
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
               >
-                👨‍🍳 Cocina
+                <ChefHat size={12} strokeWidth={2.4} /> Cocina
               </Link>
             )}
             {role === 'delivery' && (
@@ -456,10 +483,13 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   borderRadius: '999px',
                   fontSize: '0.72rem',
                   fontWeight: 800,
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
                 }}
               >
-                🛵 Delivery
+                <Bike size={12} strokeWidth={2.4} /> Delivery
               </Link>
             )}
 
@@ -517,7 +547,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
           borderRadius: '999px',
           fontWeight: 700
         }}>
-          💵 BCV: {formatBs(tasaBCV)}
+          BCV: {formatBs(tasaBCV)}
         </span>
       </div>
 
@@ -548,15 +578,15 @@ export default function Home({ onTriggerSearch, searchOpen }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div>
               <h2 style={{ fontSize: '1.05rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                🏪 Nuestras Cocinas y Restaurantes
+                Nuestras Cocinas y Restaurantes
               </h2>
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
                 Selecciona una cocina para explorar su menú exclusivo
               </span>
             </div>
             {negocioActivo && (
-              <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontWeight: 700 }}>
-                ✓ {negocioActivo.name.replace('Tropicalia ', '')}
+              <span style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Check size={12} color="#065f46" strokeWidth={3} /> {negocioActivo.name.replace('Tropicalia ', '')}
               </span>
             )}
           </div>
@@ -596,8 +626,8 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                       {n.category || 'Cocina Aliada'}
                     </span>
                     {isSelected && (
-                      <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 900 }}>
-                        ✓
+                      <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Check size={11} color="#ffffff" strokeWidth={3} />
                       </span>
                     )}
                   </div>
@@ -605,11 +635,11 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                     {n.name}
                   </strong>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
-                      ⭐ {n.rating.toFixed(1)} ({n.ratingCount}+)
+                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <StarOutlineIcon size={12} color="#92400e" /> {n.rating.toFixed(1)} ({n.ratingCount}+)
                     </span>
-                    <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
-                      📍 ~{n.distanciaKm.toFixed(1)} km
+                    <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <MapPin size={12} color="#065f46" strokeWidth={2} /> ~{n.distanciaKm.toFixed(1)} km
                     </span>
                   </div>
                 </div>
@@ -636,11 +666,14 @@ export default function Home({ onTriggerSearch, searchOpen }) {
               boxShadow: '0 4px 12px rgba(4, 120, 87, 0.25)'
             }}
           >
-            <div>
-              <strong style={{ fontSize: '0.88rem', display: 'block' }}>🛵 Tienes un pedido en curso</strong>
-              <small style={{ color: '#a7f3d0' }}>Toca para ver el mapa en vivo y PIN seguro</small>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Bike size={22} color="#ffffff" />
+              <div>
+                <strong style={{ fontSize: '0.88rem', display: 'block' }}>Tienes un pedido en curso</strong>
+                <small style={{ color: '#a7f3d0' }}>Toca para ver el mapa en vivo y PIN seguro</small>
+              </div>
             </div>
-            <span style={{ fontSize: '1.1rem' }}>→</span>
+            <ArrowRight size={18} color="#ffffff" />
           </Link>
         </div>
       )}
@@ -653,8 +686,8 @@ export default function Home({ onTriggerSearch, searchOpen }) {
             {/* CABECERA BUSCADOR GLOBAL DUAL */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
-                <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                  🔍 Resultados para "{searchQuery}"
+                <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Search size={18} color="var(--dark-amaranth)" /> Resultados para "{searchQuery}"
                 </h2>
                 <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: '#6b7280' }}>
                   Resultados divididos en restaurantes y platos independientes disponibles
@@ -664,9 +697,9 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="btn-secundario"
-                style={{ padding: '4px 10px', fontSize: '0.78rem', borderRadius: '8px' }}
+                style={{ padding: '4px 10px', fontSize: '0.78rem', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                ✕ Limpiar Búsqueda
+                <X size={13} /> Limpiar Búsqueda
               </button>
             </div>
 
@@ -702,7 +735,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   cursor: 'pointer'
                 }}
               >
-                🏪 Restaurantes ({restaurantesCoincidentes.length})
+                Restaurantes ({restaurantesCoincidentes.length})
               </button>
               <button
                 type="button"
@@ -718,13 +751,15 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                   cursor: 'pointer'
                 }}
               >
-                🍽️ Platos Disponibles ({platosIndependientes.length})
+                Platos Disponibles ({platosIndependientes.length})
               </button>
             </div>
 
             {restaurantesCoincidentes.length === 0 && platosIndependientes.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f9fafb', borderRadius: '18px', border: '1px solid #e5e7eb' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🔍</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                  <Search size={36} color="#9ca3af" />
+                </div>
                 <strong style={{ color: '#374151', fontSize: '1rem' }}>No encontramos resultados para "{searchQuery}"</strong>
                 <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: '4px 0 14px 0' }}>
                   Prueba buscando otro plato (hamburguesa, pizza, postre, sushi) o nombre de restaurante.
@@ -745,7 +780,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                 {(searchDualTab === 'todo' || searchDualTab === 'restaurantes') && restaurantesCoincidentes.length > 0 && (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '1.1rem' }}>🏪</span>
+                      <Store size={18} color="var(--dark-amaranth)" />
                       <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
                         Restaurantes Coincidentes ({restaurantesCoincidentes.length})
                       </h3>
@@ -773,22 +808,22 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <h4 style={{ margin: 0, fontSize: '0.98rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                                🏪 {r.name}
+                                {r.name}
                               </h4>
-                              <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 800 }}>
-                                ⭐ {r.rating.toFixed(1)} ({r.ratingCount}+)
+                              <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <StarOutlineIcon size={12} color="#92400e" /> {r.rating.toFixed(1)} ({r.ratingCount}+)
                               </span>
                             </div>
                             <span style={{ color: '#6b7280', fontSize: '0.76rem', display: 'block', marginTop: '2px' }}>
-                              {r.category || 'Cocina Gourmet'} • ⏱️ 20-30 min
+                              {r.category || 'Cocina Gourmet'} • 20-30 min
                             </span>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '6px' }}>
-                              <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
-                                📍 ~{r.distanciaKm.toFixed(1)} km
+                              <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <MapPin size={12} color="#065f46" strokeWidth={2} /> ~{r.distanciaKm.toFixed(1)} km
                               </span>
                               {r.matchReason && (
-                                <span style={{ background: '#fdf2f8', color: 'var(--dark-amaranth)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800 }}>
-                                  ✨ {r.matchReason}
+                                <span style={{ background: '#fdf2f8', color: 'var(--dark-amaranth)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <Sparkles size={12} color="var(--dark-amaranth)" /> {r.matchReason}
                                 </span>
                               )}
                             </div>
@@ -820,7 +855,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                                       title={`Toca para ver ${cp.name}`}
                                     >
                                       <span style={{ fontWeight: 600, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
-                                        🍽️ {cp.name}
+                                        {cp.name}
                                       </span>
                                       <span style={{ fontWeight: 800, color: 'var(--dark-amaranth)', flexShrink: 0 }}>
                                         ${parseFloat(cp.price || 0).toFixed(2)}
@@ -840,9 +875,9 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                               showToast(`Menú de "${r.name}" cargado`);
                             }}
                             className="btn-primario"
-                            style={{ width: '100%', padding: '8px', fontSize: '0.8rem', fontWeight: 800 }}
+                            style={{ width: '100%', padding: '8px', fontSize: '0.8rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                           >
-                            Ver Menú Completo →
+                            Ver Menú Completo <ArrowRight size={14} />
                           </button>
                         </div>
                       ))}
@@ -854,7 +889,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                 {(searchDualTab === 'todo' || searchDualTab === 'platos') && platosIndependientes.length > 0 && (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '1.1rem' }}>🍽️</span>
+                      <ShoppingBag size={18} color="var(--dark-amaranth)" />
                       <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
                         Platos Disponibles ({platosIndependientes.length})
                       </h3>
@@ -895,10 +930,10 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
                             }}>
-                              🏪 {nombreLocal.replace('Tropicalia ', '')}
+                              {nombreLocal.replace('Tropicalia ', '')}
                             </span>
 
-                            {/* Botón Favorito ❤️ / 🤍 */}
+                            {/* Botón Favorito (Diseño plano, contorno color vino) */}
                             <button
                               type="button"
                               onClick={(e) => handleToggleFavorite(p.id, e)}
@@ -911,18 +946,17 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                                 height: '30px',
                                 borderRadius: '50%',
                                 background: 'rgba(255, 255, 255, 0.94)',
-                                border: '1px solid rgba(0, 0, 0, 0.08)',
+                                border: '1px solid rgba(130, 19, 58, 0.18)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.95rem',
                                 cursor: 'pointer',
                                 zIndex: 3,
                                 boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
                                 transition: 'transform 0.15s ease'
                               }}
                             >
-                              {favorites.includes(p.id) ? '❤️' : '🤍'}
+                              <HeartOutlineIcon size={17} active={favorites.includes(p.id)} />
                             </button>
 
                             <div className="product-card-img-box">
@@ -939,8 +973,8 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                             </div>
                             <h3 className="product-card-name">{p.name}</h3>
                             {p.matchedReason && (
-                              <span style={{ fontSize: '0.68rem', color: '#047857', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
-                                ✨ {p.matchedReason}
+                              <span style={{ fontSize: '0.68rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                                <Sparkles size={11} color="#047857" /> {p.matchedReason}
                               </span>
                             )}
                             <p className="product-card-price">{formatUsd(precioUsd)}</p>
@@ -1004,15 +1038,15 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                     Menú Oficial de Cocina
                   </span>
                   <h3 style={{ margin: '2px 0 0 0', fontSize: '1.1rem', color: 'var(--dark-amaranth)', fontWeight: 800 }}>
-                    🍽️ {negocioActivo.name}
+                    {negocioActivo.name}
                   </h3>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800 }}>
-                    ⭐ {parseFloat(negocioActivo.rating || 4.90).toFixed(1)} ({negocioActivo.rating_count || 120} calificaciones)
+                  <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <StarOutlineIcon size={12} color="#92400e" /> {parseFloat(negocioActivo.rating || 4.90).toFixed(1)} ({negocioActivo.rating_count || 120} calificaciones)
                   </span>
-                  <span style={{ background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700 }}>
-                    📍 Activo
+                  <span style={{ background: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '999px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={12} color="#065f46" strokeWidth={2} /> Activo
                   </span>
                 </div>
               </div>
@@ -1046,7 +1080,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                       aria-label={`Ver detalle de ${p.name}`}
                       style={{ position: 'relative' }}
                     >
-                      {/* Botón Favorito ❤️ / 🤍 */}
+                      {/* Botón Favorito (Diseño plano, contorno color vino) */}
                       <button
                         type="button"
                         onClick={(e) => handleToggleFavorite(p.id, e)}
@@ -1059,18 +1093,17 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                           height: '30px',
                           borderRadius: '50%',
                           background: 'rgba(255, 255, 255, 0.94)',
-                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          border: '1px solid rgba(130, 19, 58, 0.18)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '0.95rem',
                           cursor: 'pointer',
                           zIndex: 3,
                           boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
                           transition: 'transform 0.15s ease'
                         }}
                       >
-                        {favorites.includes(p.id) ? '❤️' : '🤍'}
+                        <HeartOutlineIcon size={17} active={favorites.includes(p.id)} />
                       </button>
 
                       <div className="product-card-img-box">
@@ -1134,11 +1167,10 @@ export default function Home({ onTriggerSearch, searchOpen }) {
               aria-label={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
               style={{
                 background: '#ffffff',
-                border: 'none',
+                border: '1px solid rgba(130, 19, 58, 0.18)',
                 width: '36px',
                 height: '36px',
                 borderRadius: '50%',
-                fontSize: '1.1rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -1147,7 +1179,7 @@ export default function Home({ onTriggerSearch, searchOpen }) {
               }}
               title={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Guardar en favoritos'}
             >
-              {favorites.includes(selectedProduct.id) ? '❤️' : '🤍'}
+              <HeartOutlineIcon size={20} active={favorites.includes(selectedProduct.id)} />
             </button>
           </header>
 
@@ -1180,7 +1212,11 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                     <span style={{ fontWeight: 700 }}>Carlos M.</span>
                     <span>Hoy</span>
                   </div>
-                  <div className="opinion-stars">★★★★★</div>
+                  <div className="opinion-stars" style={{ display: 'flex', gap: '2px' }}>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <StarOutlineIcon key={i} size={14} color="#ef9d24" fill="#ef9d24" />
+                    ))}
+                  </div>
                   <div className="opinion-comment">
                     Excelente
                   </div>
@@ -1191,7 +1227,12 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                     <span style={{ fontWeight: 700 }}>Elena R.</span>
                     <span>Ayer</span>
                   </div>
-                  <div className="opinion-stars">★★★★☆</div>
+                  <div className="opinion-stars" style={{ display: 'flex', gap: '2px' }}>
+                    {[1, 2, 3, 4].map(i => (
+                      <StarOutlineIcon key={i} size={14} color="#ef9d24" fill="#ef9d24" />
+                    ))}
+                    <StarOutlineIcon size={14} color="#ef9d24" fill="none" />
+                  </div>
                   <div className="opinion-comment">
                     Bueno
                   </div>
@@ -1253,12 +1294,15 @@ export default function Home({ onTriggerSearch, searchOpen }) {
             style={{ paddingBottom: '30px' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>📍 Dirección de Entrega</h3>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MapPin size={18} color="var(--dark-amaranth)" /> Dirección de Entrega
+              </h3>
               <button
                 onClick={() => setShowAddressModal(false)}
-                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                aria-label="Cerrar modal"
               >
-                ✕
+                <X size={16} color="var(--dark-amaranth)" />
               </button>
             </div>
             <form onSubmit={guardarDireccion}>

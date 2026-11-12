@@ -9,6 +9,23 @@ import { getProductImageUrl } from '../services/imageService';
 import MapAddressPicker from '../components/common/MapAddressPicker';
 import SecurityVerification from '../components/common/SecurityVerification';
 import { securityService } from '../services/securityService';
+import {
+  Bike,
+  ShoppingBag,
+  Store,
+  MapPin,
+  Lock,
+  Phone,
+  Info,
+  ExternalLink,
+  CheckCircle2,
+  Paperclip,
+  RefreshCw,
+  Plus,
+  X,
+  Check,
+  CreditCard
+} from '../components/common/Icons';
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -145,7 +162,7 @@ export default function Checkout() {
       const km = calcularDistanciaKm(coordsRestaurante.lat, coordsRestaurante.lng, lat, lng);
       setDistanciaKm(km);
       setFleteUsd(calcularTarifaPorKm(km));
-      setGpsStatus(`📍 Dirección seleccionada: "${addr.alias}" (${km.toFixed(1)} km)`);
+      setGpsStatus(`Dirección seleccionada: "${addr.alias}" (${km.toFixed(1)} km)`);
     }
   }
 
@@ -228,7 +245,7 @@ export default function Checkout() {
         const km = calcularDistanciaKm(coordsCocina.lat, coordsCocina.lng, parseFloat(savedLat), parseFloat(savedLng));
         setDistanciaKm(km);
         setFleteUsd(calcularTarifaPorKm(km));
-        setGpsStatus(`📍 Distancia automática calculada (${km.toFixed(1)} km)`);
+        setGpsStatus(`Distancia automática calculada (${km.toFixed(1)} km)`);
       }
 
       // Consulta en segundo plano de GPS de alta precisión
@@ -244,7 +261,7 @@ export default function Checkout() {
             const kmExacto = calcularDistanciaKm(coordsCocina.lat, coordsCocina.lng, lat, lng);
             setDistanciaKm(kmExacto);
             setFleteUsd(calcularTarifaPorKm(kmExacto));
-            setGpsStatus(`✅ GPS Verificado: ${kmExacto.toFixed(1)} km de la cocina`);
+            setGpsStatus(`GPS Verificado: ${kmExacto.toFixed(1)} km de la cocina`);
           },
           () => {
             // Si el cliente no comparte GPS, mantener distancia automática por zona
@@ -293,7 +310,7 @@ export default function Checkout() {
           setDireccion(`Ubicación GPS exacta (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
         }
         setGpsLoading(false);
-        setGpsStatus(`✅ GPS en Vivo Actualizado (${km.toFixed(1)} km)`);
+        setGpsStatus(`GPS en Vivo Actualizado (${km.toFixed(1)} km)`);
       },
       () => {
         setGpsLoading(false);
@@ -309,13 +326,13 @@ export default function Checkout() {
     // 1. Verificación de Rate Limiting (Protección contra Flood de Bot)
     const rateCheck = securityService.checkOrderRateLimit();
     if (!rateCheck.allowed) {
-      alert(`⛔ Por favor espera ${rateCheck.waitSeconds} segundos antes de emitir otro pedido.`);
+      alert(`Por favor espera ${rateCheck.waitSeconds} segundos antes de emitir otro pedido.`);
       return;
     }
 
     // 2. Verificación Anti-Bot / Turnstile Zero-Trust
     if (!botVerified) {
-      alert('⚠️ Por favor completa la verificación de seguridad anti-bot antes de confirmar tu pedido.');
+      alert('Por favor completa la verificación de seguridad anti-bot antes de confirmar tu pedido.');
       return;
     }
 
@@ -454,20 +471,22 @@ export default function Checkout() {
   }
 
   const metodosDisponibles = [
-    { id: 'pago_movil', label: 'Pago Móvil', icon: '📱' },
-    { id: 'efectivo', label: 'Efectivo ($ USD)', icon: '💵' },
-    { id: 'efectivo_bs', label: 'Efectivo (Bs)', icon: '🇻🇪' },
-    { id: 'punto', label: 'Punto de Venta', icon: '💳' },
-    { id: 'binance', label: 'Binance Pay', icon: '🟡' },
-    { id: 'zelle', label: 'Zelle', icon: '🏦' },
-    { id: 'zinli', label: 'Zinli', icon: '🟣' }
+    { id: 'pago_movil', label: 'Pago Móvil' },
+    { id: 'efectivo', label: 'Efectivo ($ USD)' },
+    { id: 'efectivo_bs', label: 'Efectivo (Bs)' },
+    { id: 'punto', label: 'Punto de Venta' },
+    { id: 'binance', label: 'Binance Pay' },
+    { id: 'zelle', label: 'Zelle' },
+    { id: 'zinli', label: 'Zinli' }
   ];
 
   // Pantalla de confirmación suave post-compra (Evita parpadeo de "carrito vacío")
   if (orderCompleted) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#ffffff', padding: '24px', textAlign: 'center' }}>
-        <div style={{ fontSize: '3.5rem', marginBottom: '14px' }}>🎉</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+          <CheckCircle2 size={56} color="#10b981" />
+        </div>
         <h2 style={{ color: 'var(--dark-amaranth)', fontSize: '1.4rem', margin: '0 0 6px 0' }}>¡Pedido Confirmado con Éxito!</h2>
         <p style={{ color: '#4b5563', fontSize: '0.9rem', margin: '0 0 20px 0' }}>Abriendo el seguimiento en vivo de tu comanda...</p>
         <div style={{ width: '38px', height: '38px', border: '3px solid #f3f4f6', borderTopColor: 'var(--golden-orange)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -682,7 +701,7 @@ export default function Checkout() {
                   transition: 'all 0.15s ease'
                 }}
               >
-                🛵 Delivery a Domicilio
+                <Bike size={18} /> Delivery a Domicilio
               </button>
               <button
                 type="button"
@@ -703,7 +722,7 @@ export default function Checkout() {
                   transition: 'all 0.15s ease'
                 }}
               >
-                🥡 Retiro en Local (Pickup)
+                <ShoppingBag size={18} /> Retiro en Local (Pickup)
               </button>
             </div>
           </div>
@@ -718,17 +737,21 @@ export default function Checkout() {
               marginBottom: '16px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '1.3rem' }}>🏪</span>
+                <Store size={20} color="var(--dark-amaranth)" />
                 <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.95rem' }}>
                   Punto de Retiro: {restauranteInfo?.name || businessName}
                 </strong>
               </div>
-              <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#4b5563' }}>
-                {restauranteInfo?.phone ? `📞 Contacto directo: ${restauranteInfo.phone}` : 'Atención al cliente en barra'}
+              <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: '#4b5563', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {restauranteInfo?.phone ? (
+                  <>
+                    <Phone size={13} color="var(--dark-amaranth)" /> Contacto directo: {restauranteInfo.phone}
+                  </>
+                ) : 'Atención al cliente en barra'}
               </p>
               <div style={{ background: '#ffffff', borderRadius: '8px', padding: '8px 10px', border: '1px solid #fde68a', fontSize: '0.78rem', color: '#1f2937', marginBottom: '8px' }}>
-                ⏱️ <strong>Tiempo estimado:</strong> 15 a 25 minutos.<br />
-                💡 <strong>Instrucciones:</strong> Al llegar, muestra tu nombre o código en barra para retirar tu orden sellada.
+                <strong>Tiempo estimado:</strong> 15 a 25 minutos.<br />
+                <strong>Instrucciones:</strong> Al llegar, muestra tu nombre o código en barra para retirar tu orden sellada.
               </div>
               {coordsRestaurante.lat && coordsRestaurante.lng && (
                 <a
@@ -745,7 +768,7 @@ export default function Checkout() {
                     textDecoration: 'none'
                   }}
                 >
-                  🗺️ Ver cómo llegar en Google Maps →
+                  <ExternalLink size={13} /> Ver cómo llegar en Google Maps →
                 </a>
               )}
             </div>
@@ -768,8 +791,8 @@ export default function Checkout() {
               {/* SELECTOR DE DIRECCIONES GUARDADAS Y ENVÍOS A TERCEROS */}
               <div style={{ marginBottom: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ margin: 0, fontWeight: 800, color: '#374151', fontSize: '0.9rem' }}>
-                    📍 Tus Direcciones de Entrega
+                  <label style={{ margin: 0, fontWeight: 800, color: '#374151', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={18} color="var(--dark-amaranth)" /> Tus Direcciones de Entrega
                   </label>
                   <button
                     type="button"
@@ -777,7 +800,7 @@ export default function Checkout() {
                     className="btn-secundario"
                     style={{ padding: '4px 10px', fontSize: '0.78rem', borderRadius: '8px', fontWeight: 700 }}
                   >
-                    {showAddAddressForm ? '✕ Cerrar formulario' : '➕ Agregar dirección extra'}
+                    {showAddAddressForm ? 'Cerrar formulario' : '+ Agregar dirección extra'}
                   </button>
                 </div>
 
@@ -811,11 +834,11 @@ export default function Checkout() {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                             <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--dark-amaranth)' : '#1f2937' }}>
-                              {esTercero ? '🎁' : '📍'} {addr.alias}
+                              {addr.alias}
                             </strong>
                             {isSelected && (
-                              <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 900 }}>
-                                ✓
+                              <span style={{ background: 'var(--dark-amaranth)', color: '#ffffff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Check size={11} color="#ffffff" strokeWidth={3} />
                               </span>
                             )}
                           </div>
@@ -845,7 +868,7 @@ export default function Checkout() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <h4 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '0.96rem', fontWeight: 800 }}>
-                      ➕ Agregar Nueva Dirección o Envío a Tercero
+                      + Agregar Nueva Dirección o Envío a Tercero
                     </h4>
                     <span style={{ fontSize: '0.74rem', color: '#78350f', background: '#fef3c7', padding: '2px 8px', borderRadius: '999px', fontWeight: 700 }}>
                       Con Mapa Interactivo
@@ -858,16 +881,15 @@ export default function Checkout() {
                       Identificador de la dirección (Alias):
                     </label>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                      {['🏠 Casa', '🏢 Oficina', '🎁 Mamá', '❤️ Pareja', '📍 Otra'].map(sug => {
-                        const limpio = sug.replace(/^[^\s]+\s/, '');
+                      {['Casa', 'Oficina', 'Mamá', 'Pareja', 'Otra'].map(sug => {
                         return (
                           <button
                             key={sug}
                             type="button"
-                            onClick={() => setNewAlias(limpio)}
+                            onClick={() => setNewAlias(sug)}
                             style={{
-                              background: newAlias === limpio ? 'var(--dark-amaranth)' : '#ffffff',
-                              color: newAlias === limpio ? '#ffffff' : '#374151',
+                              background: newAlias === sug ? 'var(--dark-amaranth)' : '#ffffff',
+                              color: newAlias === sug ? '#ffffff' : '#374151',
                               border: '1px solid #d1d5db',
                               borderRadius: '8px',
                               padding: '3px 8px',
@@ -899,7 +921,7 @@ export default function Checkout() {
                         onChange={e => setIsThirdParty(e.target.checked)}
                         style={{ width: '16px', height: '16px' }}
                       />
-                      <span>🎁 Esta dirección es para un tercero (otra persona la recibirá)</span>
+                      <span>Esta dirección es para un tercero (otra persona la recibirá)</span>
                     </label>
 
                     {isThirdParty && (
@@ -944,8 +966,8 @@ export default function Checkout() {
 
                   {/* Mapa Interactivo Leaflet con Pin Arrastrable */}
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={{ fontSize: '0.78rem', color: '#4b5563', marginBottom: '4px', display: 'block' }}>
-                      🗺️ Selecciona la ubicación exacta en el mapa:
+                    <label style={{ fontSize: '0.78rem', color: '#4b5563', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <MapPin size={15} color="var(--dark-amaranth)" /> Selecciona la ubicación exacta en el mapa:
                     </label>
                     <MapAddressPicker
                       initialLat={parseFloat(localStorage.getItem('tropicalia_user_lat')) || 10.4950}
@@ -970,7 +992,7 @@ export default function Checkout() {
                       disabled={savingAddress}
                       style={{ padding: '7px 16px', fontSize: '0.82rem', fontWeight: 800 }}
                     >
-                      {savingAddress ? 'Guardando...' : '💾 Guardar y Usar Dirección'}
+                      {savingAddress ? 'Guardando...' : 'Guardar y Usar Dirección'}
                     </button>
                   </div>
                 </div>
@@ -986,11 +1008,11 @@ export default function Checkout() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
-                    <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      🔒 Distancia Exacta Calculada Automáticamente
+                    <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Lock size={12} /> Distancia Exacta Calculada Automáticamente
                     </span>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--dark-amaranth)', marginTop: '2px' }}>
-                      📍 {distanciaKm.toFixed(1)} km <span style={{ fontSize: '0.88rem', color: '#4b5563', fontWeight: 600 }}>• Tarifa de Envío: {formatUsd(costoDelivery)}</span>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--dark-amaranth)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <MapPin size={18} color="var(--dark-amaranth)" /> {distanciaKm.toFixed(1)} km <span style={{ fontSize: '0.88rem', color: '#4b5563', fontWeight: 600 }}>• Tarifa de Envío: {formatUsd(costoDelivery)}</span>
                     </div>
                   </div>
                   <button
@@ -1001,11 +1023,11 @@ export default function Checkout() {
                     disabled={gpsLoading}
                     title="Recalcular con coordenadas GPS en vivo"
                   >
-                    {gpsLoading ? '⏳ Calculando...' : '🔄 Recalcular GPS'}
+                    {gpsLoading ? 'Calculando...' : 'Recalcular GPS'}
                   </button>
                 </div>
                 <small style={{ color: '#059669', display: 'block', marginTop: '6px', fontWeight: 600 }}>
-                  {gpsStatus || `✅ Distancia calculada automáticamente entre la cocina (${restauranteInfo?.name || 'Local'}) y tu ubicación.`}
+                  {gpsStatus || `Distancia calculada automáticamente entre la cocina (${restauranteInfo?.name || 'Local'}) y tu ubicación.`}
                 </small>
               </div>
 
@@ -1159,7 +1181,7 @@ export default function Checkout() {
                 }}
               >
                 Pago Móvil
-                {metodoPago === 'pago_movil' && <span style={{ position: 'absolute', top: '4px', right: '6px', fontSize: '0.75rem' }}>✓</span>}
+                {metodoPago === 'pago_movil' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#ffffff" strokeWidth={3} /></span>}
               </button>
 
               {/* 2. Efectivo (USD / Bs) */}
@@ -1305,7 +1327,7 @@ export default function Checkout() {
                 }}
               >
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 800 }}>
-                  Żelle
+                  Zelle
                 </span>
               </button>
 
@@ -1324,10 +1346,10 @@ export default function Checkout() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '2px'
+                  gap: '4px'
                 }}
               >
-                <span style={{ fontSize: '1.25rem' }}>💳</span>
+                <CreditCard size={22} color="#ffffff" />
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.78rem', fontWeight: 700 }}>Punto de Venta</span>
               </button>
 
@@ -1391,7 +1413,7 @@ export default function Checkout() {
                         cursor: 'pointer'
                       }}
                     >
-                      💵 Divisas ($ USD)
+                      Divisas ($ USD)
                     </button>
                     <button
                       type="button"
@@ -1408,7 +1430,7 @@ export default function Checkout() {
                         cursor: 'pointer'
                       }}
                     >
-                      🇻🇪 Bolívares (Bs)
+                      Bolívares (Bs)
                     </button>
                   </div>
 
@@ -1538,8 +1560,8 @@ export default function Checkout() {
               {/* ADJUNTAR COMPROBANTE DIGITAL */}
               {['pago_movil', 'binance', 'zelle', 'zinli', 'kontigo', 'paypal'].includes(metodoPago) && (
                 <div style={{ marginTop: '10px', borderTop: '1px solid #e5e7eb', paddingTop: '10px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--dark-amaranth)', display: 'block', marginBottom: '4px' }}>
-                    📎 Adjuntar captura o comprobante de pago (Opcional):
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <Paperclip size={13} /> Adjuntar captura o comprobante de pago (Opcional):
                   </label>
                   <input
                     type="file"

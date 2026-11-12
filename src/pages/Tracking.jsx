@@ -5,14 +5,29 @@ import { supabase } from '../lib/supabase';
 import { cancelarOrdenConReversion } from '../services/inventoryService';
 import { formatUsd } from '../services/bcvService';
 import { NUMERO_ORIGEN_INTERNACIONAL } from '../services/whatsappService';
+import {
+  WhatsAppIcon,
+  StarOutlineIcon,
+  ShoppingBag,
+  Bike,
+  ChefHat,
+  KeyRound,
+  ExternalLink,
+  Bell,
+  CheckCircle2,
+  XCircle,
+  X,
+  Clock,
+  AlertTriangle
+} from '../components/common/Icons';
 
 const TAGS_PLATOS = [
-  'Sabor exquisito 🤤',
-  'Temperatura perfecta 🔥',
-  'Porción generosa 🍽️',
-  'Presentación impecable ✨',
-  'Empaque sellado seguro 🔒',
-  'Ingredientes frescos 🥗'
+  'Sabor exquisito',
+  'Temperatura perfecta',
+  'Porción generosa',
+  'Presentación impecable',
+  'Empaque sellado seguro',
+  'Ingredientes frescos'
 ];
 
 export default function Tracking() {
@@ -41,7 +56,7 @@ export default function Tracking() {
   const [driverStars, setDriverStars] = useState(5);
   const [localComment, setLocalComment] = useState('');
   const [driverComment, setDriverComment] = useState('');
-  const [selectedTags, setSelectedTags] = useState(['Sabor exquisito 🤤', 'Llegó caliente 🔥']);
+  const [selectedTags, setSelectedTags] = useState(['Sabor exquisito', 'Llegó caliente']);
   const [submittingRating, setSubmittingRating] = useState(false);
   const [ratingSuccess, setRatingSuccess] = useState(false);
 
@@ -136,8 +151,8 @@ export default function Tracking() {
     // Marcador Cocina / Punto de Retiro
     if (!restMarkerRef.current) {
       const popupText = orden.delivery_type === 'pickup'
-        ? `<strong>🏪 Punto de Retiro: ${orden.businesses?.name || 'Tropicalia'}</strong><br>Retira tu orden aquí`
-        : `<strong>👨‍🍳 ${orden.businesses?.name || 'Restaurante'}</strong><br>Preparando tu pedido`;
+        ? `<strong>Punto de Retiro: ${orden.businesses?.name || 'Tropicalia'}</strong><br>Retira tu orden aquí`
+        : `<strong>${orden.businesses?.name || 'Restaurante'}</strong><br>Preparando tu pedido`;
 
       restMarkerRef.current = L.marker(coordsCocina).addTo(mapa)
         .bindPopup(popupText)
@@ -154,7 +169,7 @@ export default function Tracking() {
             html: '<div style="background:#10b981; border:3px solid #fff; border-radius:50%; width:22px; height:22px; box-shadow:0 0 12px rgba(16,185,129,0.9);"></div>',
             iconSize: [22, 22]
           })
-        }).addTo(mapa).bindPopup(`<strong>🛵 ${driverName}</strong><br>En camino a tu ubicación`);
+        }).addTo(mapa).bindPopup(`<strong>${driverName}</strong><br>En camino a tu ubicación`);
       } else {
         driverMarkerRef.current.setLatLng(coordsDriver);
       }
@@ -283,7 +298,7 @@ export default function Tracking() {
       const res = await cancelarOrdenConReversion(orden.id, motivoCancelacion, 'cliente');
       setCancelling(false);
       setShowCancelModal(false);
-      setCancelFeedback(`✅ Tu pedido ha sido cancelado exitosamente. Se han reintegrado ${res.reversionCount || 0} artículos al inventario disponible.`);
+      setCancelFeedback(`Tu pedido ha sido cancelado exitosamente. Se han reintegrado ${res.reversionCount || 0} artículos al inventario disponible.`);
       await cargarOrden();
     } catch (err) {
       setCancelling(false);
@@ -322,7 +337,7 @@ export default function Tracking() {
           {esPickup ? 'Seguimiento de Retiro en Barra' : 'Seguimiento en Vivo'}
         </h1>
         <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.85)' }}>
-          {orden?.businesses?.name || 'Tropicalia Delivery Express'} • {esPickup ? '🥡 Retiro en Local' : '🛵 Delivery a Domicilio'}
+          {orden?.businesses?.name || 'Tropicalia Delivery Express'} • {esPickup ? 'Retiro en Local' : 'Delivery a Domicilio'}
         </p>
       </header>
 
@@ -361,20 +376,20 @@ export default function Tracking() {
               }}>
                 {orden.status === 'pending_payment_verification' && 'Validando Pago'}
                 {orden.status === 'pending' && 'En Cola de Cocina'}
-                {orden.status === 'cooking' && '👨‍🍳 En Preparación'}
-                {orden.status === 'ready' && (esPickup ? '🥡 ¡Listo en Mostrador!' : '📦 Empacado / Listo')}
-                {orden.status === 'on_the_way' && '🛵 Conductor en Ruta'}
-                {orden.status === 'delivered' && (esPickup ? '🎉 Retirado en Mostrador' : '🎉 Pedido Entregado')}
-                {orden.status === 'cancelled' && '❌ Pedido Cancelado'}
+                {orden.status === 'cooking' && 'En Preparación'}
+                {orden.status === 'ready' && (esPickup ? '¡Listo en Mostrador!' : 'Empacado / Listo')}
+                {orden.status === 'on_the_way' && 'Conductor en Ruta'}
+                {orden.status === 'delivered' && (esPickup ? 'Retirado en Mostrador' : 'Pedido Entregado')}
+                {orden.status === 'cancelled' && 'Pedido Cancelado'}
               </span>
 
               <h2 style={{ fontSize: '1.35rem', margin: '6px 0 2px 0', color: orden.status === 'cancelled' ? '#dc2626' : 'var(--dark-amaranth)' }}>
                 {orden.status === 'pending_payment_verification' && 'Verificando Comprobante'}
                 {orden.status === 'pending' && 'Comanda Recibida en Cocina'}
                 {orden.status === 'cooking' && (esPickup ? 'Tus platos están en los fogones' : 'Tu comida está en la Cocina')}
-                {orden.status === 'ready' && (esPickup ? '🥡 ¡Tu comida está lista en la barra!' : '¡Pedido Empacado! Asignando Repartidor')}
+                {orden.status === 'ready' && (esPickup ? '¡Tu comida está lista en la barra!' : '¡Pedido Empacado! Asignando Repartidor')}
                 {orden.status === 'on_the_way' && '¡El Repartidor va en camino!'}
-                {orden.status === 'delivered' && (esPickup ? '🎉 ¡Comida entregada en barra!' : '🎉 ¡Pedido Entregado con éxito!')}
+                {orden.status === 'delivered' && (esPickup ? '¡Comida entregada en barra!' : '¡Pedido Entregado con éxito!')}
                 {orden.status === 'cancelled' && 'Pedido Cancelado'}
               </h2>
 
@@ -415,7 +430,9 @@ export default function Tracking() {
                 textAlign: 'center',
                 marginBottom: '20px'
               }}>
-                <span style={{ fontSize: '2rem' }}>🥡</span>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
+                  <ShoppingBag size={36} color="var(--dark-amaranth)" />
+                </div>
                 <strong style={{ color: 'var(--dark-amaranth)', fontSize: '1.05rem', display: 'block', marginTop: '4px' }}>
                   ¡TU COMIDA TE ESPERA EN LA BARRA!
                 </strong>
@@ -452,8 +469,8 @@ export default function Tracking() {
                 textAlign: 'center',
                 marginBottom: '20px'
               }}>
-                <strong style={{ color: '#047857', fontSize: '0.88rem', display: 'block' }}>
-                  🔑 CÓDIGO SEGURO DE ENTREGA
+                <strong style={{ color: '#047857', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  <KeyRound size={15} color="#047857" /> CÓDIGO SEGURO DE ENTREGA
                 </strong>
                 <div style={{
                   fontSize: '2.2rem',
@@ -473,17 +490,17 @@ export default function Tracking() {
             {/* MENSAJE EXPLICATIVO DEL ESTADO */}
             <div style={{ background: '#f8f9fb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
               <p style={{ margin: 0, fontSize: '0.86rem', color: '#4b5563' }}>
-                {orden.status === 'pending_payment_verification' && '⏳ Tu comprobante de pago está siendo verificado. En cuanto sea confirmado, la cocina comenzará de inmediato.'}
-                {orden.status === 'pending' && '👨‍🍳 La orden fue recibida por la cocina e ingresó al tren de preparación.'}
+                {orden.status === 'pending_payment_verification' && 'Tu comprobante de pago está siendo verificado. En cuanto sea confirmado, la cocina comenzará de inmediato.'}
+                {orden.status === 'pending' && 'La orden fue recibida por la cocina e ingresó al tren de preparación.'}
                 {orden.status === 'cooking' && (esPickup
-                  ? '🔥 Los cocineros están preparando tus platos al momento. Puedes ir acercándote al restaurante para retirarlo recién salido del fuego.'
-                  : '🔥 Los cocineros están preparando tus platos con sello térmico de seguridad.')}
+                  ? 'Los cocineros están preparando tus platos al momento. Puedes ir acercándote al restaurante para retirarlo recién salido del fuego.'
+                  : 'Los cocineros están preparando tus platos con sello térmico de seguridad.')}
                 {orden.status === 'ready' && (esPickup
-                  ? `🥡 Tu pedido está empacado en barra de ${orden.businesses?.name || 'el local'}. Pasa al mostrador indicando tu nombre o código.`
-                  : '📦 El pedido está sellado y listo en barra esperando la asignación o llegada del repartidor.')}
-                {orden.status === 'on_the_way' && `🛵 ${driverName} ya retiró tu comida y se desplaza hacia tu dirección.`}
-                {orden.status === 'delivered' && '🎉 Entrega completada exitosamente. ¡Gracias por preferir Tropicalia!'}
-                {orden.status === 'cancelled' && `❌ Esta orden fue cancelada. Motivo: ${orden.notes || 'Cancelada por el usuario'}.`}
+                  ? `Tu pedido está empacado en barra de ${orden.businesses?.name || 'el local'}. Pasa al mostrador indicando tu nombre o código.`
+                  : 'El pedido está sellado y listo en barra esperando la asignación o llegada del repartidor.')}
+                {orden.status === 'on_the_way' && `${driverName} ya retiró tu comida y se desplaza hacia tu dirección.`}
+                {orden.status === 'delivered' && 'Entrega completada exitosamente. ¡Gracias por preferir Tropicalia!'}
+                {orden.status === 'cancelled' && `Esta orden fue cancelada. Motivo: ${orden.notes || 'Cancelada por el usuario'}.`}
               </p>
             </div>
 
@@ -495,9 +512,9 @@ export default function Tracking() {
                   target="_blank"
                   rel="noreferrer"
                   className="btn-primario"
-                  style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
-                  🗺️ Abrir ruta a {orden.businesses.name} en Google Maps
+                  <ExternalLink size={14} /> Abrir ruta a {orden.businesses.name} en Google Maps
                 </a>
               </div>
             )}
@@ -520,7 +537,7 @@ export default function Tracking() {
                     padding: '16px',
                     textAlign: 'center'
                   }}>
-                    <span style={{ fontSize: '2rem' }}>🌟</span>
+                    <StarOutlineIcon size={32} color="#10b981" />
                     <h4 style={{ margin: '6px 0 2px 0', color: '#065f46', fontSize: '1rem', fontWeight: 800 }}>
                       ¡Gracias por calificar tu comida y servicio!
                     </h4>
@@ -543,7 +560,7 @@ export default function Tracking() {
                         alignItems: 'center',
                         gap: '12px'
                       }}>
-                        <span style={{ fontSize: '2.2rem' }}>🔔</span>
+                        <Bell size={28} color="var(--golden-orange)" />
                         <div style={{ flex: 1 }}>
                           <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.98rem', display: 'block' }}>
                             ¡Gracias por su compra, califícanos!
@@ -567,10 +584,10 @@ export default function Tracking() {
                         gap: '10px'
                       }}>
                         <div>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', display: 'block' }}>
-                            ⏱️ Alerta de calificación programada
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Clock size={15} color="#64748b" /> Alerta de calificación programada
                           </span>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
                             Se activará en <strong>{minutosFaltantes} min</strong> para permitirte degustar con calma.
                           </span>
                         </div>
@@ -585,10 +602,14 @@ export default function Tracking() {
                             padding: '8px 16px',
                             fontSize: '0.82rem',
                             fontWeight: 800,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
                           }}
                         >
-                          ⭐ Calificar Ahora
+                          <StarOutlineIcon size={14} color="#ffffff" />
+                          Calificar Ahora
                         </button>
                       </div>
                     )}
@@ -606,8 +627,9 @@ export default function Tracking() {
                         }}
                       >
                         <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-                          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--dark-amaranth)' }}>
-                            ⭐ Califica tu Experiencia
+                          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--dark-amaranth)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                            <StarOutlineIcon size={20} color="var(--dark-amaranth)" />
+                            Califica tu Experiencia
                           </h3>
                           <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                             Tu opinión impulsa la mejora continua de nuestra comunidad gastronómica.
@@ -616,8 +638,9 @@ export default function Tracking() {
 
                         {/* CALIFICACIÓN DE COCINA Y PLATOS */}
                         <div style={{ marginBottom: '18px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                          <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'block', textAlign: 'center' }}>
-                            👨‍🍳 Cocina y Platos ({orden.businesses?.name || 'Local'})
+                          <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            <ChefHat size={16} color="var(--dark-amaranth)" />
+                            Cocina y Platos ({orden.businesses?.name || 'Local'})
                           </label>
                           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
                             {[1, 2, 3, 4, 5].map((star) => (
@@ -628,23 +651,28 @@ export default function Tracking() {
                                 style={{
                                   background: 'none',
                                   border: 'none',
-                                  fontSize: '2rem',
                                   cursor: 'pointer',
-                                  color: star <= localStars ? '#f59e0b' : '#e2e8f0',
-                                  lineHeight: 1,
+                                  padding: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
                                   transition: 'transform 0.1s'
                                 }}
                               >
-                                ★
+                                <StarOutlineIcon
+                                  size={26}
+                                  color="var(--golden-orange)"
+                                  fill={star <= localStars ? 'var(--golden-orange)' : 'none'}
+                                />
                               </button>
                             ))}
                           </div>
                           <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', textAlign: 'center', marginBottom: '10px' }}>
-                            {localStars === 5 && '¡Excepcional! 🤩'}
-                            {localStars === 4 && 'Muy sabroso 👍'}
-                            {localStars === 3 && 'Aceptable 😐'}
-                            {localStars === 2 && 'Podría mejorar 😕'}
-                            {localStars === 1 && 'No me gustó 😞'}
+                            {localStars === 5 && '¡Excepcional!'}
+                            {localStars === 4 && 'Muy sabroso'}
+                            {localStars === 3 && 'Aceptable'}
+                            {localStars === 2 && 'Podría mejorar'}
+                            {localStars === 1 && 'No me gustó'}
                           </span>
 
                           {/* TAGS DE PLATOS */}
@@ -694,8 +722,9 @@ export default function Tracking() {
                         {/* CALIFICACIÓN DE REPARTIDOR (SOLO DELIVERY) */}
                         {!esPickup && orden.driver_id && (
                           <div style={{ marginBottom: '18px', background: '#ffffff', padding: '14px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                            <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'block', textAlign: 'center' }}>
-                              🛵 Repartidor ({driverName})
+                            <label style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              <Bike size={16} color="var(--dark-amaranth)" />
+                              Repartidor ({driverName})
                             </label>
                             <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -706,22 +735,27 @@ export default function Tracking() {
                                   style={{
                                     background: 'none',
                                     border: 'none',
-                                    fontSize: '2rem',
                                     cursor: 'pointer',
-                                    color: star <= driverStars ? '#f59e0b' : '#e2e8f0',
-                                    lineHeight: 1,
+                                    padding: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                     transition: 'transform 0.1s'
                                   }}
                                 >
-                                  ★
+                                  <StarOutlineIcon
+                                    size={26}
+                                    color="var(--golden-orange)"
+                                    fill={star <= driverStars ? 'var(--golden-orange)' : 'none'}
+                                  />
                                 </button>
                               ))}
                             </div>
                             <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', textAlign: 'center', marginBottom: '10px' }}>
-                              {driverStars === 5 && '¡Rápido y muy cordial! ⚡'}
-                              {driverStars === 4 && 'Buen servicio 👍'}
-                              {driverStars === 3 && 'Aceptable 😐'}
-                              {driverStars <= 2 && 'Demorado o con inconvenientes 😕'}
+                              {driverStars === 5 && '¡Rápido y muy cordial!'}
+                              {driverStars === 4 && 'Buen servicio'}
+                              {driverStars === 3 && 'Aceptable'}
+                              {driverStars <= 2 && 'Demorado o con inconvenientes'}
                             </span>
 
                             <textarea
@@ -758,7 +792,8 @@ export default function Tracking() {
                             gap: '8px'
                           }}
                         >
-                          {submittingRating ? 'Enviando valoración...' : '⭐ Enviar Calificación Oficial'}
+                          <StarOutlineIcon size={16} color="#ffffff" />
+                          {submittingRating ? 'Enviando valoración...' : 'Enviar Calificación Oficial'}
                         </button>
                       </form>
                     )}
@@ -767,7 +802,7 @@ export default function Tracking() {
               </div>
             )}
 
-            {/* ATENCIÓN Y SOPORTE WHATSAPP OFICIAL (0414-1352503) */}
+            {/* ATENCIÓN Y SOPORTE WHATSAPP OFICIAL */}
             <div style={{
               background: '#f0fdf4',
               border: '1.5px solid #86efac',
@@ -777,13 +812,13 @@ export default function Tracking() {
               marginBottom: '20px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '1.3rem' }}>💬</span>
+                <WhatsAppIcon size={20} color="#166534" />
                 <strong style={{ color: '#166534', fontSize: '0.92rem' }}>
                   Atención y Soporte Oficial Tropicalia
                 </strong>
               </div>
               <p style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#15803d' }}>
-                ¿Tienes alguna consulta o requerimiento con tu orden? Escríbenos directamente a la línea oficial <strong>0414-1352503</strong>.
+                ¿Tienes alguna consulta o requerimiento con tu orden? Escríbenos directamente a nuestra línea oficial de atención comercial.
               </p>
               <a
                 href={urlSoporteWhatsApp}
@@ -807,7 +842,8 @@ export default function Tracking() {
                   boxSizing: 'border-box'
                 }}
               >
-                📲 Contactar por WhatsApp (0414-1352503)
+                <WhatsAppIcon size={20} color="#ffffff" />
+                <span>Contactar por WhatsApp</span>
               </a>
             </div>
 
@@ -826,10 +862,14 @@ export default function Tracking() {
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                 >
-                  ✕ Cancelar este pedido
+                  <X size={15} />
+                  Cancelar este pedido
                 </button>
                 <small style={{ display: 'block', color: '#9ca3af', marginTop: '6px', fontSize: '0.75rem' }}>
                   Los artículos serán devueltos automáticamente al stock disponible.
@@ -851,16 +891,21 @@ export default function Tracking() {
               <button
                 type="button"
                 onClick={() => setShowCancelModal(false)}
-                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ✕
+                <X size={18} color="#6b7280" />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.88rem', color: '#4b5563', margin: '0 0 14px 0' }}>
-              {orden?.status === 'cooking'
-                ? '⚠️ La cocina ya comenzó a preparar tus platos. Al cancelar, los insumos y artículos serán devueltos de inmediato al inventario.'
-                : 'Al cancelar tu orden, se anulará la comanda y los artículos volverán al inventario disponible.'}
+            <p style={{ fontSize: '0.88rem', color: '#4b5563', margin: '0 0 14px 0', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              {orden?.status === 'cooking' ? (
+                <>
+                  <AlertTriangle size={18} color="#b45309" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span>La cocina ya comenzó a preparar tus platos. Al cancelar, los insumos y artículos serán devueltos de inmediato al inventario.</span>
+                </>
+              ) : (
+                <span>Al cancelar tu orden, se anulará la comanda y los artículos volverán al inventario disponible.</span>
+              )}
             </p>
 
             <form onSubmit={handleConfirmarCancelacion}>
