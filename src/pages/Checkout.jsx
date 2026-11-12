@@ -1227,7 +1227,7 @@ export default function Checkout() {
                 type="button"
                 onClick={() => setMetodoPago('kontigo')}
                 style={{
-                  background: '#ff6900',
+                  background: '#ff7101',
                   color: '#ffffff',
                   border: metodoPago === 'kontigo' ? '3px solid var(--dark-amaranth)' : '2px solid transparent',
                   borderRadius: '14px',
@@ -1237,7 +1237,7 @@ export default function Checkout() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   position: 'relative',
-                  boxShadow: metodoPago === 'kontigo' ? '0 4px 14px rgba(255, 105, 0, 0.4)' : 'none',
+                  boxShadow: metodoPago === 'kontigo' ? '0 4px 14px rgba(255, 113, 1, 0.4)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
                 title="Pagar con Kontigo"
