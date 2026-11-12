@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS public.client_profiles (
     full_name TEXT NOT NULL,
     phone TEXT,
     default_address TEXT,
+    avatar_url TEXT,
     terms_accepted BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

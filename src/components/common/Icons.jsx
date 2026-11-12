@@ -44,6 +44,7 @@ import {
   Bell,
   Mail,
   Headphones,
+  Camera,
   Eye,
   EyeOff,
   Trash2,
@@ -207,5 +208,6 @@ export {
   Phone,
   Bell,
   Mail,
-  Headphones
+  Headphones,
+  Camera
 };

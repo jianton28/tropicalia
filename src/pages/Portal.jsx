@@ -28,8 +28,11 @@ import {
   CreditCard,
   X,
   MapPin,
-  Lock
+  Lock,
+  Camera,
+  RefreshCw
 } from '../components/common/Icons';
+import { uploadUserAvatar, removeUserAvatar } from '../services/avatarService';
 
 export default function Portal() {
   const navigate = useNavigate();
@@ -101,6 +104,8 @@ export default function Portal() {
   const [currentPwdForProfile, setCurrentPwdForProfile] = useState('');
   const [profileFeedback, setProfileFeedback] = useState('');
   const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Formulario cambio de clave seguro
   const [currentPwd, setCurrentPwd] = useState('');
@@ -169,6 +174,7 @@ export default function Portal() {
       setEditNombre(user.user_metadata?.full_name || '');
       setEditEmail(user.email || '');
       setEditPhone(user.user_metadata?.phone || '');
+      setAvatarPreview(user.user_metadata?.avatar_url || null);
     }
   }, [user]);
 
@@ -454,6 +460,46 @@ export default function Portal() {
     }
   }
 
+  // Subir o actualizar foto de perfil
+  async function handleSubirFotoPerfil(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!user?.id) {
+      alert('Debes iniciar sesión para subir una foto de perfil.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setProfileFeedback('');
+    try {
+      const url = await uploadUserAvatar(file, user.id);
+      setAvatarPreview(url);
+      setProfileFeedback('Foto de perfil actualizada exitosamente.');
+    } catch (err) {
+      setProfileFeedback('Error al subir foto de perfil: ' + err.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  // Eliminar foto de perfil
+  async function handleEliminarFotoPerfil() {
+    if (!user?.id) return;
+    if (!confirm('¿Deseas eliminar tu foto de perfil actual?')) return;
+
+    setUploadingAvatar(true);
+    setProfileFeedback('');
+    try {
+      await removeUserAvatar(user.id);
+      setAvatarPreview(null);
+      setProfileFeedback('Foto de perfil eliminada.');
+    } catch (err) {
+      setProfileFeedback('Error al eliminar foto: ' + err.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   // Solicitar cambio seguro de contraseña
   async function handleSolicitarCambioClave(e) {
     e.preventDefault();
@@ -646,9 +692,22 @@ export default function Portal() {
             fontSize: '2rem',
             fontWeight: 700,
             margin: '0 auto 10px auto',
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)'
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+            overflow: 'hidden'
           }}>
-            {user ? inicial : <User size={34} color="var(--dark-amaranth)" />}
+            {user ? (
+              (avatarPreview || user.user_metadata?.avatar_url) ? (
+                <img
+                  src={avatarPreview || user.user_metadata?.avatar_url}
+                  alt={nombreMostrar}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                inicial
+              )
+            ) : (
+              <User size={34} color="var(--dark-amaranth)" />
+            )}
           </div>
 
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', margin: '0 0 3px 0', color: '#ffffff' }}>
@@ -1635,6 +1694,119 @@ export default function Portal() {
 
             {user ? (
               <form onSubmit={handleGuardarDatosPersonales} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                
+                {/* 1. SECCIÓN FOTO DE PERFIL (AVATAR) */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '12px',
+                  background: '#f9fafb',
+                  borderRadius: '14px',
+                  border: '1px solid #e5e7eb',
+                  marginBottom: '6px'
+                }}>
+                  <div style={{
+                    position: 'relative',
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: '#ffffff',
+                    border: '2.5px solid var(--dark-amaranth)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }}>
+                    {avatarPreview || user.user_metadata?.avatar_url ? (
+                      <img
+                        src={avatarPreview || user.user_metadata?.avatar_url}
+                        alt="Avatar"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--dark-amaranth)' }}>
+                        {inicial}
+                      </span>
+                    )}
+
+                    {uploadingAvatar && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff'
+                      }}>
+                        <RefreshCw size={18} className="spin-animation" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#1f2937', display: 'block', marginBottom: '2px' }}>
+                      Foto de Perfil
+                    </span>
+                    <small style={{ fontSize: '0.72rem', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                      JPG, PNG o WebP. Se optimiza automáticamente.
+                    </small>
+
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <label style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: 'var(--dark-amaranth)',
+                        color: '#ffffff',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: uploadingAvatar ? 'wait' : 'pointer',
+                        transition: 'opacity 0.2s'
+                      }}>
+                        <Camera size={13} />
+                        <span>{(avatarPreview || user.user_metadata?.avatar_url) ? 'Cambiar Foto' : 'Agregar Foto'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSubirFotoPerfil}
+                          disabled={uploadingAvatar}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+
+                      {(avatarPreview || user.user_metadata?.avatar_url) && (
+                        <button
+                          type="button"
+                          onClick={handleEliminarFotoPerfil}
+                          disabled={uploadingAvatar}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#fee2e2',
+                            border: '1px solid #fca5a5',
+                            color: '#b91c1c',
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <TrashVinoIcon size={12} />
+                          <span>Quitar</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
                     Nombre de Usuario / Nombre Completo:

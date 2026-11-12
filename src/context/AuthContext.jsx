@@ -152,8 +152,23 @@ export function AuthProvider({ children }) {
    * - Correo y teléfono requieren clave actual por seguridad.
    * - El rol NUNCA es editable desde el cliente.
    */
-  async function updateUserProfile({ fullName, email, phone, currentPassword }) {
+  async function updateUserProfile({ fullName, email, phone, currentPassword, avatarUrl }) {
     if (!user) throw new Error('No hay sesión activa.');
+
+    // 0. Edición de foto de perfil (avatar_url)
+    if (avatarUrl !== undefined && avatarUrl !== user.user_metadata?.avatar_url) {
+      const { data, error } = await supabase.auth.updateUser({
+        data: { avatar_url: avatarUrl }
+      });
+      if (!error && data?.user) {
+        setUser(data.user);
+      }
+      try {
+        await supabase.from('client_profiles').update({ avatar_url: avatarUrl }).eq('id', user.id);
+      } catch (e) {
+        console.warn('Sync avatar client_profiles:', e);
+      }
+    }
 
     // 1. Edición de nombre de usuario
     if (fullName && fullName.trim() !== user.user_metadata?.full_name) {

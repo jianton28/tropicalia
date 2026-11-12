@@ -26,6 +26,14 @@ import {
   Check,
   CreditCard
 } from '../components/common/Icons';
+import {
+  KontigoLogo,
+  PayPalLogo,
+  BinanceLogo,
+  ZinliLogo,
+  ZelleLogo,
+  CashBanknotesLogo
+} from '../components/common/PaymentLogos';
 
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -1159,7 +1167,7 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* GRILLA DE MARCAS 2 COLUMNAS (Screenshot 225325) */}
+            {/* GRILLA DE MARCAS 2 COLUMNAS (Screenshot 225325 y Logotipos Oficiales) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
               
               {/* 1. Pago Móvil */}
@@ -1170,14 +1178,18 @@ export default function Checkout() {
                   background: 'var(--tropicalia-radial)',
                   color: '#ffffff',
                   border: metodoPago === 'pago_movil' ? '3px solid var(--golden-orange)' : '2px solid transparent',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   fontFamily: 'var(--font-display)',
                   fontSize: '1.05rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   boxShadow: metodoPago === 'pago_movil' ? '0 4px 14px rgba(130, 19, 58, 0.35)' : '0 2px 6px rgba(0,0,0,0.08)',
-                  position: 'relative'
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 Pago Móvil
@@ -1191,7 +1203,7 @@ export default function Checkout() {
                 style={{
                   background: '#ffffff',
                   border: ['efectivo', 'efectivo_bs'].includes(metodoPago) ? '3px solid var(--dark-amaranth)' : '1.5px solid #e5e7eb',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
@@ -1200,135 +1212,132 @@ export default function Checkout() {
                   justifyContent: 'center',
                   gap: '2px',
                   position: 'relative',
-                  boxShadow: ['efectivo', 'efectivo_bs'].includes(metodoPago) ? '0 4px 14px rgba(16, 185, 129, 0.25)' : 'none'
+                  boxShadow: ['efectivo', 'efectivo_bs'].includes(metodoPago) ? '0 4px 14px rgba(16, 185, 129, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
                 title="Efectivo en Divisas o Bolívares"
               >
-                <svg width="56" height="38" viewBox="0 0 64 42" fill="none">
-                  <rect x="6" y="10" width="52" height="28" rx="4" fill="#34d399" />
-                  <rect x="4" y="6" width="52" height="28" rx="4" fill="#4ade80" />
-                  <rect x="2" y="2" width="52" height="28" rx="4" fill="#6ee7b7" stroke="#10b981" strokeWidth="1.5" />
-                  <circle cx="28" cy="16" r="6" fill="#059669" />
-                  <circle cx="11" cy="16" r="2.5" fill="#059669" />
-                  <circle cx="45" cy="16" r="2.5" fill="#059669" />
-                </svg>
+                <CashBanknotesLogo />
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#065f46' }}>Efectivo</span>
+                {['efectivo', 'efectivo_bs'].includes(metodoPago) && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#059669" strokeWidth={3} /></span>}
               </button>
 
-              {/* 3. Kontigo */}
+              {/* 3. Kontigo (Logotipo Original Naranja) */}
               <button
                 type="button"
                 onClick={() => setMetodoPago('kontigo')}
                 style={{
-                  background: '#ff6b00',
+                  background: '#ff6900',
                   color: '#ffffff',
                   border: metodoPago === 'kontigo' ? '3px solid var(--dark-amaranth)' : '2px solid transparent',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '2px',
-                  position: 'relative'
+                  position: 'relative',
+                  boxShadow: metodoPago === 'kontigo' ? '0 4px 14px rgba(255, 105, 0, 0.4)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Pagar con Kontigo"
               >
-                <svg width="26" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 11c0-3.5-3-6-7-6S5 7.5 5 11c0 2 .9 3.8 2.4 4.9L7 19h2l.5-2h5l.5 2h2l-.4-3.1c1.5-1.1 2.4-2.9 2.4-4.9z" />
-                  <line x1="9" y1="11" x2="13" y2="11" />
-                </svg>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.96rem', fontWeight: 700, letterSpacing: '0.02em' }}>kontigo</span>
+                <KontigoLogo />
+                {metodoPago === 'kontigo' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#ffffff" strokeWidth={3} /></span>}
               </button>
 
-              {/* 4. PayPal */}
+              {/* 4. PayPal (Logotipo Original Blanco) */}
               <button
                 type="button"
                 onClick={() => setMetodoPago('paypal')}
                 style={{
                   background: '#ffffff',
                   border: metodoPago === 'paypal' ? '3px solid #003087' : '1.5px solid #e5e7eb',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '5px',
-                  position: 'relative'
+                  position: 'relative',
+                  boxShadow: metodoPago === 'paypal' ? '0 4px 14px rgba(0, 48, 135, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Pagar con PayPal"
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M7 4h6.5c2.8 0 4.5 1.5 4.2 4.2-.3 2.7-2.2 4.3-5 4.3H9.5L8.3 20H5L7 4z" fill="#003087" />
-                  <path d="M9.5 7.5h6c2.4 0 3.9 1.3 3.6 3.7-.3 2.4-1.9 3.8-4.4 3.8h-2.9l-1 6H7.8l1.7-13.5z" fill="#0079c1" opacity="0.88" />
-                </svg>
-                <span style={{ fontWeight: 900, fontStyle: 'italic', fontSize: '1.05rem', color: '#003087' }}>
-                  Pay<span style={{ color: '#0079c1' }}>Pal</span>
-                </span>
+                <PayPalLogo />
+                {metodoPago === 'paypal' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#003087" strokeWidth={3} /></span>}
               </button>
 
-              {/* 5. Binance */}
+              {/* 5. Binance (Logotipo Original Negro / Oro) */}
               <button
                 type="button"
                 onClick={() => setMetodoPago('binance')}
                 style={{
-                  background: '#0b0e11',
+                  background: '#111111',
                   color: '#f3ba2f',
                   border: metodoPago === 'binance' ? '3px solid #f3ba2f' : '2px solid transparent',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '7px'
+                  position: 'relative',
+                  boxShadow: metodoPago === 'binance' ? '0 4px 14px rgba(243, 186, 47, 0.35)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Pagar con Binance Pay"
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="#f3ba2f">
-                  <path d="M12 3l4 4-4 4-4-4 4-4zm0 10l4 4-4 4-4-4 4-4zm-7-3l2.5 2.5L5 15l-2.5-2.5L5 10zm14 0l2.5 2.5L19 15l-2.5-2.5L19 10z" />
-                </svg>
-                <span style={{ fontWeight: 800, fontSize: '0.96rem' }}>Binance</span>
+                <BinanceLogo />
+                {metodoPago === 'binance' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#f3ba2f" strokeWidth={3} /></span>}
               </button>
 
-              {/* 6. Zinli */}
+              {/* 6. Zinli (Logotipo Original Blanco / Morado) */}
               <button
                 type="button"
                 onClick={() => setMetodoPago('zinli')}
                 style={{
                   background: '#ffffff',
                   border: metodoPago === 'zinli' ? '3px solid #59359a' : '1.5px solid #e5e7eb',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  position: 'relative',
+                  boxShadow: metodoPago === 'zinli' ? '0 4px 14px rgba(89, 53, 154, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Pagar con Zinli"
               >
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 900, letterSpacing: '0.08em', color: '#59359a' }}>
-                  ZINLI
-                </span>
+                <ZinliLogo />
+                {metodoPago === 'zinli' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#59359a" strokeWidth={3} /></span>}
               </button>
 
-              {/* 7. Zelle */}
+              {/* 7. Zelle (Logotipo Original Púrpura) */}
               <button
                 type="button"
                 onClick={() => setMetodoPago('zelle')}
                 style={{
-                  background: '#6d1ed4',
+                  background: '#7414ca',
                   color: '#ffffff',
                   border: metodoPago === 'zelle' ? '3px solid var(--golden-orange)' : '2px solid transparent',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  position: 'relative',
+                  boxShadow: metodoPago === 'zelle' ? '0 4px 14px rgba(116, 20, 202, 0.4)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Pagar con Zelle"
               >
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 800 }}>
-                  Zelle
-                </span>
+                <ZelleLogo />
+                {metodoPago === 'zelle' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#ffffff" strokeWidth={3} /></span>}
               </button>
 
               {/* 8. Punto de Venta */}
@@ -1339,18 +1348,22 @@ export default function Checkout() {
                   background: 'var(--ocean-twilight)',
                   color: '#ffffff',
                   border: metodoPago === 'punto' ? '3px solid var(--golden-orange)' : '2px solid transparent',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   height: '76px',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px'
+                  gap: '4px',
+                  position: 'relative',
+                  transition: 'all 0.15s ease'
                 }}
+                title="Punto de Venta Inalámbrico (Tarjeta al recibir)"
               >
                 <CreditCard size={22} color="#ffffff" />
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.78rem', fontWeight: 700 }}>Punto de Venta</span>
+                {metodoPago === 'punto' && <span style={{ position: 'absolute', top: '6px', right: '6px' }}><Check size={14} color="#ffffff" strokeWidth={3} /></span>}
               </button>
 
             </div>
