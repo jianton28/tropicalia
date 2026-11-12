@@ -7,17 +7,21 @@
   --ocean-twilight: #4a519e;
   --pure-white: #ffffff;
 
-  /* Superficies y Neutros */
-  --bg-app: #f8f9fb;
+  /* Superficies y Neutros Aprobados en Figma */
+  --bg-app: #f1f3f6;
   --bg-card: #ffffff;
-  --bg-input: #f1f3f5;
-  --bg-pill: #e5e7eb;
-  --border-light: #e2e8f0;
+  --bg-input: #dedede;
+  --bg-pill: #dedede;
+  --bg-strip: #d9d9d9;
+  --border-light: #c9b4bc;
   --text-main: #1f2937;
   --text-muted: #6b7280;
 
-  /* Tipografías Oficiales */
-  --font-display: 'Plus Jakarta Sans', sans-serif;
+  /* Gradiente Radial Oficial de Cabeceras y Docks */
+  --tropicalia-radial: radial-gradient(circle at 50% 25%, #82133a 0%, #5e0927 60%, #46051d 100%);
+
+  /* Tipografías Oficiales del Manual */
+  --font-display: 'Momo Trust Display', 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -35,10 +39,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, .brand-title {
+h1, h2, h3, h4, .brand-title, .figma-display-font {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 .app-shell {
@@ -70,30 +74,37 @@ h1, h2, h3, h4, .brand-title {
   max-width: 1200px;
 }
 
-/* Header degradado oficial Figma */
+/* Header horizontal oficial Figma (borde recto inferior + brillo radial Dark Amaranth) */
 .figma-header {
-  background: linear-gradient(180deg, var(--crimson-violet) 0%, var(--dark-amaranth) 100%);
-  padding: 24px 20px 20px 20px;
-  border-bottom-left-radius: 24px;
-  border-bottom-right-radius: 24px;
-  color: #fff;
-  box-shadow: 0 8px 24px rgba(130, 19, 58, 0.25);
+  background: var(--tropicalia-radial);
+  padding: 20px 20px 16px 20px;
+  border-radius: 0;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(70, 5, 29, 0.2);
 }
 
 .figma-search-input {
   width: 100%;
-  padding: 8px 14px 8px 36px;
+  padding: 9px 14px 9px 38px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  border: 1.5px solid rgba(130, 19, 58, 0.25);
+  background: #ececee;
+  color: var(--dark-amaranth);
+  font-family: var(--font-body);
+  font-weight: 500;
   font-size: 0.85rem;
   outline: none;
-  backdrop-filter: blur(8px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.figma-search-input:focus {
+  border-color: var(--dark-amaranth);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(130, 19, 58, 0.12);
 }
 
 .figma-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(130, 19, 58, 0.65);
 }
 
 .toast-feedback {
@@ -122,12 +133,13 @@ h1, h2, h3, h4, .brand-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .figma-header-title {
-  font-size: 1.85rem;
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
   margin: 0;
   color: #ffffff;
 }
@@ -135,15 +147,16 @@ h1, h2, h3, h4, .brand-title {
 .figma-cart-pill {
   background: #ffffff;
   color: var(--dark-amaranth);
-  padding: 6px 14px;
+  padding: 5px 14px;
   border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.9rem;
-  display: flex;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.92rem;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   text-decoration: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
   transition: transform 0.15s ease;
 }
 
@@ -151,28 +164,51 @@ h1, h2, h3, h4, .brand-title {
   transform: scale(0.95);
 }
 
-/* Pastilla de entrega Figma */
+/* Pastilla de entrega Figma sobre fondo blanco con pin rojo sobresaliente */
+.figma-delivery-wrapper {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.figma-delivery-pin {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  margin-right: -8px;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
+}
+
 .figma-delivery-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background-color: var(--ocean-twilight);
   color: #ffffff;
-  padding: 5px 12px;
+  padding: 4px 14px 4px 12px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-family: var(--font-display);
+  font-size: 0.76rem;
   font-weight: 700;
-  margin-bottom: 14px;
-  box-shadow: 0 2px 6px rgba(74, 81, 158, 0.3);
+  border: none;
+  box-shadow: 0 2px 8px rgba(74, 81, 158, 0.3);
 }
 
 /* Selector de categorías Figma */
 .category-scroll-container {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 2px 0 6px 0;
+  padding: 4px 20px 8px 20px;
   scrollbar-width: none;
+  justify-content: flex-start;
 }
 
 .category-scroll-container::-webkit-scrollbar {
@@ -182,30 +218,30 @@ h1, h2, h3, h4, .brand-title {
 .category-pill {
   background-color: var(--crimson-violet);
   color: #ffffff;
-  border: none;
+  border: 2px solid transparent;
   padding: 8px 18px;
   border-radius: 999px;
+  font-family: var(--font-display);
   font-size: 0.82rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s ease;
-  opacity: 0.9;
 }
 
 .category-pill.active {
-  background-color: var(--golden-orange);
-  color: #000;
-  opacity: 1;
-  box-shadow: 0 3px 10px rgba(239, 157, 36, 0.4);
+  background-color: var(--dark-amaranth);
+  color: #ffffff;
+  border-color: var(--golden-orange);
+  box-shadow: 0 3px 10px rgba(239, 157, 36, 0.35);
 }
 
 /* Grilla de Platos Figma (2 Columnas) */
 .product-grid-figma {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  padding: 16px 20px 100px 20px;
+  gap: 16px;
+  padding: 14px 20px 100px 20px;
 }
 
 .product-card-figma {
@@ -214,7 +250,7 @@ h1, h2, h3, h4, .brand-title {
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
 }
 
 .product-card-figma:active {
@@ -225,13 +261,12 @@ h1, h2, h3, h4, .brand-title {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 16px;
-  background-color: #e5e7eb;
+  background-color: #dcdcdc;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .product-card-img {
@@ -243,15 +278,16 @@ h1, h2, h3, h4, .brand-title {
 .product-card-name {
   font-family: var(--font-display);
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--dark-amaranth);
   line-height: 1.25;
   margin: 0 0 3px 0;
 }
 
 .product-card-price {
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
   color: var(--dark-amaranth);
   margin: 0;
 }
@@ -262,7 +298,7 @@ h1, h2, h3, h4, .brand-title {
   font-weight: 500;
 }
 
-/* Bottom Navigation Dock Figma */
+/* Bottom Navigation Dock Figma (borde superior recto + círculo elevado con anillo blanco en pestaña activa) */
 .figma-bottom-dock {
   position: fixed;
   bottom: 0;
@@ -270,58 +306,68 @@ h1, h2, h3, h4, .brand-title {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  background: linear-gradient(180deg, var(--crimson-violet) 0%, #3e0f31 100%);
-  height: 68px;
-  border-top-left-radius: 26px;
-  border-top-right-radius: 26px;
+  background: var(--tropicalia-radial);
+  height: 64px;
+  border-radius: 0;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  z-index: 900;
-  box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.18);
-  padding: 0 20px;
+  z-index: 950;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.16);
+  padding: 0 24px;
 }
 
 .dock-item {
   color: #ffffff;
-  opacity: 0.7;
+  opacity: 0.88;
   text-decoration: none;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 1.35rem;
-  width: 48px;
-  height: 48px;
-  transition: all 0.2s ease;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   background: transparent;
-  border: none;
+  border: 4px solid transparent;
   cursor: pointer;
 }
 
-.dock-item.active {
+.dock-item:hover {
   opacity: 1;
 }
 
-/* Botón central elevado (Notch / Center button) */
-.dock-center-notch {
+.dock-item.dock-active-circle {
   width: 60px;
   height: 60px;
-  background-color: var(--dark-amaranth);
-  border: 4px solid #ffffff;
-  border-radius: 50%;
-  margin-top: -30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 1.5rem;
-  box-shadow: 0 6px 18px rgba(130, 19, 58, 0.4);
-  text-decoration: none;
-  cursor: pointer;
+  opacity: 1;
+  background: var(--tropicalia-radial);
+  border: 5px solid #ffffff;
+  transform: translateY(-20px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
-/* Modal Detalle de Plato Figma */
+/* Vista Full-Screen Detalle de Plato Figma ('detalle' Screenshot 225256) */
+.detail-figma-screen {
+  position: fixed;
+  inset: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  background-color: #ffffff;
+  z-index: 920;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 152px;
+  animation: fadeInScreen 0.18s ease-out;
+}
+
+@keyframes fadeInScreen {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal / Sheet genérico */
 .modal-figma-overlay {
   position: fixed;
   inset: 0;
@@ -351,48 +397,53 @@ h1, h2, h3, h4, .brand-title {
 .modal-figma-img {
   width: 100%;
   height: 220px;
-  border-radius: 20px;
+  border-radius: 18px;
   object-fit: cover;
-  background-color: #e5e7eb;
+  background-color: #dcdcdc;
   margin-bottom: 16px;
 }
 
 .modal-figma-title {
-  font-size: 1.4rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
   color: var(--dark-amaranth);
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
 }
 
 .modal-figma-desc {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--dark-amaranth);
+  font-weight: 500;
+  line-height: 1.35;
   margin: 0 0 12px 0;
 }
 
 .modal-figma-price {
-  font-size: 1.6rem;
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
   color: var(--dark-amaranth);
   margin-bottom: 18px;
 }
 
 /* Caja de Opiniones del Plato */
 .opiniones-title {
-  font-size: 1rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--dark-amaranth);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .opiniones-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .opinion-card {
-  background-color: #e5e7eb;
+  background-color: #dcdcdc;
   border-radius: 10px;
   padding: 10px 12px;
 }
@@ -401,28 +452,38 @@ h1, h2, h3, h4, .brand-title {
   display: flex;
   justify-content: space-between;
   font-size: 0.72rem;
-  color: #6b7280;
+  color: var(--dark-amaranth);
   margin-bottom: 4px;
 }
 
 .opinion-stars {
   color: var(--golden-orange);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   letter-spacing: 2px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .opinion-comment {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--dark-amaranth);
 }
 
-/* Barra inferior "Tu Producto" */
+/* Franja fija inferior "Tu Producto" o "Total: ... + Pagar" sobre el BottomDock */
+.figma-sticky-strip {
+  position: fixed;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background-color: var(--bg-strip);
+  padding: 12px 20px;
+  z-index: 930;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+}
+
 .tu-producto-bar {
-  background-color: #f3f4f6;
-  border-radius: 16px;
-  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -430,33 +491,37 @@ h1, h2, h3, h4, .brand-title {
 }
 
 .counter-pill {
-  background-color: var(--crimson-violet);
-  color: #fff;
+  background-color: #6d0c2e;
+  color: #ffffff;
   border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 14px;
-  font-weight: 800;
+  gap: 14px;
+  padding: 8px 16px;
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 .counter-btn {
   background: none;
   border: none;
-  color: #fff;
-  font-size: 1.1rem;
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 700;
   cursor: pointer;
   padding: 0 4px;
+  line-height: 1;
 }
 
 .btn-agregar-figma {
   flex: 1;
-  background-color: var(--dark-amaranth);
+  background-color: #6d0c2e;
   color: #ffffff;
   border: none;
-  padding: 12px 20px;
+  padding: 11px 20px;
   border-radius: 999px;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
   text-align: center;
@@ -467,64 +532,101 @@ h1, h2, h3, h4, .brand-title {
   background-color: var(--flag-red);
 }
 
-/* Pantalla Perfil / User Figma */
+/* Pantalla Perfil / User Figma (botones gris claro con borde fino Dark Amaranth) */
 .user-menu-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   padding: 20px 20px 100px 20px;
 }
 
 .user-menu-item {
-  background-color: #e5e7eb;
-  border: none;
+  background-color: #dedede;
+  border: 1px solid rgba(130, 19, 58, 0.45);
   border-radius: 10px;
-  padding: 14px 18px;
-  font-size: 0.9rem;
+  padding: 12px 16px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--dark-amaranth);
   display: flex;
   align-items: center;
   gap: 12px;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .user-menu-item:hover, .user-menu-item:active {
-  background-color: #d1d5db;
+  background-color: #d0d0d0;
+  transform: scale(0.99);
 }
 
-/* Formularios y checkout consistentes con la marca */
-.form-input-figma {
+/* Inputs del diseño aprobado (fondo gris claro, borde sutil Dark Amaranth) */
+.form-input-figma,
+.figma-form input[type="text"],
+.figma-form input[type="email"],
+.figma-form input[type="password"],
+.figma-form input[type="tel"],
+.figma-form input[type="date"],
+.figma-form select {
   width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-light);
-  color: var(--text-main);
-  padding: 12px 14px;
-  border-radius: 12px;
+  background: #dedede;
+  border: 1px solid rgba(130, 19, 58, 0.45);
+  color: var(--dark-amaranth);
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-family: var(--font-body);
   font-size: 0.9rem;
+  font-weight: 500;
   outline: none;
   margin-bottom: 12px;
+  box-sizing: border-box;
 }
 
-.form-input-figma:focus {
+.form-input-figma::placeholder,
+.figma-form input::placeholder {
+  color: rgba(130, 19, 58, 0.72);
+}
+
+.form-input-figma:focus,
+.figma-form input:focus,
+.figma-form select:focus {
   border-color: var(--dark-amaranth);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(130, 19, 58, 0.15);
+}
+
+.figma-form label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--dark-amaranth);
+  margin-bottom: 4px;
 }
 
 .btn-primario {
-  background: var(--dark-amaranth);
+  background: var(--tropicalia-radial);
   color: #ffffff;
   border: none;
-  padding: 12px 20px;
-  border-radius: 999px;
-  font-weight: 800;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: opacity 0.15s ease, transform 0.1s ease;
   text-align: center;
   text-decoration: none;
   display: inline-block;
+}
+
+.btn-primario:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primario:hover:not(:disabled) {
+  opacity: 0.92;
 }
 
 .btn-primario:hover:not(:disabled) {

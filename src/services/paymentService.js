@@ -107,7 +107,7 @@ export async function procesarBalanceCompletado({ orden, driverId }) {
   if (!orden) throw new Error('Orden requerida para liquidación de balance.');
 
   const esEfectivo = ['efectivo', 'efectivo_bs'].includes(orden.payment_method);
-  const esPagoMovil = ['pago_movil', 'binance', 'zelle', 'zinli', 'punto'].includes(orden.payment_method);
+  const esPagoMovil = ['pago_movil', 'binance', 'zelle', 'zinli', 'punto', 'kontigo', 'paypal'].includes(orden.payment_method);
   const fleteGanado = parseFloat(orden.delivery_fee || (orden.delivery_type === 'delivery' ? FLETE_BASE_DEFAULT : 0)) + parseFloat(orden.driver_tip || 0);
 
   // 0. LIQUIDACIÓN ATÓMICA EN POSTGRESQL VIA RPC SEGURA (SECURITY DEFINER ZERO-TRUST)

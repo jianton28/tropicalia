@@ -148,223 +148,232 @@ export default function Registro() {
   return (
     <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px' }}>
       
-      {/* HEADER OFICIAL FIGMA */}
-      <header className="figma-header" style={{ marginBottom: '20px' }}>
-        <div className="figma-header-top" style={{ marginBottom: 0 }}>
-          <Link to="/portal" style={{ color: '#ffffff', textDecoration: 'none', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            ← Iniciar Sesión
-          </Link>
+      {/* HEADER PLANO OFICIAL FIGMA (Screenshot 225206) */}
+      <header className="figma-header" style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 className="figma-header-title" style={{ fontSize: '1.45rem' }}>
+            Crear Cuenta
+          </h1>
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.85)' }}>
+            Selecciona tu perfil en Tropicalia
+          </p>
         </div>
-        <h1 style={{ fontSize: '1.45rem', margin: '10px 0 0 0', color: '#ffffff' }}>
-          Registro en Tropicalia
-        </h1>
-        <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.85)' }}>
-          Selecciona tu tipo de perfil para comenzar
-        </p>
+        <Link
+          to="/portal"
+          style={{
+            background: 'rgba(255,255,255,0.16)',
+            color: '#ffffff',
+            textDecoration: 'none',
+            fontSize: '0.82rem',
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            padding: '6px 12px',
+            borderRadius: '999px'
+          }}
+        >
+          ← Iniciar Sesión
+        </Link>
       </header>
 
       <div style={{ padding: '0 20px' }}>
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid #e5e7eb',
-          borderRadius: '20px',
-          padding: '20px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
-        }}>
-        
-        {/* SELECTOR DE ROL */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
+        {/* SELECTOR DE ROL CON ESTILO MANUAL DE MARCA */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
           <button
             type="button"
             onClick={() => setRol('client')}
-            className={`btn-tab ${rol === 'client' ? 'activo' : ''}`}
-            style={{ justifyContent: 'center' }}
+            style={{
+              padding: '9px 6px',
+              borderRadius: '10px',
+              border: rol === 'client' ? '2px solid var(--golden-orange)' : '1px solid rgba(130,19,58,0.35)',
+              background: rol === 'client' ? 'var(--dark-amaranth)' : '#dedede',
+              color: rol === 'client' ? '#ffffff' : 'var(--dark-amaranth)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer'
+            }}
           >
             👤 Cliente
           </button>
           <button
             type="button"
             onClick={() => setRol('restaurant')}
-            className={`btn-tab ${rol === 'restaurant' ? 'activo' : ''}`}
-            style={{ justifyContent: 'center' }}
+            style={{
+              padding: '9px 6px',
+              borderRadius: '10px',
+              border: rol === 'restaurant' ? '2px solid var(--golden-orange)' : '1px solid rgba(130,19,58,0.35)',
+              background: rol === 'restaurant' ? 'var(--dark-amaranth)' : '#dedede',
+              color: rol === 'restaurant' ? '#ffffff' : 'var(--dark-amaranth)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer'
+            }}
           >
             👨‍🍳 Cocina
           </button>
           <button
             type="button"
             onClick={() => setRol('delivery')}
-            className={`btn-tab ${rol === 'delivery' ? 'activo' : ''}`}
-            style={{ justifyContent: 'center' }}
+            style={{
+              padding: '9px 6px',
+              borderRadius: '10px',
+              border: rol === 'delivery' ? '2px solid var(--golden-orange)' : '1px solid rgba(130,19,58,0.35)',
+              background: rol === 'delivery' ? 'var(--dark-amaranth)' : '#dedede',
+              color: rol === 'delivery' ? '#ffffff' : 'var(--dark-amaranth)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer'
+            }}
           >
             🛵 Repartidor
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="figma-form">
           
-          <label>Nombre y Apellido (o Representante):</label>
           <input
             type="text"
             value={nombre}
             onChange={e => setNombre(e.target.value)}
             required
-            placeholder="Ej: Daniel Rodríguez"
+            placeholder="Nombre y Apellido (o Representante):"
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            <div>
-              <label>Correo Electrónico:</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder="tu@correo.com"
-              />
-            </div>
-            <div>
-              <label>Teléfono (WhatsApp):</label>
-              <input
-                type="tel"
-                value={telefono}
-                onChange={e => setTelefono(e.target.value)}
-                required
-                placeholder="04121234567"
-              />
-            </div>
-          </div>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            placeholder="Correo electrónico:"
+          />
+
+          <input
+            type="tel"
+            value={telefono}
+            onChange={e => setTelefono(e.target.value)}
+            required
+            placeholder="Número de teléfono (WhatsApp):"
+          />
 
           <PasswordInput
-            label="Contraseña segura:"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
             minLength={6}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Contraseña segura (mín. 6 caracteres):"
           />
 
           {/* CAMPOS DE COCINA */}
           {rol === 'restaurant' && (
-            <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '14px', margin: '14px 0' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: 'var(--gold)' }}>Datos del Restaurante</h4>
-              <label>Nombre Comercial del Local:</label>
+            <div style={{ background: '#f8f5f6', border: '1px solid rgba(130,19,58,0.3)', borderRadius: '12px', padding: '14px', margin: '10px 0 14px 0' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: 'var(--dark-amaranth)', fontSize: '0.96rem' }}>Datos del Restaurante</h4>
               <input
                 type="text"
                 value={localNombre}
                 onChange={e => setLocalNombre(e.target.value)}
                 required
-                placeholder="Ej: Hamburguesas La Estación"
+                placeholder="Nombre Comercial del Local:"
               />
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div>
-                  <label>Categoría Gastronómica:</label>
-                  <select value={localCategoria} onChange={e => setLocalCategoria(e.target.value)}>
-                    <option value="Comida Rápida">Comida Rápida</option>
-                    <option value="Pizza y Pastas">Pizza y Pastas</option>
-                    <option value="Sushi y Asiática">Sushi y Asiática</option>
-                    <option value="Postres y Café">Postres y Café</option>
-                    <option value="Bebidas y Licores">Bebidas y Licores</option>
-                    <option value="Gourmet">Gourmet</option>
-                  </select>
-                </div>
-                <div>
-                  <label>RIF de la Empresa:</label>
-                  <input
-                    type="text"
-                    value={localRif}
-                    onChange={e => setLocalRif(e.target.value)}
-                    placeholder="J-12345678-0"
-                  />
-                </div>
-              </div>
+              <select value={localCategoria} onChange={e => setLocalCategoria(e.target.value)}>
+                <option value="Comida Rápida">Comida Rápida</option>
+                <option value="Pizza y Pastas">Pizza y Pastas</option>
+                <option value="Sushi y Asiática">Sushi y Asiática</option>
+                <option value="Postres y Café">Postres y Café</option>
+                <option value="Bebidas y Licores">Bebidas y Licores</option>
+                <option value="Gourmet">Gourmet</option>
+              </select>
 
-              <label>Permiso Sanitario o Documento Fiscal (PDF o Foto):</label>
+              <input
+                type="text"
+                value={localRif}
+                onChange={e => setLocalRif(e.target.value)}
+                placeholder="RIF de la Empresa (Ej: J-12345678-0):"
+              />
+
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--dark-amaranth)', marginBottom: '4px' }}>
+                Permiso Sanitario o Documento Fiscal (PDF o Foto):
+              </label>
               <input
                 type="file"
                 accept="image/*,.pdf"
                 onChange={e => setPermisoSanitario(e.target.files[0] || null)}
-                style={{ background: '#1c1c1c' }}
+                style={{ background: '#dedede', padding: '8px', borderRadius: '8px', width: '100%', boxSizing: 'border-box', fontSize: '0.8rem' }}
               />
             </div>
           )}
 
           {/* CAMPOS DE REPARTIDOR */}
           {rol === 'delivery' && (
-            <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '14px', margin: '14px 0' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#34d399' }}>Datos de Repartidor Independiente</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div>
-                  <label>Tipo de Vehículo:</label>
-                  <select value={vehiculoTipo} onChange={e => setVehiculoTipo(e.target.value)}>
-                    <option value="moto">🏍️ Moto</option>
-                    <option value="bicicleta">🚲 Bicicleta</option>
-                    <option value="auto">🚗 Automóvil</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Número de Placa:</label>
-                  <input
-                    type="text"
-                    value={vehiculoPlaca}
-                    onChange={e => setVehiculoPlaca(e.target.value)}
-                    placeholder="Ej: AB1C23D"
-                  />
-                </div>
-              </div>
+            <div style={{ background: '#f8f5f6', border: '1px solid rgba(130,19,58,0.3)', borderRadius: '12px', padding: '14px', margin: '10px 0 14px 0' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: 'var(--dark-amaranth)', fontSize: '0.96rem' }}>Datos de Repartidor Independiente</h4>
+              <select value={vehiculoTipo} onChange={e => setVehiculoTipo(e.target.value)}>
+                <option value="moto">🏍️ Moto</option>
+                <option value="bicicleta">🚲 Bicicleta</option>
+                <option value="auto">🚗 Automóvil</option>
+              </select>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div>
-                  <label>Foto Cédula de Identidad:</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setDriverCedula(e.target.files[0] || null)}
-                    style={{ background: '#1c1c1c' }}
-                  />
-                </div>
-                <div>
-                  <label>Foto Licencia de Conducir:</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => setDriverLicencia(e.target.files[0] || null)}
-                    style={{ background: '#1c1c1c' }}
-                  />
-                </div>
-              </div>
+              <input
+                type="text"
+                value={vehiculoPlaca}
+                onChange={e => setVehiculoPlaca(e.target.value)}
+                placeholder="Número de Placa (Ej: AB1C23D):"
+              />
+
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--dark-amaranth)', marginBottom: '4px' }}>
+                Foto Cédula de Identidad:
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => setDriverCedula(e.target.files[0] || null)}
+                style={{ background: '#dedede', padding: '8px', borderRadius: '8px', width: '100%', boxSizing: 'border-box', fontSize: '0.8rem', marginBottom: '10px' }}
+              />
+
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--dark-amaranth)', marginBottom: '4px' }}>
+                Foto Licencia de Conducir:
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => setDriverLicencia(e.target.files[0] || null)}
+                style={{ background: '#dedede', padding: '8px', borderRadius: '8px', width: '100%', boxSizing: 'border-box', fontSize: '0.8rem' }}
+              />
             </div>
           )}
 
           {/* TÉRMINOS Y CONDICIONES LEGALES */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', margin: '16px 0' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', margin: '12px 0' }}>
             <input
               type="checkbox"
               id="chk-tyc-box"
               checked={tycAccepted}
               onChange={e => setTycAccepted(e.target.checked)}
-              style={{ width: 'auto', marginTop: '4px', cursor: 'pointer' }}
+              style={{ width: 'auto', marginTop: '4px', cursor: 'pointer', accentColor: 'var(--dark-amaranth)' }}
               required
             />
-            <label htmlFor="chk-tyc-box" style={{ fontSize: '0.82rem', color: '#ccc', cursor: 'pointer' }}>
+            <label htmlFor="chk-tyc-box" style={{ fontSize: '0.8rem', color: '#4b5563', cursor: 'pointer', lineHeight: 1.35 }}>
               Acepto los{' '}
-              <Link to="/legal" target="_blank" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>
+              <Link to="/legal" target="_blank" style={{ color: 'var(--dark-amaranth)', textDecoration: 'underline', fontWeight: 700 }}>
                 Términos y Condiciones Legales de Tropicalia
               </Link>
               {rol === 'client' && ' (Servicio de intermediación tecnológica y entrega).'}
               {rol === 'restaurant' && ' (Comisión del 10%, cortes diarios y responsabilidad sanitaria).'}
-              {rol === 'delivery' && ' (Contrato mercantil autónomo y límite de deuda de $20).'}
+              {rol === 'delivery' && ' (Contrato mercantil autónomo y límite de deuda de $25).'}
             </label>
           </div>
 
           {errorMsg && (
             <div style={{
-              background: 'rgba(239,68,68,0.15)',
-              border: '1px solid var(--red)',
-              color: '#fca5a5',
+              background: '#fee2e2',
+              border: '1px solid var(--flag-red)',
+              color: '#991b1b',
               padding: '10px',
-              borderRadius: '8px',
-              fontSize: '0.85rem',
+              borderRadius: '10px',
+              fontSize: '0.84rem',
+              fontWeight: 600,
               marginBottom: '12px'
             }}>
               {errorMsg}
@@ -377,21 +386,18 @@ export default function Registro() {
             onVerify={(_, valid) => setBotVerified(valid)}
           />
 
-          <button
-            type="submit"
-            className="btn-primario"
-            style={{ width: '100%', padding: '12px' }}
-            disabled={submitting}
-          >
-            {submitting ? 'Procesando registro...' : (
-              rol === 'client' ? 'Crear Cuenta de Cliente' :
-              rol === 'restaurant' ? 'Solicitar Registro de Restaurante' :
-              'Registrarse como Repartidor'
-            )}
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
+            <button
+              type="submit"
+              className="btn-primario"
+              style={{ minWidth: '190px', padding: '12px 28px', borderRadius: '10px' }}
+              disabled={submitting}
+            >
+              {submitting ? 'Procesando...' : 'Aceptar'}
+            </button>
+          </div>
 
         </form>
-        </div>
       </div>
 
     </div>

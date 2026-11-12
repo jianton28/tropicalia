@@ -538,11 +538,11 @@ export default function Delivery() {
         </div>
       )}
 
-      {/* CABECERA DELIVERY DE MARCA TROPICALIA */}
+      {/* CABECERA DELIVERY OFICIAL TROPICALIA */}
       <div style={{
-        background: 'linear-gradient(135deg, #1c151e 0%, #291a27 100%)',
-        border: '1px solid #4a2e46',
-        borderRadius: '18px',
+        background: 'var(--tropicalia-radial)',
+        border: '1px solid rgba(239, 157, 36, 0.35)',
+        borderRadius: '16px',
         padding: '18px 22px',
         marginBottom: '20px',
         display: 'flex',
@@ -550,14 +550,15 @@ export default function Delivery() {
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.25)'
+        boxShadow: '0 6px 20px rgba(70, 5, 29, 0.25)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: '48px',
             height: '48px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, var(--dark-amaranth), var(--golden-orange))',
+            background: 'rgba(255, 255, 255, 0.14)',
+            border: '1px solid rgba(239, 157, 36, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -566,10 +567,10 @@ export default function Delivery() {
             🛵
           </div>
           <div>
-            <h1 style={{ fontSize: '1.45rem', margin: 0, color: '#fff', fontWeight: 800 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.45rem', margin: 0, color: '#fff', fontWeight: 700 }}>
               {perfil?.full_name || 'Repartidor Tropicalia'}
             </h1>
-            <div style={{ fontSize: '0.82rem', color: '#d1c7d0', marginTop: '3px' }}>
+            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.86)', marginTop: '3px' }}>
               Vehículo: <strong style={{ color: 'var(--golden-orange)' }}>{perfil?.vehicle_type?.toUpperCase() || 'MOTO'}</strong> • Placa: {perfil?.vehicle_plate || 'N/A'}
             </div>
           </div>
@@ -578,8 +579,16 @@ export default function Delivery() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
             onClick={toggleDisponibilidad}
-            className={`btn-toggle ${perfil?.is_online ? 'activo' : 'pausado'}`}
-            style={{ fontWeight: 800, padding: '8px 16px', borderRadius: '10px' }}
+            style={{
+              background: perfil?.is_online ? '#10b981' : 'rgba(255,255,255,0.18)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.28)',
+              fontWeight: 800,
+              padding: '8px 16px',
+              borderRadius: '999px',
+              fontSize: '0.82rem',
+              cursor: 'pointer'
+            }}
           >
             {perfil?.is_online ? '🟢 En Línea' : '⚪ Desconectado'}
           </button>
@@ -589,8 +598,16 @@ export default function Delivery() {
               await signOut();
               navigate('/portal');
             }}
-            className="btn-secundario"
-            style={{ borderColor: 'var(--red)', color: '#fca5a5', padding: '8px 14px', borderRadius: '10px' }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.35)',
+              padding: '8px 14px',
+              borderRadius: '999px',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer'
+            }}
           >
             Salir
           </button>

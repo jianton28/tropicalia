@@ -11,6 +11,7 @@ import PasswordInput from '../components/common/PasswordInput';
 import MapAddressPicker from '../components/common/MapAddressPicker';
 import SecurityVerification from '../components/common/SecurityVerification';
 import { securityService } from '../services/securityService';
+import logoImg from '../assets/logo.png';
 
 export default function Portal() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function Portal() {
   const [successBanner, setSuccessBanner] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(!user);
+  const [showSplashScreen, setShowSplashScreen] = useState(() => searchParams.get('welcome') === '1');
   const [botVerified, setBotVerified] = useState(false);
 
   // Estados para recuperación de contraseña y reenvío de confirmación
@@ -485,74 +487,199 @@ export default function Portal() {
   const nombreMostrar = user?.user_metadata?.full_name || (user ? 'Cliente Tropicalia' : 'Invitado');
   const inicial = nombreMostrar.charAt(0).toUpperCase();
 
-  return (
-    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px' }}>
-      
-      {/* HEADER CURVADO FIGMA 'USER' */}
-      <header className="figma-header" style={{ textAlign: 'center', padding: '36px 20px 28px 20px' }}>
+  // PANTALLA 1: BIENVENIDA / SPLASH OFICIAL (Screenshot 225140)
+  if (!user && showSplashScreen) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'var(--tropicalia-radial)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 24px',
+        textAlign: 'center'
+      }}>
         <div style={{
-          width: '76px',
-          height: '76px',
-          backgroundColor: '#ffffff',
-          color: 'var(--dark-amaranth)',
+          width: '148px',
+          height: '148px',
           borderRadius: '50%',
+          background: '#dcdcdc',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '2rem',
-          fontWeight: 900,
-          margin: '0 auto 12px auto',
-          boxShadow: '0 6px 18px rgba(0, 0, 0, 0.2)'
+          marginBottom: '26px',
+          boxShadow: '0 10px 28px rgba(0, 0, 0, 0.35)',
+          padding: '14px'
         }}>
-          {user ? inicial : '👤'}
+          <img
+            src={logoImg}
+            alt="Tropicalia CRB"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
 
-        <h1 style={{ fontSize: '1.45rem', margin: '0 0 4px 0', color: '#ffffff' }}>
-          {nombreMostrar}
-        </h1>
+        <button
+          type="button"
+          onClick={() => {
+            setShowSplashScreen(false);
+            setShowAuthForm(true);
+          }}
+          style={{
+            background: '#ffffff',
+            color: 'var(--dark-amaranth)',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '12px 34px',
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25)',
+            transition: 'transform 0.15s ease'
+          }}
+        >
+          Iniciar Sesión
+        </button>
 
-        <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.85)' }}>
-          {user ? user.email : 'Explora tus pedidos, métodos de pago y beneficios'}
-        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setShowSplashScreen(false);
+            setShowAuthForm(false);
+            navigate('/');
+          }}
+          style={{
+            marginTop: '20px',
+            background: 'none',
+            border: 'none',
+            color: 'rgba(255, 255, 255, 0.85)',
+            fontSize: '0.84rem',
+            fontWeight: 600,
+            textDecoration: 'underline',
+            cursor: 'pointer'
+          }}
+        >
+          Explorar menú como invitado →
+        </button>
+      </div>
+    );
+  }
 
-        {user && (
-          <div style={{ marginTop: '6px' }}>
-            <span style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              color: '#ffffff',
-              padding: '3px 12px',
-              borderRadius: '999px',
-              fontSize: '0.74rem',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Rol: {role || 'Cliente'} (Protegido)
-            </span>
+  return (
+    <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: '#ffffff', paddingBottom: '90px' }}>
+      
+      {/* HEADER PLANO OFICIAL FIGMA ('Inicio de Sesión' cuando !user && showAuthForm; o 'User' cuando perfil/invitado) */}
+      {!user && showAuthForm ? (
+        <header className="figma-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="figma-header-title" style={{ fontSize: '1.45rem' }}>
+            Inicio de Sesión
+          </h1>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setShowSplashScreen(true)}
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                border: '1px solid rgba(255,255,255,0.28)',
+                color: '#ffffff',
+                borderRadius: '999px',
+                padding: '4px 10px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Ver Pantalla de Bienvenida"
+            >
+              ✨ Inicio
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAuthForm(false)}
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                border: '1px solid rgba(255,255,255,0.28)',
+                color: '#ffffff',
+                borderRadius: '999px',
+                padding: '4px 10px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Invitado ›
+            </button>
           </div>
-        )}
+        </header>
+      ) : (
+        <header className="figma-header" style={{ textAlign: 'center', padding: '28px 20px 22px 20px' }}>
+          <div style={{
+            width: '78px',
+            height: '78px',
+            backgroundColor: '#dcdcdc',
+            color: 'var(--dark-amaranth)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 700,
+            margin: '0 auto 10px auto',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)'
+          }}>
+            {user ? inicial : '👤'}
+          </div>
 
-        {!user && (
-          <button
-            type="button"
-            onClick={() => setShowAuthForm(true)}
-            style={{
-              marginTop: '14px',
-              backgroundColor: 'var(--golden-orange)',
-              color: '#000000',
-              border: 'none',
-              padding: '8px 20px',
-              borderRadius: '999px',
-              fontWeight: 800,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(239, 157, 36, 0.35)'
-            }}
-          >
-            Iniciar Sesión / Registrarse
-          </button>
-        )}
-      </header>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', margin: '0 0 3px 0', color: '#ffffff' }}>
+            {nombreMostrar}
+          </h1>
+
+          <p style={{ margin: 0, fontSize: '0.84rem', color: 'rgba(255, 255, 255, 0.88)' }}>
+            {user ? user.email : 'Explora tus pedidos, métodos de pago y beneficios'}
+          </p>
+
+          {user && (
+            <div style={{ marginTop: '6px' }}>
+              <span style={{
+                background: 'rgba(255, 255, 255, 0.18)',
+                color: '#ffffff',
+                padding: '3px 12px',
+                borderRadius: '999px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Rol: {role || 'Cliente'}
+              </span>
+            </div>
+          )}
+
+          {!user && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setShowAuthForm(true)}
+                style={{
+                  backgroundColor: 'var(--golden-orange)',
+                  color: '#000000',
+                  border: 'none',
+                  padding: '8px 20px',
+                  borderRadius: '999px',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(239, 157, 36, 0.35)'
+                }}
+              >
+                Iniciar Sesión / Registrarse
+              </button>
+            </div>
+          )}
+        </header>
+      )}
 
       {/* BANNER DE NOTIFICACIÓN DE ÉXITO */}
       {successBanner && (
@@ -702,23 +829,15 @@ export default function Portal() {
             </div>
           ) : (
             <div style={{
-              background: '#f9fafb',
-              border: '1px solid #e5e7eb',
-              borderRadius: '20px',
-              padding: '20px',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.05)'
+              background: '#ffffff',
+              padding: '4px 0 12px 0'
             }}>
-              <h3 style={{ margin: '0 0 6px 0', color: 'var(--dark-amaranth)' }}>Iniciar Sesión</h3>
-              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: '#6b7280' }}>
-                Accede a tu cuenta de cliente o perfil del personal.
-              </p>
-
               <form onSubmit={handleLogin}>
-                <div style={{ marginBottom: '10px' }}>
+                <div style={{ marginBottom: '2px' }}>
                   <input
                     type="email"
                     className="form-input-figma"
-                    placeholder="Correo electrónico"
+                    placeholder="Correo:"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     required
@@ -729,7 +848,7 @@ export default function Portal() {
                 <PasswordInput
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Contraseña"
+                  placeholder="Contraseña:"
                   required
                 />
 
@@ -739,16 +858,18 @@ export default function Portal() {
                   onVerify={(_, isValid) => setBotVerified(isValid)}
                 />
 
-                <button
-                  type="submit"
-                  className="btn-primario"
-                  style={{ width: '100%', padding: '12px', marginTop: '4px' }}
-                  disabled={loading}
-                >
-                  {loading ? 'Ingresando...' : 'Iniciar Sesión'}
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '14px' }}>
+                  <button
+                    type="submit"
+                    className="btn-primario"
+                    style={{ minWidth: '170px', padding: '11px 32px', borderRadius: '10px', fontSize: '1rem' }}
+                    disabled={loading}
+                  >
+                    {loading ? 'Ingresando...' : 'Aceptar'}
+                  </button>
+                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', fontSize: '0.78rem' }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -756,7 +877,7 @@ export default function Portal() {
                       setRecoveryEmail(email);
                       setRecoveryMsg('');
                     }}
-                    style={{ background: 'none', border: 'none', color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--dark-amaranth)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontWeight: 600 }}
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
@@ -767,7 +888,7 @@ export default function Portal() {
                       setRecoveryEmail(email);
                       setRecoveryMsg('');
                     }}
-                    style={{ background: 'none', border: 'none', color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+                    style={{ background: 'none', border: 'none', color: 'var(--dark-amaranth)', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontWeight: 600 }}
                   >
                     Reenviar confirmación
                   </button>
@@ -775,13 +896,13 @@ export default function Portal() {
               </form>
 
               {errorMsg && (
-                <div style={{ background: '#fee2e2', border: '1px solid #ef4444', color: '#b91c1c', padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', marginTop: '10px' }}>
+                <div style={{ background: '#fee2e2', border: '1px solid #ef4444', color: '#b91c1c', padding: '8px 12px', borderRadius: '10px', fontSize: '0.8rem', marginTop: '12px' }}>
                   {errorMsg}
                 </div>
               )}
 
-              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '14px', paddingTop: '12px', textAlign: 'center' }}>
-                <Link to="/registro" style={{ color: 'var(--dark-amaranth)', fontSize: '0.84rem', fontWeight: 700, textDecoration: 'none' }}>
+              <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '18px', paddingTop: '14px', textAlign: 'center' }}>
+                <Link to="/registro" style={{ color: 'var(--dark-amaranth)', fontSize: '0.86rem', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-display)' }}>
                   ¿No tienes cuenta? Regístrate aquí →
                 </Link>
               </div>
@@ -875,240 +996,339 @@ export default function Portal() {
         </div>
       )}
 
-      {/* LISTA DE PASTILLAS DEL MENÚ FIGMA ('user') */}
-      <nav className="user-menu-list">
-        
-        {/* 1. Mis Pedidos (Historial Completo) */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => {
-            setModalType('pedidos');
-            cargarHistorial();
-          }}
-        >
-          <span style={{ fontSize: '1.25rem' }}>📦</span>
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <span style={{ display: 'block' }}>Mis Pedidos & Historial</span>
-            <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>Consulta compras anteriores o repite pedidos</small>
-          </div>
-          {ultimaOrdenId && (
-            <span style={{ background: '#10b981', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: '999px', fontWeight: 800 }}>
-              En Curso
-            </span>
-          )}
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 2. Platos Favoritos */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => {
-            setModalType('favoritos');
-            cargarPlatosFavoritos();
-          }}
-        >
-          <span style={{ fontSize: '1.25rem' }}>❤️</span>
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <span style={{ display: 'block' }}>Platos Favoritos</span>
-            <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>Tus comidas preferidas guardadas</small>
-          </div>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 3. Mis Direcciones (Múltiples y Envíos a Terceros) */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => {
-            setDirecciones(addressService.getAddresses());
-            setModalType('direcciones');
-          }}
-        >
-          <span style={{ fontSize: '1.25rem' }}>📍</span>
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <div>Mis direcciones & Envíos a terceros</div>
-            <small style={{ color: '#6b7280', fontSize: '0.75rem', display: 'block' }}>
-              {direcciones.find(d => d.isDefault)?.alias || 'Gestionar ubicaciones con mapa'}
-            </small>
-          </div>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 4. Mis Datos Personales */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => {
-            setProfileFeedback('');
-            setModalType('datos');
-          }}
-        >
-          <span style={{ fontSize: '1.25rem' }}>👤</span>
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <div>Mis datos personales</div>
-            <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>Edita tu nombre, correo o teléfono con seguridad</small>
-          </div>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 5. Seguridad & Contraseña */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => {
-            setPwdFeedback('');
-            setModalType('clave');
-          }}
-        >
-          <span style={{ fontSize: '1.25rem' }}>🔐</span>
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <div>Seguridad & Contraseña</div>
-            <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>Cambio seguro con verificación obligatoria</small>
-          </div>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 6. Métodos de Pago */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => setModalType('pagos')}
-        >
-          <span style={{ fontSize: '1.25rem' }}>💳</span>
-          <span style={{ flex: 1, textAlign: 'left' }}>Métodos de pago</span>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* 7. Soporte */}
-        <button
-          type="button"
-          className="user-menu-item"
-          onClick={() => setModalType('soporte')}
-        >
-          <span style={{ fontSize: '1.25rem' }}>🎧</span>
-          <span style={{ flex: 1, textAlign: 'left' }}>Soporte Oficial (0414-1352503)</span>
-          <span style={{ color: '#9ca3af' }}>›</span>
-        </button>
-
-        {/* ACCESOS DE ROL PARA PERSONAL */}
-        {role === 'restaurant' && (
-          <Link to="/cocina" className="user-menu-item" style={{ background: '#fef3c7', borderColor: '#f59e0b' }}>
-            <span style={{ fontSize: '1.25rem' }}>👨‍🍳</span>
-            <span style={{ flex: 1, fontWeight: 700, color: '#92400e' }}>Panel de Cocina</span>
-            <span style={{ color: '#92400e' }}>›</span>
-          </Link>
-        )}
-
-        {role === 'delivery' && (
-          <Link to="/delivery" className="user-menu-item" style={{ background: '#d1fae5', borderColor: '#10b981' }}>
-            <span style={{ fontSize: '1.25rem' }}>🛵</span>
-            <span style={{ flex: 1, fontWeight: 700, color: '#065f46' }}>Panel de Repartidor</span>
-            <span style={{ color: '#065f46' }}>›</span>
-          </Link>
-        )}
-
-        {role === 'admin' && (
-          <Link to="/admin" className="user-menu-item" style={{ background: '#ede9fe', borderColor: '#8b5cf6' }}>
-            <span style={{ fontSize: '1.25rem' }}>🛡️</span>
-            <span style={{ flex: 1, fontWeight: 700, color: '#5b21b6' }}>Panel Administrador</span>
-            <span style={{ color: '#5b21b6' }}>›</span>
-          </Link>
-        )}
-
-        {/* Cerrar Sesión */}
-        {user && (
+      {/* LISTA DE PASTILLAS DEL MENÚ FIGMA ('user') - Visible cuando está autenticado o en modo Invitado */}
+      {(user || !showAuthForm) && (
+        <nav className="user-menu-list">
+          
+          {/* 1. Mis Pedidos (Historial Completo) */}
           <button
             type="button"
             className="user-menu-item"
             onClick={() => {
-              if (window.confirm('¿Seguro que deseas cerrar sesión?')) {
-                signOut();
-              }
+              setModalType('pedidos');
+              cargarHistorial();
             }}
-            style={{ color: '#b91c1c' }}
           >
-            <span style={{ fontSize: '1.25rem' }}>🚪</span>
-            <span style={{ flex: 1, textAlign: 'left', fontWeight: 700 }}>Cerrar Sesión</span>
-            <span style={{ color: '#b91c1c' }}>›</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M16 10a4 4 0 0 1-8 0" />
+            </svg>
+            <div style={{ flex: 1, textAlign: 'left' }}>
+              <span style={{ display: 'block' }}>Mis Pedidos</span>
+              <small style={{ color: '#6b7280', fontSize: '0.72rem', fontFamily: 'var(--font-body)' }}>Historial y pedidos en curso</small>
+            </div>
+            {ultimaOrdenId && (
+              <span style={{ background: '#10b981', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                En Curso
+              </span>
+            )}
           </button>
-        )}
 
-      </nav>
+          {/* 2. Favoritos */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => {
+              setModalType('favoritos');
+              cargarPlatosFavoritos();
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+            <span style={{ flex: 1, textAlign: 'left' }}>Favoritos</span>
+          </button>
+
+          {/* 3. Mis direcciones */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => {
+              setDirecciones(addressService.getAddresses());
+              setModalType('direcciones');
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <div style={{ flex: 1, textAlign: 'left' }}>
+              <div>Mis direcciones</div>
+              <small style={{ color: '#6b7280', fontSize: '0.72rem', fontFamily: 'var(--font-body)', display: 'block' }}>
+                {direcciones.find(d => d.isDefault)?.alias || 'Múltiples direcciones y terceros'}
+              </small>
+            </div>
+          </button>
+
+          {/* 4. Métodos de pago */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => setModalType('pagos')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+            <span style={{ flex: 1, textAlign: 'left' }}>Métodos de pago</span>
+          </button>
+
+          {/* 5. Mis datos personales */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => {
+              setProfileFeedback('');
+              setModalType('datos');
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span style={{ flex: 1, textAlign: 'left' }}>Mis datos personales</span>
+          </button>
+
+          {/* 6. Seguridad & Contraseña */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => {
+              setPwdFeedback('');
+              setModalType('clave');
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span style={{ flex: 1, textAlign: 'left' }}>Seguridad & Contraseña</span>
+          </button>
+
+          {/* 7. Soporte */}
+          <button
+            type="button"
+            className="user-menu-item"
+            onClick={() => setModalType('soporte')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span style={{ flex: 1, textAlign: 'left' }}>Soporte</span>
+          </button>
+
+          {/* ACCESOS DE ROL PARA PERSONAL */}
+          {role === 'restaurant' && (
+            <Link to="/cocina" className="user-menu-item" style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>
+              <span style={{ fontSize: '1.15rem' }}>👨‍🍳</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>Panel de Cocina</span>
+              <span>›</span>
+            </Link>
+          )}
+
+          {role === 'delivery' && (
+            <Link to="/delivery" className="user-menu-item" style={{ background: '#d1fae5', borderColor: '#10b981', color: '#065f46' }}>
+              <span style={{ fontSize: '1.15rem' }}>🛵</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>Panel de Repartidor</span>
+              <span>›</span>
+            </Link>
+          )}
+
+          {role === 'admin' && (
+            <Link to="/admin" className="user-menu-item" style={{ background: '#ede9fe', borderColor: '#8b5cf6', color: '#5b21b6' }}>
+              <span style={{ fontSize: '1.15rem' }}>🛡️</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>Panel Administrador</span>
+              <span>›</span>
+            </Link>
+          )}
+
+          {/* Cerrar Sesión */}
+          {user && (
+            <button
+              type="button"
+              className="user-menu-item"
+              onClick={() => {
+                if (window.confirm('¿Seguro que deseas cerrar sesión?')) {
+                  signOut();
+                }
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span style={{ flex: 1, textAlign: 'left' }}>Cerrar Sesión</span>
+            </button>
+          )}
+
+        </nav>
+      )}
 
       {/* =========================================================================
-          MODAL 1: HISTORIAL DE PEDIDOS
+          VISTA FULL-SCREEN: MIS PEDIDOS (FIGMA Screenshot 225228)
           ========================================================================= */}
       {modalType === 'pedidos' && (
-        <div className="modal-figma-overlay" onClick={() => setModalType(null)}>
-          <div className="modal-figma-sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)' }}>📦 Historial de Compras</h3>
-              <button onClick={() => setModalType(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
-            </div>
+        <div className="detail-figma-screen" style={{ paddingBottom: '86px' }}>
+          {/* Header Plano Dark Amaranth */}
+          <header className="figma-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h1 className="figma-header-title" style={{ fontSize: '1.5rem' }}>
+              Mis Pedidos
+            </h1>
+            <button
+              type="button"
+              onClick={() => setModalType(null)}
+              style={{
+                background: 'rgba(255,255,255,0.16)',
+                border: 'none',
+                color: '#ffffff',
+                borderRadius: '999px',
+                padding: '6px 14px',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: '0.84rem',
+                cursor: 'pointer'
+              }}
+            >
+              ← Volver
+            </button>
+          </header>
 
+          <div style={{ padding: '18px 20px' }}>
             {loadingHistorial ? (
-              <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>Cargando compras anteriores...</p>
+              <p style={{ color: 'var(--dark-amaranth)', textAlign: 'center', padding: '40px 20px', fontWeight: 700 }}>
+                Cargando historial de pedidos...
+              </p>
             ) : historialOrdenes.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 10px' }}>
-                <span style={{ fontSize: '2.5rem' }}>🛒</span>
-                <p style={{ color: '#6b7280', marginTop: '10px' }}>Aún no has registrado pedidos anteriores.</p>
-                <Link to="/" onClick={() => setModalType(null)} className="btn-primario" style={{ display: 'inline-block', marginTop: '8px' }}>
+              <div style={{ textAlign: 'center', padding: '50px 10px' }}>
+                <div style={{ fontSize: '2.8rem', marginBottom: '10px' }}>🛍️</div>
+                <p style={{ color: 'var(--dark-amaranth)', fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700 }}>
+                  Aún no has realizado pedidos
+                </p>
+                <Link to="/" onClick={() => setModalType(null)} className="btn-primario" style={{ display: 'inline-block', marginTop: '12px' }}>
                   Explorar Catálogo
                 </Link>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                 {historialOrdenes.map(ord => {
                   const items = Array.isArray(ord.items) ? ord.items : [];
+                  const primerItem = items[0] || {};
                   const f = new Date(ord.created_at);
                   const fechaStr = `${f.toLocaleDateString()} ${f.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  const resumenTitulo = items.length > 1
+                    ? `${primerItem.name || 'Pedido'} (+${items.length - 1})`
+                    : (primerItem.name || `#ORD-${(ord.id || '').slice(0, 6)}`);
+
                   return (
-                    <div key={ord.id} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '14px', padding: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <strong style={{ fontSize: '0.92rem', color: 'var(--dark-amaranth)' }}>
-                          #ORD-{(ord.id || '').slice(0, 8).toUpperCase()}
-                        </strong>
-                        <span className="badge" style={{ fontSize: '0.72rem', background: ord.status === 'delivered' ? '#ecfdf5' : '#fef3c7', color: ord.status === 'delivered' ? '#065f46' : '#92400e' }}>
-                          {ord.status === 'delivered' ? '🎉 Entregado' : ord.status === 'cancelled' ? '❌ Cancelado' : '⏳ En Proceso'}
+                    <div
+                      key={ord.id}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      {/* Tarjeta de Imagen Gris / Foto del Pedido (Screenshot 225228) */}
+                      <div
+                        onClick={() => {
+                          setModalType(null);
+                          navigate(`/tracking?order_id=${ord.id}`);
+                        }}
+                        style={{
+                          width: '100%',
+                          aspectRatio: '4 / 3',
+                          borderRadius: '14px',
+                          backgroundColor: '#dcdcdc',
+                          overflow: 'hidden',
+                          position: 'relative',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <img
+                          src={getProductImageUrl({ image_url: primerItem.image_url, name: primerItem.name })}
+                          alt={resumenTitulo}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={e => { e.target.style.display = 'none'; }}
+                        />
+                        <span style={{
+                          position: 'absolute',
+                          top: '6px',
+                          left: '6px',
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          background: ord.status === 'delivered' ? '#10b981' : ord.status === 'cancelled' ? '#ef4444' : 'var(--golden-orange)',
+                          color: ord.status === 'delivered' || ord.status === 'cancelled' ? '#ffffff' : '#111827'
+                        }}>
+                          {ord.status === 'delivered' ? 'Entregado' : ord.status === 'cancelled' ? 'Cancelado' : 'En Curso'}
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px' }}>
-                        {fechaStr} • <strong>{ord.businesses?.name || 'Tropicalia'}</strong>
-                      </div>
-                      <div style={{ fontSize: '0.82rem', borderTop: '1px dashed #e5e7eb', paddingTop: '6px', marginBottom: '8px' }}>
-                        {items.map((it, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span>{it.quantity}x {it.name}</span>
-                            <span>{formatUsd(it.price * it.quantity)}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, fontSize: '0.9rem', marginBottom: '10px' }}>
-                        <span>Total:</span>
-                        <span style={{ color: 'var(--dark-amaranth)' }}>{formatUsd(ord.total)}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalType(null);
-                            navigate(`/tracking?order_id=${ord.id}`);
-                          }}
-                          className="btn-secundario"
-                          style={{ flex: 1, padding: '6px', fontSize: '0.76rem' }}
-                        >
-                          🔍 Ver Seguimiento
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRepetirPedido(ord)}
-                          className="btn-primario"
-                          style={{ flex: 1, padding: '6px', fontSize: '0.76rem' }}
-                        >
-                          🔄 Repetir Pedido
-                        </button>
+
+                      {/* Texto debajo idéntico al diseño: Plato / Precio en Dark Amaranth */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: '0.84rem',
+                          fontWeight: 700,
+                          color: 'var(--dark-amaranth)',
+                          lineHeight: 1.25
+                        }}>
+                          {resumenTitulo}
+                        </div>
+                        <div style={{
+                          fontFamily: 'var(--font-display)',
+                          fontSize: '0.86rem',
+                          fontWeight: 700,
+                          color: 'var(--dark-amaranth)'
+                        }}>
+                          {formatUsd(ord.total)}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#6b7280', marginBottom: '6px' }}>
+                          {fechaStr} • {ord.businesses?.name?.replace('Tropicalia ', '') || 'Tropicalia'}
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalType(null);
+                              navigate(`/tracking?order_id=${ord.id}`);
+                            }}
+                            style={{
+                              flex: 1,
+                              background: '#dedede',
+                              border: 'none',
+                              color: 'var(--dark-amaranth)',
+                              borderRadius: '8px',
+                              padding: '4px 6px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Ver
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRepetirPedido(ord)}
+                            style={{
+                              flex: 1,
+                              background: 'var(--dark-amaranth)',
+                              border: 'none',
+                              color: '#ffffff',
+                              borderRadius: '8px',
+                              padding: '4px 6px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Repetir
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

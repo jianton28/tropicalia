@@ -8,12 +8,13 @@ import { getProductImageUrl } from '../services/imageService';
 import { favoritesService } from '../services/favoritesService';
 import { semanticSearchService } from '../services/semanticSearchService';
 import GlobalSearchBar from '../components/common/GlobalSearchBar';
+import logoImg from '../assets/logo.png';
 
 const CATEGORIAS_FIGMA = [
   'Todos',
-  '❤️ Favoritos',
   'Platos Salados',
   'Platos Dulces',
+  '❤️ Favoritos',
   'Hamburguesas',
   'Pizzas',
   'Sushi',
@@ -35,7 +36,7 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
 
 export default function Home({ onTriggerSearch, searchOpen }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { cart, totalCount, subtotalUsd, addItem } = useCart();
 
   const [tasaBCV, setTasaBCV] = useState(875.65);
@@ -99,6 +100,15 @@ export default function Home({ onTriggerSearch, searchOpen }) {
     const isNowFav = await favoritesService.toggleFavorite(productId, user?.id);
     showToast(isNowFav ? '❤️ Agregado a tus favoritos' : '🤍 Eliminado de tus favoritos');
   }
+
+  useEffect(() => {
+    if (window.location.search.includes('focusSearch=1') || searchOpen) {
+      setTimeout(() => {
+        const el = document.getElementById('global-search-input');
+        if (el) el.focus();
+      }, 200);
+    }
+  }, [searchOpen]);
 
   useEffect(() => {
     fetchTasaBCV().then(r => setTasaBCV(r));
@@ -388,51 +398,149 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         </div>
       )}
 
-      {/* HEADER DE BIENVENIDA Y UBICACIÓN (FIGMA AMARANTO) */}
+      {/* HEADER OFICIAL FIGMA (BORDE RECTO + GRADIENTE RADIAL DARK AMARANTH) */}
       <header className="figma-header">
-        <div className="figma-header-top" style={{ marginBottom: '10px' }}>
-          <h1 className="figma-header-title" style={{ fontSize: '1.6rem' }}>
-            ¡Hola, {nombreUsuario}! 👋
-          </h1>
-          <button
-            type="button"
-            className="figma-delivery-pill"
-            style={{ marginBottom: 0 }}
-            onClick={() => {
-              setTempDireccion(direccion);
-              setShowAddressModal(true);
-            }}
-            title="Cambiar dirección de entrega"
-          >
-            <span>📍</span>
-            <span style={{ maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {direccion}
-            </span>
-            <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>▼</span>
-          </button>
-        </div>
+        <div className="figma-header-top" style={{ marginBottom: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src={logoImg}
+              alt="Tropicalia Mascota"
+              style={{ height: '32px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+            />
+            <h1 className="figma-header-title">
+              {nombreUsuario === 'Bienvenido' ? 'Bienvenido' : `Bienvenido, ${nombreUsuario}`}
+            </h1>
+          </div>
 
-        {/* Buscador Global Inteligente con IA y Sinónimos */}
-        <GlobalSearchBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          interpretacion={interpretacion}
-        />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {role === 'admin' && (
+              <Link
+                to="/admin"
+                style={{
+                  background: 'var(--golden-orange)',
+                  color: '#111827',
+                  padding: '5px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+                title="Panel Admin"
+              >
+                🛡️ Admin
+              </Link>
+            )}
+            {role === 'restaurant' && (
+              <Link
+                to="/cocina"
+                style={{
+                  background: 'var(--golden-orange)',
+                  color: '#111827',
+                  padding: '5px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                👨‍🍳 Cocina
+              </Link>
+            )}
+            {role === 'delivery' && (
+              <Link
+                to="/delivery"
+                style={{
+                  background: '#10b981',
+                  color: '#ffffff',
+                  padding: '5px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  textDecoration: 'none'
+                }}
+              >
+                🛵 Delivery
+              </Link>
+            )}
 
-        {/* Selector de Categorías Horizontal Figma */}
-        <div className="category-scroll-container">
-          {CATEGORIAS_FIGMA.map(cat => (
-            <button
-              key={cat}
-              type="button"
-              className={`category-pill ${categoriaActiva === cat ? 'active' : ''}`}
-              onClick={() => setCategoriaActiva(cat)}
-            >
-              {cat}
-            </button>
-          ))}
+            <Link to="/checkout" className="figma-cart-pill" aria-label="Ir al carrito">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 10h14l-1.4 8.2a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8L5 10z" />
+                <path d="M9 10L11 5h2l2 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <line x1="9" y1="13.5" x2="9" y2="16.5" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" />
+                <line x1="12" y1="13.5" x2="12" y2="16.5" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" />
+                <line x1="15" y1="13.5" x2="15" y2="16.5" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              <span>{totalCount}</span>
+            </Link>
+          </div>
         </div>
       </header>
+
+      {/* FILA DE UBICACIÓN ("Entregar en...") Y TASA BCV SOBRE FONDO BLANCO (FIGMA 225217) */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+        padding: '12px 20px 6px 20px',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          className="figma-delivery-wrapper"
+          onClick={() => {
+            setTempDireccion(direccion);
+            setShowAddressModal(true);
+          }}
+          title="Cambiar dirección de entrega"
+        >
+          <span className="figma-delivery-pin">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--dark-amaranth)" stroke="#ffffff" strokeWidth="1.2">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+              <circle cx="12" cy="9" r="2.6" fill="#ffffff" />
+            </svg>
+          </span>
+          <span className="figma-delivery-pill">
+            <span style={{ maxWidth: '175px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Entregar en... {direccion !== 'Av. Las Delicias, Edif. Torre' ? direccion : ''}
+            </span>
+          </span>
+        </button>
+
+        <span style={{
+          fontSize: '0.73rem',
+          color: 'var(--dark-amaranth)',
+          background: '#f3eef0',
+          border: '1px solid rgba(130, 19, 58, 0.22)',
+          padding: '3px 9px',
+          borderRadius: '999px',
+          fontWeight: 700
+        }}>
+          💵 BCV: {formatBs(tasaBCV)}
+        </span>
+      </div>
+
+      {/* Buscador Global Inteligente con IA y Sinónimos (Apegado al Manual de Marca) */}
+      <GlobalSearchBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        interpretacion={interpretacion}
+      />
+
+      {/* Selector de Categorías Horizontal Figma (Crimson Violet sobre Fondo Blanco) */}
+      <div className="category-scroll-container">
+        {CATEGORIAS_FIGMA.map(cat => (
+          <button
+            key={cat}
+            type="button"
+            className={`category-pill ${categoriaActiva === cat ? 'active' : ''}`}
+            onClick={() => setCategoriaActiva(cat)}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
 
       {/* ESTRUCTURA DE NAVEGACIÓN DE RESTAURANTES TROPICALIA */}
       {listaRestaurantesOrdenados.length > 0 && (
@@ -989,70 +1097,69 @@ export default function Home({ onTriggerSearch, searchOpen }) {
         )}
       </main>
 
-      {/* MODAL DETALLE DE PLATO (FIGMA 'detalle') */}
+      {/* VISTA DETALLE DE PLATO FULLSCREEN (FIGMA 'detalle' 225256) */}
       {selectedProduct && (
-        <div className="modal-figma-overlay" onClick={handleCloseModal}>
-          <div
-            className="modal-figma-sheet"
-            onClick={e => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            {/* Barra superior de cierre y favorito */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div style={{ width: '40px', height: '4px', backgroundColor: '#d1d5db', borderRadius: '999px', margin: '0' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={(e) => handleToggleFavorite(selectedProduct.id, e)}
-                  aria-label={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-                  style={{
-                    background: '#fef2f2',
-                    border: '1px solid #fee2e2',
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    fontSize: '1.1rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.06)'
-                  }}
-                  title={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Guardar en favoritos'}
-                >
-                  {favorites.includes(selectedProduct.id) ? '❤️' : '🤍'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  style={{
-                    background: '#f3f4f6',
-                    border: 'none',
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#4b5563'
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+        <div
+          className="detail-figma-screen"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detalle de ${selectedProduct.name}`}
+        >
+          {/* Header Superior Plano Dark Amaranth */}
+          <header className="figma-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px' }}>
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              style={{
+                background: 'rgba(255,255,255,0.14)',
+                border: 'none',
+                color: '#ffffff',
+                borderRadius: '999px',
+                padding: '6px 14px',
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              ← Volver
+            </button>
 
-            {/* Imagen del plato */}
+            <button
+              type="button"
+              onClick={(e) => handleToggleFavorite(selectedProduct.id, e)}
+              aria-label={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+              style={{
+                background: '#ffffff',
+                border: 'none',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+              }}
+              title={favorites.includes(selectedProduct.id) ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+            >
+              {favorites.includes(selectedProduct.id) ? '❤️' : '🤍'}
+            </button>
+          </header>
+
+          {/* Contenido Blanco del Plato */}
+          <div style={{ padding: '20px' }}>
             <img
               src={getProductImageUrl(selectedProduct)}
               alt={selectedProduct.name}
               className="modal-figma-img"
+              style={{ height: '240px' }}
             />
 
-            {/* Datos del plato */}
             <h2 className="modal-figma-title">{selectedProduct.name}</h2>
             <p className="modal-figma-desc">
               {selectedProduct.description || 'Preparado con ingredientes frescos de la más alta calidad y recetas exclusivas de Tropicalia CRB.'}
@@ -1070,29 +1177,40 @@ export default function Home({ onTriggerSearch, searchOpen }) {
               <div className="opiniones-grid">
                 <div className="opinion-card">
                   <div className="opinion-card-top">
-                    <span style={{ fontWeight: 700, color: '#1f2937' }}>Carlos M.</span>
-                    <span>Hace 2d</span>
+                    <span style={{ fontWeight: 700 }}>Carlos M.</span>
+                    <span>Hoy</span>
                   </div>
                   <div className="opinion-stars">★★★★★</div>
                   <div className="opinion-comment">
-                    "¡Excelente sabor y porción generosa! 100% recomendado."
+                    Excelente
                   </div>
                 </div>
 
                 <div className="opinion-card">
                   <div className="opinion-card-top">
-                    <span style={{ fontWeight: 700, color: '#1f2937' }}>Elena R.</span>
+                    <span style={{ fontWeight: 700 }}>Elena R.</span>
                     <span>Ayer</span>
                   </div>
-                  <div className="opinion-stars">★★★★★</div>
+                  <div className="opinion-stars">★★★★☆</div>
                   <div className="opinion-comment">
-                    "Llegó caliente, empaque impecable y fresco."
+                    Bueno
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Barra inferior "Tu Producto" */}
+          {/* Franja Fija Inferior "Tu Producto" sobre el BottomDock */}
+          <div className="figma-sticky-strip">
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              color: 'var(--dark-amaranth)',
+              marginBottom: '8px'
+            }}>
+              Tu Producto
+            </div>
             <div className="tu-producto-bar">
               <div className="counter-pill">
                 <button
@@ -1122,7 +1240,6 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                 Agregar • {formatUsd(parseFloat(selectedProduct.price || 0) * modalQty)}
               </button>
             </div>
-
           </div>
         </div>
       )}

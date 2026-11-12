@@ -432,11 +432,11 @@ export default function Admin() {
         </div>
       )}
 
-      {/* CABECERA ADMIN DE MARCA TROPICALIA */}
+      {/* CABECERA ADMIN OFICIAL TROPICALIA */}
       <div style={{
-        background: 'linear-gradient(135deg, #1c151e 0%, #291a27 100%)',
-        border: '1px solid #4a2e46',
-        borderRadius: '18px',
+        background: 'var(--tropicalia-radial)',
+        border: '1px solid rgba(239, 157, 36, 0.35)',
+        borderRadius: '16px',
         padding: '18px 24px',
         marginBottom: '22px',
         display: 'flex',
@@ -444,14 +444,15 @@ export default function Admin() {
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.25)'
+        boxShadow: '0 6px 20px rgba(70, 5, 29, 0.25)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: '48px',
             height: '48px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, var(--dark-amaranth), var(--golden-orange))',
+            background: 'rgba(255, 255, 255, 0.14)',
+            border: '1px solid rgba(239, 157, 36, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -460,10 +461,10 @@ export default function Admin() {
             🌴
           </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', margin: 0, color: '#fff', fontWeight: 800 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', margin: 0, color: '#fff', fontWeight: 700 }}>
               Consola Administrativa • Tropicalia CRB
             </h1>
-            <div style={{ fontSize: '0.82rem', color: '#d1c7d0', marginTop: '3px' }}>
+            <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.86)', marginTop: '3px' }}>
               Supervisión general, cierre forzado de comandas, pagos, cortes y flota
             </div>
           </div>
@@ -474,8 +475,16 @@ export default function Admin() {
             await signOut();
             navigate('/portal');
           }}
-          className="btn-secundario"
-          style={{ borderColor: 'var(--red)', color: '#fca5a5', padding: '8px 16px', borderRadius: '10px' }}
+          style={{
+            background: 'rgba(255,255,255,0.15)',
+            color: '#ffffff',
+            border: '1px solid rgba(255,255,255,0.35)',
+            padding: '8px 16px',
+            borderRadius: '999px',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer'
+          }}
         >
           Cerrar Sesión
         </button>

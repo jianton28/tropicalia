@@ -20,22 +20,27 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const isStaffRoute = ['/cocina', '/delivery', '/admin'].includes(location.pathname);
-  const showBottomDock = ['/', '/portal', '/tracking'].includes(location.pathname);
+  const showBottomDock = ['/', '/portal', '/tracking', '/checkout', '/registro'].includes(location.pathname);
 
   function handleSearchClick() {
     if (location.pathname !== '/') {
-      navigate('/?search=1');
+      navigate('/?focusSearch=1');
       setSearchOpen(true);
     } else {
-      setSearchOpen(prev => !prev);
+      setSearchOpen(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => {
+        const input = document.getElementById('global-search-input');
+        if (input) input.focus();
+      }, 150);
     }
   }
 
   return (
     <div className="app-shell">
       <div className={`app-container ${isStaffRoute ? 'wide-layout' : ''}`}>
-        {/* Header Superior Global Oficial Tropicalia en todas las páginas */}
-        <Navbar />
+        {/* Navbar superior en rutas de administración / cocina / repartidores */}
+        {isStaffRoute && <Navbar />}
 
         <div style={{ flex: 1 }}>
           <Routes>
@@ -52,6 +57,8 @@ export default function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/tracking" element={<Tracking />} />
             <Route path="/portal" element={<Portal />} />
+            <Route path="/bienvenida" element={<Navigate to="/portal?welcome=1" replace />} />
+            <Route path="/welcome" element={<Navigate to="/portal?welcome=1" replace />} />
             <Route path="/registro" element={<Registro />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/terminos" element={<Legal />} />

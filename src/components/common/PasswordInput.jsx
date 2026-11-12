@@ -20,9 +20,9 @@ export default function PasswordInput({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div style={{ position: 'relative', width: '100%', marginBottom: '10px' }}>
+    <div style={{ position: 'relative', width: '100%', marginBottom: '12px' }}>
       {label && (
-        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.84rem', fontWeight: 600, color: '#374151' }}>
+        <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.84rem', fontWeight: 700, color: 'var(--dark-amaranth)' }}>
           {label}
         </label>
       )}
@@ -41,6 +41,7 @@ export default function PasswordInput({
           style={{
             width: '100%',
             paddingRight: '44px',
+            marginBottom: 0,
             boxSizing: 'border-box',
             ...style
           }}

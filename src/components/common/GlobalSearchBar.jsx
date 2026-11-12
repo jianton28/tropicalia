@@ -54,9 +54,9 @@ export default function GlobalSearchBar({
   const sugerencias = semanticSearchService.obtenerSugerenciasRapidas();
 
   return (
-    <div style={{ position: 'relative', width: '100%', marginTop: '6px', marginBottom: '12px' }}>
+    <div style={{ position: 'relative', width: '100%', padding: '0 20px', marginTop: '6px', marginBottom: '10px', boxSizing: 'border-box' }}>
       
-      {/* INPUT PRINCIPAL */}
+      {/* INPUT PRINCIPAL (MANUAL DE MARCA TROPICALIA) */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <span
           style={{
@@ -64,16 +64,21 @@ export default function GlobalSearchBar({
             left: '14px',
             top: '50%',
             transform: 'translateY(-50%)',
-            fontSize: '1.05rem',
-            opacity: 0.8,
+            color: 'var(--dark-amaranth)',
             pointerEvents: 'none',
-            zIndex: 2
+            zIndex: 2,
+            display: 'flex',
+            alignItems: 'center'
           }}
         >
-          🔍
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7.5" />
+            <line x1="20" y1="20" x2="16.2" y2="16.2" />
+          </svg>
         </span>
 
         <input
+          id="global-search-input"
           type="text"
           value={localInput}
           onChange={handleInputChange}
@@ -85,9 +90,7 @@ export default function GlobalSearchBar({
             width: '100%',
             paddingLeft: '40px',
             paddingRight: localInput ? '42px' : '16px',
-            boxSizing: 'border-box',
-            boxShadow: isFocused ? '0 0 0 2px rgba(235, 178, 66, 0.45)' : 'none',
-            transition: 'all 0.2s ease'
+            boxSizing: 'border-box'
           }}
           aria-label="Buscar restaurantes y platos"
         />
@@ -98,15 +101,15 @@ export default function GlobalSearchBar({
             onClick={handleClear}
             style={{
               position: 'absolute',
-              right: '12px',
+              right: '10px',
               top: '50%',
               transform: 'translateY(-50%)',
-              background: 'rgba(255, 255, 255, 0.25)',
+              background: 'rgba(130, 19, 58, 0.14)',
               border: 'none',
               borderRadius: '50%',
               width: '24px',
               height: '24px',
-              color: '#ffffff',
+              color: 'var(--dark-amaranth)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -124,7 +127,7 @@ export default function GlobalSearchBar({
         )}
       </div>
 
-      {/* CHIPS DE SUGERENCIAS RÁPIDAS (VISIBLES CUANDO NO HAY BÚSQUEDA ACTIVA) */}
+      {/* CHIPS DE SUGERENCIAS RÁPIDAS (MANUAL DE MARCA: CRIMSON VIOLET / GOLDEN ORANGE) */}
       {!localInput && (
         <div
           style={{
@@ -137,7 +140,7 @@ export default function GlobalSearchBar({
             msOverflowStyle: 'none'
           }}
         >
-          <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.75)', alignSelf: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--dark-amaranth)', alignSelf: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
             Populares:
           </span>
           {sugerencias.map(s => (
@@ -146,13 +149,13 @@ export default function GlobalSearchBar({
               type="button"
               onClick={() => handleSuggestionClick(s.query)}
               style={{
-                background: 'rgba(255, 255, 255, 0.16)',
-                border: '1px solid rgba(255, 255, 255, 0.24)',
+                background: '#f3eef0',
+                border: '1px solid rgba(130, 19, 58, 0.25)',
                 borderRadius: '999px',
-                color: '#ffffff',
+                color: 'var(--dark-amaranth)',
                 padding: '3px 10px',
                 fontSize: '0.72rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s ease'
@@ -169,12 +172,12 @@ export default function GlobalSearchBar({
         <div
           style={{
             marginTop: '8px',
-            background: 'rgba(255, 255, 255, 0.12)',
-            border: '1px solid rgba(255, 255, 255, 0.22)',
+            background: '#fffbeb',
+            border: '1px solid rgba(239, 157, 36, 0.55)',
             borderRadius: '10px',
-            padding: '5px 10px',
+            padding: '6px 10px',
             fontSize: '0.74rem',
-            color: '#fef3c7',
+            color: 'var(--dark-amaranth)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -186,13 +189,13 @@ export default function GlobalSearchBar({
             <span>💡</span>
             <span>
               <strong>Búsqueda Semántica:</strong> "{localInput}" interpretado como{' '}
-              <span style={{ color: '#ffffff', textDecoration: 'underline' }}>
+              <span style={{ color: 'var(--crimson-violet)', textDecoration: 'underline', fontWeight: 700 }}>
                 {interpretacion.conceptosDetectados.join(' y ')}
               </span>
             </span>
           </div>
-          <span style={{ fontSize: '0.68rem', opacity: 0.85, background: 'rgba(0,0,0,0.2)', padding: '1px 6px', borderRadius: '4px' }}>
-            Sinónimos & IA activos
+          <span style={{ fontSize: '0.68rem', color: '#92400e', background: '#fde68a', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+            Sinónimos & IA
           </span>
         </div>
       )}
