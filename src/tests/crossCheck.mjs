@@ -23,8 +23,10 @@ import {
   filtrarYMapearFactura,
   extraerLineasDesdeTextoFactura,
   calcularAnaliticaPlatos,
-  calcularTicketPromedioYCrossSelling
+  calcularTicketPromedioYCrossSelling,
+  actualizarPlatoConBOM
 } from '../services/kitchenAnalyticsService.js';
+import { getProductImageUrl } from '../services/imageService.js';
 
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
 import { semanticSearchService, normalizarTexto } from '../services/semanticSearchService.js';
@@ -392,6 +394,101 @@ assert(platosBajaRotacion[0].id === 'p3' && platosBajaRotacion[0].unidadesVendid
 const ticketInfo = calcularTicketPromedioYCrossSelling(ordenesAnalitica, menuAnalitica);
 assert(ticketInfo.ticketPromedio === 11.00, 'Ticket promedio calculado en $11.00');
 assert(ticketInfo.sugerencias.length === 3, 'Genera sugerencias de venta cruzada (Bebidas, Extras, Postres)');
+
+console.log('\n=== TEST 11: EDICIÓN COMPLETA DE PLATO, FOTO DATAURL Y RECÁLCULO BOM ===');
+assert(
+  getProductImageUrl({ name: 'Burger', image_url: 'data:image/jpeg;base64,/9j/4AAQ' }).startsWith('data:image/'),
+  'getProductImageUrl preserva fotografías locales DataURL'
+);
+
+const mockDbProducts = [{
+  id: 'p1',
+  name: 'Burger Especial',
+  description: 'Clásica',
+  price: 10.00,
+  category: 'Hamburguesas',
+  is_available: true,
+  production_mode: 'on_demand',
+  ready_stock: 0,
+  stock: 50,
+  image_url: null
+}];
+let mockDbRecipes = [
+  { id: 'r1', product_id: 'p1', inventory_item_id: 'i1', quantity_required: 0.2 }
+];
+const mockSbEdit = {
+  from(table) {
+    if (table === 'products') {
+      return {
+        update(payload) {
+          return {
+            eq(col, val) {
+              const idx = mockDbProducts.findIndex(p => p[col] === val);
+              if (idx >= 0) mockDbProducts[idx] = { ...mockDbProducts[idx], ...payload };
+              return {
+                select() {
+                  return {
+                    async single() {
+                      return { data: mockDbProducts[idx], error: null };
+                    }
+                  };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+    if (table === 'product_recipes') {
+      return {
+        delete() {
+          return {
+            async eq(col, val) {
+              mockDbRecipes = mockDbRecipes.filter(r => r[col] !== val);
+              return { error: null };
+            }
+          };
+        },
+        insert(rows) {
+          const inserted = rows.map((r, i) => ({ id: `r_new_${i}`, ...r }));
+          mockDbRecipes.push(...inserted);
+          return {
+            async select() {
+              return { data: inserted, error: null };
+            }
+          };
+        }
+      };
+    }
+    throw new Error(`Tabla no esperada: ${table}`);
+  }
+};
+
+const resEdit = await actualizarPlatoConBOM({
+  productId: 'p1',
+  datosPlato: {
+    name: 'Burger Doble Queso',
+    description: 'Doble carne y pan brioche',
+    price: 14.00,
+    category: 'Premium',
+    is_available: true,
+    production_mode: 'stock',
+    ready_stock: 12,
+    image_url: 'data:image/jpeg;base64,/9j/4AAQ'
+  },
+  ingredientesBOM: [
+    { inventory_item_id: 'i1', quantity_required: 0.4 },
+    { inventory_item_id: 'i2', quantity_required: 0.5 }
+  ],
+  sb: mockSbEdit
+});
+assert(resEdit.success === true && resEdit.producto.name === 'Burger Doble Queso', 'actualizarPlatoConBOM actualiza nombre, descripción y precio');
+assert(resEdit.producto.production_mode === 'stock' && resEdit.producto.ready_stock === 12, 'actualizarPlatoConBOM actualiza modo Stock y ready_stock');
+assert(resEdit.recetas.length === 2, 'actualizarPlatoConBOM sincroniza ingredientes y proporciones BOM');
+const bomPostEdit = calcularCostoYMargenPlato(resEdit.producto, resEdit.recetas, insumosMock);
+assert(bomPostEdit.costoProduccion === 3.60, 'Recálculo BOM tras edición: 0.4*$1.50 + 0.5*$6.00 = $3.60');
+assert(bomPostEdit.comisionCocina === 0.42, 'Recálculo comisión 3% sobre $14.00 = $0.42');
+assert(bomPostEdit.gananciaNeta === 9.98, 'Recálculo ganancia neta por porción = $9.98');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);

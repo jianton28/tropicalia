@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 
 /**
  * Servicio de Gestión y Optimización de Fotos de Perfil (Avatares)

@@ -1,5 +1,8 @@
-// Servicio de resolución de fotos de platos para Tropicalia CRB
-// Provee imágenes de alta resolución gastronómica cuando el plato no tiene image_url cargada en Supabase
+import { supabase } from '../lib/supabase.js';
+import { resizeAndCompressImage } from './avatarService.js';
+
+// Servicio de resolución y carga de fotos de platos para Tropicalia CRB
+// Provee imágenes de alta resolución gastronómica y carga directa con respaldo local
 
 const FOOD_PHOTOS = {
   burger: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80',
@@ -18,7 +21,11 @@ const FOOD_PHOTOS = {
 };
 
 export function getProductImageUrl(product) {
-  if (product?.image_url && typeof product.image_url === 'string' && product.image_url.startsWith('http')) {
+  if (
+    product?.image_url &&
+    typeof product.image_url === 'string' &&
+    (product.image_url.startsWith('http') || product.image_url.startsWith('data:image/'))
+  ) {
     return product.image_url;
   }
 
@@ -38,4 +45,39 @@ export function getProductImageUrl(product) {
   if (name.includes('bebida') || name.includes('jugo') || name.includes('refresco')) return FOOD_PHOTOS.drinks;
 
   return FOOD_PHOTOS.default;
+}
+
+/**
+ * Sube la fotografía de un plato a Supabase Storage ('products' o 'receipts')
+ * con compresión optimizada y respaldo local DataURL si Storage no está disponible.
+ *
+ * @param {File} file
+ * @param {string} businessId
+ * @returns {Promise<{ url: string, storageMode: 'supabase' | 'local_dataurl' }>}
+ */
+export async function uploadDishPhoto(file, businessId = 'general') {
+  if (!file) throw new Error('Archivo de imagen requerido.');
+
+  const { blob, dataUrl } = await resizeAndCompressImage(file, 600, 0.84);
+  const fileName = `dish_${Date.now()}.jpg`;
+  const storagePath = `${businessId}/${fileName}`;
+
+  for (const bucket of ['products', 'receipts', 'avatars']) {
+    try {
+      const { error: upErr } = await supabase.storage
+        .from(bucket)
+        .upload(storagePath, blob, { contentType: 'image/jpeg', upsert: true });
+
+      if (!upErr) {
+        const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+        if (data?.publicUrl) {
+          return { url: `${data.publicUrl}?t=${Date.now()}`, storageMode: 'supabase' };
+        }
+      }
+    } catch {
+      // Continuar al siguiente bucket o fallback local
+    }
+  }
+
+  return { url: dataUrl, storageMode: 'local_dataurl' };
 }

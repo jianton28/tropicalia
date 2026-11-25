@@ -518,3 +518,101 @@ export async function registrarLoteStock({ producto, cantidadLote, recetasDelPla
 
   return { success: true, readyStock: nuevoReadyStock, producto: prodUpd };
 }
+
+/**
+ * Actualiza los datos principales de un plato y sincroniza sus ingredientes/proporciones BOM.
+ * Recalcula automáticamente la estructura en product_recipes y retorna el producto actualizado.
+ *
+ * @param {Object} params
+ * @param {string} params.productId
+ * @param {Object} params.datosPlato
+ * @param {Array<{inventory_item_id: string, quantity_required: number}>} params.ingredientesBOM
+ * @param {Object} [params.sb=supabase]
+ */
+export async function actualizarPlatoConBOM({ productId, datosPlato, ingredientesBOM = [], sb = supabase }) {
+  if (!productId) throw new Error('ID del plato requerido para actualizar.');
+
+  const precio = parseFloat(datosPlato.price);
+  if (isNaN(precio) || precio <= 0) {
+    throw new Error('El precio de venta debe ser mayor a 0.');
+  }
+
+  const productionMode = datosPlato.production_mode === 'stock' ? 'stock' : 'on_demand';
+  const stockNum = parseInt(datosPlato.ready_stock ?? datosPlato.stock ?? 0, 10);
+  const readyStockClean = isNaN(stockNum) || stockNum < 0 ? 0 : stockNum;
+
+  const updatePayload = {
+    name: String(datosPlato.name || '').trim(),
+    description: datosPlato.description !== undefined ? String(datosPlato.description || '').trim() : null,
+    price: parseFloat(precio.toFixed(2)),
+    category: datosPlato.category ? String(datosPlato.category).trim() : null,
+    is_available: Boolean(datosPlato.is_available),
+    image_url: datosPlato.image_url ? String(datosPlato.image_url).trim() : null,
+    production_mode: productionMode,
+    ready_stock: readyStockClean,
+    stock: productionMode === 'stock' ? readyStockClean : parseInt(datosPlato.stock ?? 50, 10)
+  };
+
+  let prodActualizado = null;
+  const { data: p1, error: err1 } = await sb
+    .from('products')
+    .update(updatePayload)
+    .eq('id', productId)
+    .select()
+    .single();
+
+  if (err1) {
+    // Fallback si alguna columna extendida (production_mode/ready_stock) aún no existe en BD remota
+    const fallbackPayload = {
+      name: updatePayload.name,
+      description: updatePayload.description,
+      price: updatePayload.price,
+      category: updatePayload.category,
+      is_available: updatePayload.is_available,
+      image_url: updatePayload.image_url,
+      stock: updatePayload.stock
+    };
+    const { data: p2, error: err2 } = await sb
+      .from('products')
+      .update(fallbackPayload)
+      .eq('id', productId)
+      .select()
+      .single();
+    if (err2) throw err2;
+    prodActualizado = p2;
+  } else {
+    prodActualizado = p1;
+  }
+
+  // Sincronizar ingredientes BOM del plato (eliminar anteriores y reinsertar vigentes)
+  const { error: delErr } = await sb
+    .from('product_recipes')
+    .delete()
+    .eq('product_id', productId);
+
+  if (delErr) throw delErr;
+
+  let recetasActualizadas = [];
+  const validos = (ingredientesBOM || [])
+    .map(r => ({
+      product_id: productId,
+      inventory_item_id: r.inventory_item_id || r.ingredientId,
+      quantity_required: parseFloat(r.quantity_required ?? r.quantity ?? 0)
+    }))
+    .filter(r => r.inventory_item_id && !isNaN(r.quantity_required) && r.quantity_required > 0);
+
+  if (validos.length > 0) {
+    const { data: insRecs, error: insErr } = await sb
+      .from('product_recipes')
+      .insert(validos)
+      .select();
+    if (insErr) throw insErr;
+    recetasActualizadas = insRecs || validos;
+  }
+
+  return {
+    success: true,
+    producto: prodActualizado,
+    recetas: recetasActualizadas
+  };
+}

@@ -156,6 +156,18 @@ export default function Home({ onTriggerSearch, searchOpen }) {
     }
 
     cargarRestaurantes();
+
+    // Sincronización en tiempo real del catálogo cuando Cocina edita un plato o su disponibilidad
+    const prodChannel = supabase
+      .channel('home-products-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        cargarRestaurantes();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(prodChannel);
+    };
   }, []);
 
   async function cargarRestaurantes() {

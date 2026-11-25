@@ -13,8 +13,10 @@ import {
   aplicarActualizacionCostosInventario,
   calcularAnaliticaPlatos,
   calcularTicketPromedioYCrossSelling,
-  registrarLoteStock
+  registrarLoteStock,
+  actualizarPlatoConBOM
 } from '../services/kitchenAnalyticsService';
+import { uploadDishPhoto, getProductImageUrl } from '../services/imageService';
 import {
   Camera,
   FileSpreadsheet,
@@ -22,7 +24,9 @@ import {
   Award,
   ArrowDownRight,
   Scale,
-  Plus
+  Plus,
+  Pencil,
+  Upload
 } from 'lucide-react';
 import {
   ChefHat,
@@ -148,6 +152,25 @@ export default function Cocina() {
   // Dualidad de Producción (Stock vs Por Encargo)
   const [loteCantidades, setLoteCantidades] = useState({});
   const [produciendoLoteId, setProduciendoLoteId] = useState(null);
+
+  // Modal de Edición Completa de Plato y BOM
+  const [editingDish, setEditingDish] = useState(null);
+  const [editDishForm, setEditDishForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    category: '',
+    image_url: '',
+    is_available: true,
+    production_mode: 'on_demand',
+    ready_stock: 0,
+    stock: 50
+  });
+  const [editDishBom, setEditDishBom] = useState([]);
+  const [editBomIngId, setEditBomIngId] = useState('');
+  const [editBomQty, setEditBomQty] = useState('');
+  const [uploadingDishPhoto, setUploadingDishPhoto] = useState(false);
+  const [savingDishEdit, setSavingDishEdit] = useState(false);
   const localRef = useRef(local);
 
   useEffect(() => {
@@ -956,6 +979,135 @@ export default function Cocina() {
     await supabase.from('product_recipes').delete().eq('id', recipeId);
     await cargarProductosYRecetas(local.id);
     showNotification('Ingrediente removido de la receta BOM.');
+  }
+
+  async function handleBomActualizarCantidadInline(recipeId, nuevaCantidad) {
+    const qty = parseFloat(nuevaCantidad);
+    if (isNaN(qty) || qty <= 0) return;
+    await supabase
+      .from('product_recipes')
+      .update({ quantity_required: qty })
+      .eq('id', recipeId);
+    setRecetas(prev => prev.map(r => (r.id === recipeId ? { ...r, quantity_required: qty } : r)));
+  }
+
+  // ==============================================================================
+  // EDICIÓN COMPLETA DE PLATO (DATOS, FOTO, MODO PRODUCCIÓN Y BOM)
+  // ==============================================================================
+  function abrirModalEditarPlato(plato) {
+    if (!plato) return;
+    setEditingDish(plato);
+    setEditDishForm({
+      name: plato.name || '',
+      description: plato.description || '',
+      price: plato.price !== undefined && plato.price !== null ? String(plato.price) : '',
+      category: plato.category || '',
+      image_url: plato.image_url || '',
+      is_available: plato.is_available !== false,
+      production_mode: plato.production_mode === 'stock' ? 'stock' : 'on_demand',
+      ready_stock: parseInt(plato.ready_stock ?? 0, 10) || 0,
+      stock: parseInt(plato.stock ?? 50, 10) || 50
+    });
+    const recsPlato = recetas
+      .filter(r => r.product_id === plato.id)
+      .map(r => ({
+        inventory_item_id: r.inventory_item_id,
+        quantity_required: parseFloat(r.quantity_required || 0)
+      }));
+    setEditDishBom(recsPlato);
+    setEditBomIngId(insumos[0]?.id ?? '');
+    setEditBomQty('');
+  }
+
+  async function handleSubirFotoPlatoEdit(e) {
+    const file = e.target.files?.[0];
+    if (!file || !local) return;
+    setUploadingDishPhoto(true);
+    try {
+      const { url, storageMode } = await uploadDishPhoto(file, local.id);
+      setEditDishForm(prev => ({ ...prev, image_url: url }));
+      showNotification(
+        storageMode === 'supabase'
+          ? 'Fotografía subida a la nube con vista previa lista.'
+          : 'Fotografía optimizada con respaldo local listo para guardar.'
+      );
+    } catch (err) {
+      alert('Error cargando fotografía: ' + err.message);
+    } finally {
+      setUploadingDishPhoto(false);
+    }
+  }
+
+  function handleEditBomAgregarIngrediente() {
+    const ingId = editBomIngId || (insumos[0]?.id ?? '');
+    const qty = parseFloat(editBomQty);
+    if (!ingId || isNaN(qty) || qty <= 0) {
+      alert('Selecciona un ingrediente e ingresa una cantidad mayor a 0.');
+      return;
+    }
+    setEditDishBom(prev => {
+      const sinEste = prev.filter(r => r.inventory_item_id !== ingId);
+      return [...sinEste, { inventory_item_id: ingId, quantity_required: qty }];
+    });
+    setEditBomQty('');
+  }
+
+  function handleEditBomCambiarCantidad(ingId, val) {
+    const qty = parseFloat(val);
+    setEditDishBom(prev =>
+      prev.map(r => (r.inventory_item_id === ingId ? { ...r, quantity_required: isNaN(qty) ? 0 : qty } : r))
+    );
+  }
+
+  function handleEditBomQuitarIngrediente(ingId) {
+    setEditDishBom(prev => prev.filter(r => r.inventory_item_id !== ingId));
+  }
+
+  async function handleGuardarEdicionPlato(e) {
+    e.preventDefault();
+    if (!editingDish || !local) return;
+    if (!editDishForm.name.trim()) {
+      alert('El nombre del plato es obligatorio.');
+      return;
+    }
+    const precioNum = parseFloat(editDishForm.price);
+    if (isNaN(precioNum) || precioNum <= 0) {
+      alert('El precio de venta debe ser mayor a 0.');
+      return;
+    }
+
+    setSavingDishEdit(true);
+    try {
+      const res = await actualizarPlatoConBOM({
+        productId: editingDish.id,
+        datosPlato: {
+          ...editDishForm,
+          price: precioNum
+        },
+        ingredientesBOM: editDishBom
+      });
+
+      // Actualización inmediata del estado local
+      if (res.producto) {
+        setProductos(prev => prev.map(p => (p.id === res.producto.id ? res.producto : p)));
+      }
+      setRecetas(prev => [
+        ...prev.filter(r => r.product_id !== editingDish.id),
+        ...(res.recetas || [])
+      ]);
+      await cargarProductosYRecetas(local.id);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tropicalia:catalogo_actualizado', { detail: res.producto }));
+      }
+
+      showNotification(`Plato "${editDishForm.name}" y su receta BOM actualizados.`);
+      setEditingDish(null);
+    } catch (err) {
+      alert('Error guardando cambios del plato: ' + err.message);
+    } finally {
+      setSavingDishEdit(false);
+    }
   }
 
   // ==============================================================================
@@ -2022,18 +2174,30 @@ export default function Cocina() {
                   </small>
                 </div>
 
-                <select
-                  value={bomSelectedProductId || (productos[0]?.id ?? '')}
-                  onChange={e => setBomSelectedProductId(e.target.value)}
-                  className="form-input-figma"
-                  style={{ margin: 0, minWidth: '240px', fontWeight: 700 }}
-                >
-                  {productos.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — PVP {formatUsd(p.price)}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={bomSelectedProductId || (productos[0]?.id ?? '')}
+                    onChange={e => setBomSelectedProductId(e.target.value)}
+                    className="form-input-figma"
+                    style={{ margin: 0, minWidth: '240px', fontWeight: 700 }}
+                  >
+                    {productos.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — PVP {formatUsd(p.price)}
+                      </option>
+                    ))}
+                  </select>
+                  {productos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => abrirModalEditarPlato(productos.find(p => p.id === (bomSelectedProductId || productos[0]?.id)))}
+                      className="btn-primario"
+                      style={{ padding: '8px 14px', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Pencil size={14} /> Editar Plato y BOM
+                    </button>
+                  )}
+                </div>
               </div>
 
               {(() => {
@@ -2118,7 +2282,19 @@ export default function Cocina() {
                               return (
                                 <tr key={r.id}>
                                   <td><strong>{ins.name}</strong></td>
-                                  <td>{r.quantity_required} {ins.unit}</td>
+                                  <td>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        defaultValue={r.quantity_required}
+                                        onBlur={e => handleBomActualizarCantidadInline(r.id, e.target.value)}
+                                        style={{ width: '80px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 700 }}
+                                      />
+                                      <span style={{ fontSize: '0.78rem', color: '#6b7280' }}>{ins.unit}</span>
+                                    </div>
+                                  </td>
                                   <td>{formatUsd(ins.unit_cost || 0)}</td>
                                   <td><strong style={{ color: 'var(--dark-amaranth)' }}>{formatUsd(sub)}</strong></td>
                                   <td>
@@ -2750,6 +2926,27 @@ export default function Cocina() {
 
                               <button
                                 type="button"
+                                onClick={() => abrirModalEditarPlato(p)}
+                                style={{
+                                  background: '#fffbeb',
+                                  color: '#92400e',
+                                  border: '1px solid var(--golden-orange)',
+                                  padding: '3px 10px',
+                                  borderRadius: '999px',
+                                  fontWeight: 700,
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="Editar plato, foto, modo de producción y receta BOM"
+                              >
+                                <Pencil size={13} color="#b45309" /> Editar
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={() => handleEliminarPlato(p)}
                                 style={{
                                   background: '#fee2e2',
@@ -3173,6 +3370,285 @@ export default function Cocina() {
           </div>
         </div>
       )}
+
+      {/* ==============================================================================
+          MODAL DE EDICIÓN COMPLETA DE PLATO, FOTOGRAFÍA Y BOM
+         ============================================================================== */}
+      {editingDish && (() => {
+        const bomLive = calcularCostoYMargenPlato(
+          { price: parseFloat(editDishForm.price) || 0 },
+          editDishBom,
+          insumos
+        );
+        const previewSrc = editDishForm.image_url || getProductImageUrl({ name: editDishForm.name });
+
+        return (
+          <div className="modal-figma-overlay" onClick={() => !savingDishEdit && setEditingDish(null)}>
+            <div
+              className="modal-figma-sheet"
+              onClick={e => e.stopPropagation()}
+              style={{ maxWidth: '680px', width: '95%', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Pencil size={18} color="var(--dark-amaranth)" /> Editar Plato y Trazabilidad BOM
+                  </h3>
+                  <small style={{ color: '#6b7280' }}>Los cambios se guardan en Supabase y se reflejan de inmediato en menú, BOM y reportes.</small>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingDish(null)}
+                  style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <X size={16} color="#374151" />
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarEdicionPlato} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Fotografía con vista previa inmediata y subida directa */}
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'center', background: '#fdfbf7', padding: '12px', borderRadius: '14px', border: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+                  <div style={{ width: '88px', height: '88px', borderRadius: '12px', overflow: 'hidden', border: '2px solid var(--golden-orange)', flexShrink: 0, background: '#fff' }}>
+                    <img src={previewSrc} alt={editDishForm.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: '220px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--dark-amaranth)', display: 'block', marginBottom: '4px' }}>
+                      Fotografía del Plato (Subir archivo o URL)
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <label style={{
+                        background: 'var(--dark-amaranth)',
+                        color: '#ffffff',
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        fontSize: '0.76rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <Upload size={13} /> {uploadingDishPhoto ? 'Subiendo...' : 'Subir Foto'}
+                        <input type="file" accept="image/*" onChange={handleSubirFotoPlatoEdit} style={{ display: 'none' }} />
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="https://... o foto cargada"
+                        value={editDishForm.image_url}
+                        onChange={e => setEditDishForm(prev => ({ ...prev, image_url: e.target.value }))}
+                        className="form-input-figma"
+                        style={{ margin: 0, padding: '6px 10px', fontSize: '0.8rem', flex: 1 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Datos principales del plato */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Nombre del Plato *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editDishForm.name}
+                      onChange={e => setEditDishForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="form-input-figma"
+                      style={{ margin: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Precio de Venta ($ USD) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      value={editDishForm.price}
+                      onChange={e => setEditDishForm(prev => ({ ...prev, price: e.target.value }))}
+                      className="form-input-figma"
+                      style={{ margin: 0 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Categoría</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Hamburguesas, Bebidas, Postres"
+                      value={editDishForm.category}
+                      onChange={e => setEditDishForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="form-input-figma"
+                      style={{ margin: 0 }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700 }}>Descripción</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Descripción visible en el catálogo del cliente..."
+                    value={editDishForm.description}
+                    onChange={e => setEditDishForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="form-input-figma"
+                    style={{ margin: 0, resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Disponibilidad y Modelo Operativo (Stock vs Por Encargo) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', background: '#f9fafb', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Estado en Menú</label>
+                    <select
+                      value={editDishForm.is_available ? 'true' : 'false'}
+                      onChange={e => setEditDishForm(prev => ({ ...prev, is_available: e.target.value === 'true' }))}
+                      className="form-input-figma"
+                      style={{ margin: 0 }}
+                    >
+                      <option value="true">Disponible para clientes</option>
+                      <option value="false">Pausado / Agotado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Modelo Operativo</label>
+                    <select
+                      value={editDishForm.production_mode}
+                      onChange={e => setEditDishForm(prev => ({ ...prev, production_mode: e.target.value }))}
+                      className="form-input-figma"
+                      style={{ margin: 0 }}
+                    >
+                      <option value="on_demand">Por Encargo (Bajo Pedido)</option>
+                      <option value="stock">Modo Stock (Lotes Anticipados)</option>
+                    </select>
+                  </div>
+                  {editDishForm.production_mode === 'stock' && (
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Stock Listo (Porciones)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editDishForm.ready_stock}
+                        onChange={e => setEditDishForm(prev => ({ ...prev, ready_stock: parseInt(e.target.value || '0', 10) }))}
+                        className="form-input-figma"
+                        style={{ margin: 0 }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Receta e Ingredientes BOM con recálculo en vivo */}
+                <div style={{ background: '#fdfbf7', border: '1.5px dashed #d6cbbe', borderRadius: '14px', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                    <strong style={{ color: 'var(--dark-amaranth)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Scale size={16} color="var(--dark-amaranth)" /> Ingredientes y Proporciones (BOM)
+                    </strong>
+                    <div style={{ display: 'flex', gap: '10px', fontSize: '0.76rem', fontWeight: 700, flexWrap: 'wrap' }}>
+                      <span style={{ color: 'var(--crimson-violet)' }}>Costo BOM: {formatUsd(bomLive.costoProduccion)}</span>
+                      <span style={{ color: '#b45309' }}>Com. 3%: -{formatUsd(bomLive.comisionCocina)}</span>
+                      <span style={{ color: bomLive.gananciaNeta >= 0 ? '#059669' : '#dc2626' }}>
+                        Ganancia Neta: {formatUsd(bomLive.gananciaNeta)} ({bomLive.margenPct}%)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '8px', marginBottom: '10px' }}>
+                    <select
+                      value={editBomIngId || (insumos[0]?.id ?? '')}
+                      onChange={e => setEditBomIngId(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '7px 8px', fontSize: '0.82rem' }}
+                    >
+                      {insumos.map(i => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} ({i.unit}) — {formatUsd(i.unit_cost || 0)}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="Cant./porción"
+                      value={editBomQty}
+                      onChange={e => setEditBomQty(e.target.value)}
+                      className="form-input-figma"
+                      style={{ margin: 0, padding: '7px 8px', fontSize: '0.82rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleEditBomAgregarIngrediente}
+                      className="btn-primario"
+                      style={{ padding: '7px 12px', fontSize: '0.8rem', background: 'var(--crimson-violet)', color: '#fff', borderRadius: '8px' }}
+                    >
+                      + Añadir
+                    </button>
+                  </div>
+
+                  {editDishBom.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#78716c', fontStyle: 'italic' }}>
+                      Sin ingredientes asociados en el BOM. Agrega los insumos arriba.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {editDishBom.map(item => {
+                        const ins = insumos.find(i => i.id === item.inventory_item_id);
+                        if (!ins) return null;
+                        const sub = parseFloat(item.quantity_required || 0) * parseFloat(ins.unit_cost || 0);
+                        return (
+                          <div key={item.inventory_item_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e5e7eb', gap: '8px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, flex: 1 }}>{ins.name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={item.quantity_required}
+                                onChange={e => handleEditBomCambiarCantidad(item.inventory_item_id, e.target.value)}
+                                style={{ width: '74px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.8rem' }}
+                              />
+                              <span style={{ fontSize: '0.74rem', color: '#6b7280', minWidth: '30px' }}>{ins.unit}</span>
+                            </div>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--dark-amaranth)', minWidth: '58px', textAlign: 'right' }}>
+                              {formatUsd(sub)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleEditBomQuitarIngrediente(item.inventory_item_id)}
+                              style={{ background: '#fee2e2', border: 'none', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              title="Quitar ingrediente"
+                            >
+                              <TrashVinoIcon size={13} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDish(null)}
+                    className="btn-secundario"
+                    style={{ flex: 1 }}
+                    disabled={savingDishEdit}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primario"
+                    style={{ flex: 2, background: 'var(--dark-amaranth)', color: '#fff', fontWeight: 800 }}
+                    disabled={savingDishEdit}
+                  >
+                    {savingDishEdit ? 'Guardando Cambios...' : 'Guardar Cambios y Recalcular BOM'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
