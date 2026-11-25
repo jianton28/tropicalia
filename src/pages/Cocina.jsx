@@ -111,8 +111,9 @@ export default function Cocina() {
   const [mermaNotas, setMermaNotas] = useState('');
   const [registrandoMerma, setRegistrandoMerma] = useState(false);
 
-  // Gráficos de ganancias
+  // Gráficos de ganancias & subpestañas analíticas
   const [chartPeriodo, setChartPeriodo] = useState('semana'); // 'dia', 'semana', 'mes', 'anio'
+  const [gananciasSubTab, setGananciasSubTab] = useState('resumen'); // 'resumen' | 'platos' | 'ticket'
   const chartCanvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
@@ -1419,47 +1420,89 @@ export default function Cocina() {
 
       <div style={{ padding: '0 20px' }}>
 
-        {/* PESTAÑAS DE CONTROL DE COCINA */}
-        <nav style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '16px', scrollbarWidth: 'none' }}>
-          {[
-            { id: 'comandas', label: `Comandas (${comandasEnCurso.length})`, icon: ClipboardList },
-            { id: 'inventario', label: `Lista de Compras (${insumos.length})`, icon: ShoppingBag },
-            { id: 'bom', label: 'Trazabilidad BOM', icon: Scale },
-            { id: 'produccion', label: 'Stock vs. Encargo', icon: Layers },
-            { id: 'merma', label: 'Control de Merma', icon: TrashVinoIcon },
-            { id: 'ganancias', label: 'Ganancias y Reportes', icon: TrendingUp },
-            { id: 'menu', label: `Platos (${productos.length})`, icon: ChefHat },
-            { id: 'salon', label: 'Venta Salón', icon: Store }
-          ].map(tabItem => {
-            const TabIcon = tabItem.icon;
-            const isCurrent = tab === tabItem.id;
-            return (
-              <button
-                key={tabItem.id}
-                type="button"
-                onClick={() => setTab(tabItem.id)}
-                style={{
-                  background: isCurrent ? 'var(--dark-amaranth)' : '#ffffff',
-                  color: isCurrent ? '#ffffff' : '#4b5563',
-                  border: isCurrent ? '1px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
-                  padding: '8px 16px',
-                  borderRadius: '999px',
-                  fontWeight: 700,
-                  fontSize: '0.84rem',
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: isCurrent ? '0 4px 12px rgba(130, 19, 58, 0.25)' : 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <TabIcon size={14} color={isCurrent ? '#ffffff' : 'var(--dark-amaranth)'} />
-                <span>{tabItem.label}</span>
-              </button>
-            );
-          })}
+        {/* PESTAÑAS DE CONTROL DE COCINA (OPERACIÓN EN VIVO vs GESTIÓN Y ANÁLISIS) */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', alignItems: 'center', scrollbarWidth: 'none' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--dark-amaranth)', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '4px' }}>
+              Operación:
+            </span>
+            {[
+              { id: 'comandas', label: `Comandas (${comandasEnCurso.length})`, icon: ClipboardList },
+              { id: 'produccion', label: 'Stock vs. Encargo', icon: Layers },
+              { id: 'salon', label: 'Venta Salón', icon: Store }
+            ].map(tabItem => {
+              const TabIcon = tabItem.icon;
+              const isCurrent = tab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => setTab(tabItem.id)}
+                  style={{
+                    background: isCurrent ? 'var(--dark-amaranth)' : '#ffffff',
+                    color: isCurrent ? '#ffffff' : '#4b5563',
+                    border: isCurrent ? '1px solid var(--dark-amaranth)' : '1px solid #e5e7eb',
+                    padding: '7px 14px',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isCurrent ? '0 4px 12px rgba(130, 19, 58, 0.25)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <TabIcon size={14} color={isCurrent ? '#ffffff' : 'var(--dark-amaranth)'} />
+                  <span>{tabItem.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', alignItems: 'center', paddingBottom: '4px', scrollbarWidth: 'none' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--crimson-violet)', letterSpacing: '0.05em', whiteSpace: 'nowrap', marginRight: '4px' }}>
+              Gestión:
+            </span>
+            {[
+              { id: 'menu', label: `Platos (${productos.length})`, icon: ChefHat },
+              { id: 'bom', label: 'Trazabilidad BOM', icon: Scale },
+              { id: 'inventario', label: `Compras (${insumos.length})`, icon: ShoppingBag },
+              { id: 'merma', label: 'Merma', icon: TrashVinoIcon },
+              { id: 'ganancias', label: 'Ganancias y Reportes', icon: TrendingUp }
+            ].map(tabItem => {
+              const TabIcon = tabItem.icon;
+              const isCurrent = tab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => setTab(tabItem.id)}
+                  style={{
+                    background: isCurrent ? 'var(--crimson-violet)' : '#fdfbf7',
+                    color: isCurrent ? '#ffffff' : '#4b5563',
+                    border: isCurrent ? '1px solid var(--crimson-violet)' : '1px solid #e5e7eb',
+                    padding: '7px 14px',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isCurrent ? '0 4px 12px rgba(87, 24, 70, 0.22)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <TabIcon size={14} color={isCurrent ? '#ffffff' : 'var(--crimson-violet)'} />
+                  <span>{tabItem.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         {/* ==============================================================================
@@ -2569,7 +2612,43 @@ export default function Cocina() {
            ============================================================================== */}
         {tab === 'ganancias' && (
           <div>
-            
+            {/* SUBPESTAÑAS COMPACTAS DE GANANCIAS Y REPORTES */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {[
+                { id: 'resumen', label: 'Resumen y Liquidación', icon: TrendingUp },
+                { id: 'platos', label: 'Platos Estrella y Baja Rotación', icon: Award },
+                { id: 'ticket', label: 'Ticket Promedio y Venta Cruzada', icon: DollarSign }
+              ].map(st => {
+                const StIcon = st.icon;
+                const active = gananciasSubTab === st.id;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setGananciasSubTab(st.id)}
+                    style={{
+                      background: active ? 'var(--golden-orange)' : '#ffffff',
+                      color: active ? '#1f2937' : '#4b5563',
+                      border: active ? '1px solid var(--golden-orange)' : '1px solid #e5e7eb',
+                      borderRadius: '999px',
+                      padding: '7px 14px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <StIcon size={14} color={active ? '#1f2937' : 'var(--dark-amaranth)'} />
+                    {st.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {gananciasSubTab === 'resumen' && (
+              <div>
             {/* TARJETAS KPI DE GANANCIAS */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
               <div className="kpi-stat-card">
@@ -2709,15 +2788,18 @@ export default function Cocina() {
               </div>
 
             </div>
+              </div>
+            )}
 
             {/* ANALÍTICA AVANZADA: TICKET PROMEDIO, VENTA CRUZADA, PLATOS ESTRELLA Y BAJA ROTACIÓN */}
-            {(() => {
+            {gananciasSubTab !== 'resumen' && (() => {
               const { platosEstrella, platosBajaRotacion } = calcularAnaliticaPlatos(comandasEntregadas, productos, recetas, insumos);
               const ticketData = calcularTicketPromedioYCrossSelling(comandasEntregadas, productos);
 
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {/* 1. TICKET PROMEDIO Y VENTA CRUZADA */}
+                  {gananciasSubTab === 'ticket' && (
                   <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
                       <div>
@@ -2760,8 +2842,10 @@ export default function Cocina() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                   {/* 2. PLATOS ESTRELLA Y BAJA ROTACIÓN */}
+                  {gananciasSubTab === 'platos' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
                     <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '18px' }}>
                       <h4 style={{ margin: '0 0 12px 0', color: 'var(--dark-amaranth)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2814,6 +2898,7 @@ export default function Cocina() {
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               );
             })()}

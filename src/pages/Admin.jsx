@@ -38,6 +38,7 @@ export default function Admin() {
   const { signOut } = useAuth();
 
   const [tab, setTab] = useState('activas'); // 'activas', 'pagos', 'cortes', 'liquidaciones_drivers', 'locales', 'drivers', 'ordenes'
+  const [driverLiqSubTab, setDriverLiqSubTab] = useState('retiros'); // 'retiros' | 'arqueo'
   const [pagos, setPagos] = useState([]);
   const [cortes, setCortes] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -906,9 +907,51 @@ export default function Admin() {
 
       {/* 4. LIQUIDACIÓN DE REPARTIDORES (RETIROS DIGITALES Y ARQUEO DE EFECTIVO) */}
       {tab === 'liquidaciones_drivers' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* SUBPESTAÑAS COMPACTAS DE LIQUIDACIÓN DRIVERS */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setDriverLiqSubTab('retiros')}
+              style={{
+                background: driverLiqSubTab === 'retiros' ? 'var(--dark-amaranth)' : '#ffffff',
+                color: driverLiqSubTab === 'retiros' ? '#ffffff' : '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '999px',
+                padding: '7px 14px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <DollarSign size={14} /> Retiros Pago Móvil ({driverWithdrawals.filter(w => w.status === 'pending').length} pendientes)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDriverLiqSubTab('arqueo')}
+              style={{
+                background: driverLiqSubTab === 'arqueo' ? 'var(--crimson-violet)' : '#ffffff',
+                color: driverLiqSubTab === 'arqueo' ? '#ffffff' : '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '999px',
+                padding: '7px 14px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Bike size={14} /> Arqueo Efectivo en Calle ({drivers.length})
+            </button>
+          </div>
           
           {/* SECCIÓN 1: SOLICITUDES DE RETIRO PAGO MÓVIL */}
+          {driverLiqSubTab === 'retiros' && (
           <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
@@ -1050,8 +1093,10 @@ export default function Admin() {
               </div>
             )}
           </div>
+          )}
 
           {/* SECCIÓN 2: CONTROL Y FISCALIZACIÓN DE DEUDA EN CALLE */}
+          {driverLiqSubTab === 'arqueo' && (
           <div className="card" style={{ background: '#ffffff', borderRadius: '18px', padding: '22px', border: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div>
@@ -1162,6 +1207,7 @@ export default function Admin() {
               </table>
             </div>
           </div>
+          )}
         </div>
       )}
 

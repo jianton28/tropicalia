@@ -64,8 +64,10 @@ export default function Delivery() {
   const [montoRetiro, setMontoRetiro] = useState('');
   const [retirando, setRetirando] = useState(false);
 
-  // Toast
+  // Toast & UX compacta
   const [toastMsg, setToastMsg] = useState('');
+  const [driverTab, setDriverTab] = useState('disponibles'); // 'ruta' | 'disponibles'
+  const [mostrarMapaGPS, setMostrarMapaGPS] = useState(false);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -735,13 +737,77 @@ export default function Delivery() {
         )}
       </div>
 
-      {/* MAPA GPS EN VIVO */}
-      <div style={{ height: '220px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e5e7eb', marginBottom: '22px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
-        <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {/* BARRA DE PESTAÑAS OPERATIVAS Y TOGGLE MAPA GPS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setDriverTab('ruta')}
+            style={{
+              background: (driverTab === 'ruta' || (pedidoActivo && driverTab !== 'disponibles')) ? 'var(--dark-amaranth)' : '#ffffff',
+              color: (driverTab === 'ruta' || (pedidoActivo && driverTab !== 'disponibles')) ? '#ffffff' : '#374151',
+              border: '1px solid #e5e7eb',
+              padding: '8px 16px',
+              borderRadius: '999px',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Bike size={14} /> En Ruta {pedidoActivo ? '(1 Activa)' : '(0)'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDriverTab('disponibles')}
+            style={{
+              background: driverTab === 'disponibles' && !pedidoActivo ? 'var(--dark-amaranth)' : (driverTab === 'disponibles' ? 'var(--dark-amaranth)' : '#ffffff'),
+              color: driverTab === 'disponibles' ? '#ffffff' : '#374151',
+              border: '1px solid #e5e7eb',
+              padding: '8px 16px',
+              borderRadius: '999px',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <ShoppingBag size={14} /> Disponibles ({pedidosDisponibles.length})
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMostrarMapaGPS(prev => !prev);
+            setTimeout(() => mapInstanceRef.current?.invalidateSize(), 150);
+          }}
+          className="btn-secundario"
+          style={{ fontSize: '0.78rem', padding: '7px 14px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <MapPin size={14} color="var(--dark-amaranth)" /> {mostrarMapaGPS ? 'Ocultar Mapa GPS' : 'Ver Mapa GPS'}
+        </button>
+      </div>
+
+      {/* MAPA GPS EN VIVO (COLAPSABLE PARA EVITAR SCROLL INNECESARIO) */}
+      <div style={{
+        height: mostrarMapaGPS ? '220px' : '0px',
+        opacity: mostrarMapaGPS ? 1 : 0,
+        overflow: 'hidden',
+        borderRadius: '16px',
+        border: mostrarMapaGPS ? '1px solid #e5e7eb' : 'none',
+        marginBottom: mostrarMapaGPS ? '18px' : '0px',
+        transition: 'all 0.2s ease'
+      }}>
+        <div ref={mapContainerRef} style={{ width: '100%', height: '220px' }} />
       </div>
 
       {/* CARRERA ACTIVA EN CURSO */}
-      {pedidoActivo && (
+      {pedidoActivo && driverTab !== 'disponibles' && (
         <div style={{
           background: 'linear-gradient(135deg, #201722 0%, #2d1d2b 100%)',
           border: '2px solid var(--golden-orange)',
@@ -854,6 +920,7 @@ export default function Delivery() {
       )}
 
       {/* POOL DE CARRERAS DISPONIBLES */}
+      {(!pedidoActivo || driverTab === 'disponibles') && (
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <h2 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--dark-amaranth)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -926,7 +993,10 @@ export default function Delivery() {
                     </p>
 
                     <div style={{ background: '#fdfbf7', border: '1px solid #f2e9dc', borderRadius: '10px', padding: '10px', margin: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#78716c' }}>Tu Ganancia:</span>
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: '#78716c', display: 'block' }}>Tu Ganancia Neta:</span>
+                        <small style={{ fontSize: '0.68rem', color: '#9ca3af' }}>Flete {formatUsd(flete)} - Com. 2% ({formatUsd(comision2)})</small>
+                      </div>
                       <strong style={{ color: '#10b981', fontSize: '1.2rem' }}>
                         {formatUsd(ganancia)}
                       </strong>
@@ -956,6 +1026,7 @@ export default function Delivery() {
           </div>
         )}
       </div>
+      )}
 
       {/* MODAL 1: FINALIZAR ENTREGA SEGURA CON CÓDIGO */}
       {mostrarModal && (

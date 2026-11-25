@@ -984,6 +984,21 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                               />
                             </div>
                             <h3 className="product-card-name">{p.name}</h3>
+                            <span style={{
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '999px',
+                              display: 'inline-block',
+                              marginBottom: '4px',
+                              background: p.production_mode === 'stock' ? '#ecfdf5' : '#fdfbf7',
+                              color: p.production_mode === 'stock' ? '#065f46' : 'var(--crimson-violet)',
+                              border: `1px solid ${p.production_mode === 'stock' ? '#a7f3d0' : '#e5e7eb'}`
+                            }}>
+                              {p.production_mode === 'stock'
+                                ? (parseInt(p.ready_stock || 0, 10) > 0 ? `Stock listo: ${p.ready_stock}` : 'Lote agotado')
+                                : 'Por encargo'}
+                            </span>
                             {p.matchedReason && (
                               <span style={{ fontSize: '0.68rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
                                 <Sparkles size={11} color="#047857" /> {p.matchedReason}
@@ -1131,6 +1146,21 @@ export default function Home({ onTriggerSearch, searchOpen }) {
                         />
                       </div>
                       <h3 className="product-card-name">{p.name}</h3>
+                      <span style={{
+                        fontSize: '0.66rem',
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: '999px',
+                        display: 'inline-block',
+                        marginBottom: '4px',
+                        background: p.production_mode === 'stock' ? '#ecfdf5' : '#fdfbf7',
+                        color: p.production_mode === 'stock' ? '#065f46' : 'var(--crimson-violet)',
+                        border: `1px solid ${p.production_mode === 'stock' ? '#a7f3d0' : '#e5e7eb'}`
+                      }}>
+                        {p.production_mode === 'stock'
+                          ? (parseInt(p.ready_stock || 0, 10) > 0 ? `Stock listo: ${p.ready_stock}` : 'Lote agotado')
+                          : 'Por encargo'}
+                      </span>
                       <p className="product-card-price">{formatUsd(precioUsd)}</p>
                       <span className="product-card-bs">{formatBs(precioBs)}</span>
                     </div>
