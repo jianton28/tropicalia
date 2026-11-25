@@ -5,8 +5,25 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
 import { descontarStockDeOrden, cancelarOrdenConReversion } from '../services/inventoryService';
-import { abrirNotificacionWhatsApp } from '../services/whatsappService';
-import { procesarBalanceCompletado } from '../services/paymentService';
+import { abrirNotificacionWhatsApp, abrirNotificacionWhatsAppSiCorresponde } from '../services/whatsappService';
+import { procesarBalanceCompletado, COMISION_COCINA_PCT } from '../services/paymentService';
+import {
+  calcularCostoYMargenPlato,
+  procesarImagenFacturaOCR,
+  aplicarActualizacionCostosInventario,
+  calcularAnaliticaPlatos,
+  calcularTicketPromedioYCrossSelling,
+  registrarLoteStock
+} from '../services/kitchenAnalyticsService';
+import {
+  Camera,
+  FileSpreadsheet,
+  Layers,
+  Award,
+  ArrowDownRight,
+  Scale,
+  Plus
+} from 'lucide-react';
 import {
   ChefHat,
   ShoppingBag,
@@ -113,6 +130,24 @@ export default function Cocina() {
   // Notificación toast de acción
   const [toastMsg, setToastMsg] = useState('');
   const [todosLosLocales, setTodosLosLocales] = useState([]);
+
+  // Actualización Inteligente de Costos (OCR / Manual)
+  const [mostrarActualizadorCostos, setMostrarActualizadorCostos] = useState(false);
+  const [modoCostos, setModoCostos] = useState('ocr'); // 'ocr' | 'manual'
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrTextoRespaldo, setOcrTextoRespaldo] = useState('');
+  const [ocrPreview, setOcrPreview] = useState(null); // { actualizables, ignorados, origen }
+  const [manualCostEdits, setManualCostEdits] = useState({});
+  const [guardandoCostos, setGuardandoCostos] = useState(false);
+
+  // Trazabilidad BOM independiente
+  const [bomSelectedProductId, setBomSelectedProductId] = useState('');
+  const [bomAddIngId, setBomAddIngId] = useState('');
+  const [bomAddQty, setBomAddQty] = useState('');
+
+  // Dualidad de Producción (Stock vs Por Encargo)
+  const [loteCantidades, setLoteCantidades] = useState({});
+  const [produciendoLoteId, setProduciendoLoteId] = useState(null);
   const localRef = useRef(local);
 
   useEffect(() => {
@@ -516,15 +551,15 @@ export default function Cocina() {
     if (nuevoEstado === 'cooking') {
       await descontarStockDeOrden(orden);
       await cargarInventario(local.id);
-      abrirNotificacionWhatsApp(orden, 'cooking', local);
-      showNotification('Comanda en preparación. Notificación enviada por WhatsApp.');
+      await cargarProductosYRecetas(local.id);
+      showNotification('Comanda en preparación. El cliente sigue el avance en vivo.');
     }
 
     if (nuevoEstado === 'ready') {
-      abrirNotificacionWhatsApp(orden, 'ready', local);
-      showNotification(orden.delivery_type === 'pickup'
-        ? 'Pedido listo en barra. WhatsApp enviado al cliente.'
-        : 'Pedido empacado. Repartidores notificados.'
+      const resWa = abrirNotificacionWhatsAppSiCorresponde(orden, 'ready', local);
+      showNotification(orden.delivery_type === 'pickup' && !resWa?.skipped
+        ? 'Pedido listo en barra. Aviso único enviado por WhatsApp.'
+        : 'Pedido empacado. Repartidores notificados en vivo.'
       );
     }
 
@@ -534,8 +569,7 @@ export default function Cocina() {
       } catch (e) {
         console.warn('Balance en cocina:', e);
       }
-      abrirNotificacionWhatsApp(orden, 'delivered', local);
-      showNotification('Pedido completado y entregado al cliente. Notificación de WhatsApp enviada.');
+      showNotification('Pedido completado y entregado.');
     }
 
     await supabase.from('orders').update(payload).eq('id', ordenId);
@@ -777,7 +811,7 @@ export default function Cocina() {
       return;
     }
 
-    const comision = parseFloat((bruto * 0.10).toFixed(2));
+    const comision = parseFloat((bruto * COMISION_COCINA_PCT).toFixed(2));
     const neto = parseFloat((bruto - comision).toFixed(2));
 
     const { data: nuevoCorte, error } = await supabase.from('cash_closures').insert([{
@@ -793,6 +827,179 @@ export default function Cocina() {
       alert(`Solicitud de liquidación enviada por ${formatUsd(neto)}. Administración procesará tu transferencia.`);
     } else {
       alert('Error al enviar corte: ' + (error?.message || 'Intente de nuevo.'));
+    }
+  }
+
+  // ==============================================================================
+  // ACTUALIZACIÓN INTELIGENTE DE COSTOS (OCR FACTURA / MANUAL)
+  // ==============================================================================
+  function abrirActualizadorCostos(modo = 'ocr') {
+    setModoCostos(modo);
+    const mapa = {};
+    insumos.forEach(i => {
+      mapa[i.id] = {
+        unitCost: parseFloat(i.unit_cost || 0).toString(),
+        addQty: ''
+      };
+    });
+    setManualCostEdits(mapa);
+    setMostrarActualizadorCostos(prev => !prev);
+  }
+
+  async function handleProcesarFotoFactura(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOcrLoading(true);
+    try {
+      const res = await procesarImagenFacturaOCR(file, insumos, '');
+      setOcrPreview(res);
+      showNotification(`Factura analizada: ${res.actualizables.length} insumos mapeados, ${res.ignorados.length} ajenos ignorados.`);
+    } catch (err) {
+      alert('Error analizando la factura: ' + err.message);
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
+  async function handleProcesarTextoFactura() {
+    if (!ocrTextoRespaldo.trim()) return;
+    setOcrLoading(true);
+    try {
+      const res = await procesarImagenFacturaOCR(null, insumos, ocrTextoRespaldo);
+      setOcrPreview(res);
+      showNotification(`Texto procesado: ${res.actualizables.length} insumos válidos, ${res.ignorados.length} ignorados.`);
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
+  async function handleAplicarCostosOCR(sumarStock = true) {
+    if (!ocrPreview || ocrPreview.actualizables.length === 0) return;
+    setGuardandoCostos(true);
+    try {
+      const payload = ocrPreview.actualizables.map(it => ({
+        ...it,
+        sumarCantidad: sumarStock
+      }));
+      const res = await aplicarActualizacionCostosInventario(payload);
+      await cargarInventario(local.id);
+      setOcrPreview(null);
+      setOcrTextoRespaldo('');
+      setMostrarActualizadorCostos(false);
+      showNotification(`${res.actualizados} costos actualizados. Márgenes BOM recalculados automáticamente.`);
+    } catch (err) {
+      alert('Error aplicando costos: ' + err.message);
+    } finally {
+      setGuardandoCostos(false);
+    }
+  }
+
+  async function handleGuardarCostosManuales(e) {
+    e.preventDefault();
+    setGuardandoCostos(true);
+    try {
+      const lista = insumos.map(ins => {
+        const ed = manualCostEdits[ins.id] || {};
+        const nuevoCosto = parseFloat(ed.unitCost);
+        const cantSumar = parseFloat(ed.addQty || 0);
+        return {
+          insumoId: ins.id,
+          nuevoCostoUnitario: isNaN(nuevoCosto) ? 0 : nuevoCosto,
+          cantidadComprada: isNaN(cantSumar) ? 0 : cantSumar,
+          sumarCantidad: cantSumar > 0
+        };
+      }).filter(x => x.nuevoCostoUnitario > 0);
+
+      const res = await aplicarActualizacionCostosInventario(lista);
+      await cargarInventario(local.id);
+      setMostrarActualizadorCostos(false);
+      showNotification(`${res.actualizados} costos unitarios guardados. Módulo BOM actualizado.`);
+    } catch (err) {
+      alert('Error guardando costos manuales: ' + err.message);
+    } finally {
+      setGuardandoCostos(false);
+    }
+  }
+
+  // ==============================================================================
+  // TRAZABILIDAD DE RECETAS (BOM) INDEPENDIENTE
+  // ==============================================================================
+  async function handleBomAgregarIngrediente(e) {
+    e.preventDefault();
+    const prodId = bomSelectedProductId || (productos[0]?.id ?? '');
+    const ingId = bomAddIngId || (insumos[0]?.id ?? '');
+    const qty = parseFloat(bomAddQty);
+
+    if (!prodId || !ingId || isNaN(qty) || qty <= 0) {
+      alert('Selecciona un plato, un ingrediente y una cantidad mayor a 0.');
+      return;
+    }
+
+    const existente = recetas.find(r => r.product_id === prodId && r.inventory_item_id === ingId);
+    if (existente) {
+      await supabase
+        .from('product_recipes')
+        .update({ quantity_required: qty })
+        .eq('id', existente.id);
+    } else {
+      await supabase
+        .from('product_recipes')
+        .insert([{ product_id: prodId, inventory_item_id: ingId, quantity_required: qty }]);
+    }
+
+    setBomAddQty('');
+    await cargarProductosYRecetas(local.id);
+    showNotification('Ingrediente asociado a la receta BOM. Costo recalculado.');
+  }
+
+  async function handleBomEliminarIngrediente(recipeId) {
+    await supabase.from('product_recipes').delete().eq('id', recipeId);
+    await cargarProductosYRecetas(local.id);
+    showNotification('Ingrediente removido de la receta BOM.');
+  }
+
+  // ==============================================================================
+  // DUALIDAD DE PRODUCCIÓN: STOCK (LOTES ANTICIPADOS) VS POR ENCARGO
+  // ==============================================================================
+  async function handleCambiarModoProduccion(producto, nuevoModo) {
+    const { error } = await supabase
+      .from('products')
+      .update({ production_mode: nuevoModo })
+      .eq('id', producto.id);
+
+    if (!error) {
+      await cargarProductosYRecetas(local.id);
+      showNotification(`"${producto.name}" configurado en modo ${nuevoModo === 'stock' ? 'Stock (Lotes Anticipados)' : 'Por Encargo (Bajo Pedido)'}.`);
+    } else {
+      alert('Error cambiando modo de producción: ' + error.message);
+    }
+  }
+
+  async function handleRegistrarLoteStock(producto) {
+    const cant = parseInt(loteCantidades[producto.id] || '0', 10);
+    if (isNaN(cant) || cant <= 0) {
+      alert('Ingresa la cantidad de porciones preparadas para el lote.');
+      return;
+    }
+    setProduciendoLoteId(producto.id);
+    try {
+      const recsPlato = recetas.filter(r => r.product_id === producto.id);
+      const res = await registrarLoteStock({
+        producto,
+        cantidadLote: cant,
+        recetasDelPlato: recsPlato,
+        insumos
+      });
+      setLoteCantidades(prev => ({ ...prev, [producto.id]: '' }));
+      await Promise.all([
+        cargarInventario(local.id),
+        cargarProductosYRecetas(local.id)
+      ]);
+      showNotification(`Lote de +${cant} "${producto.name}" registrado (Stock listo: ${res.readyStock}). Ingredientes descontados del inventario.`);
+    } catch (err) {
+      alert('Error registrando lote: ' + err.message);
+    } finally {
+      setProduciendoLoteId(null);
     }
   }
 
@@ -1065,6 +1272,8 @@ export default function Cocina() {
           {[
             { id: 'comandas', label: `Comandas (${comandasEnCurso.length})`, icon: ClipboardList },
             { id: 'inventario', label: `Lista de Compras (${insumos.length})`, icon: ShoppingBag },
+            { id: 'bom', label: 'Trazabilidad BOM', icon: Scale },
+            { id: 'produccion', label: 'Stock vs. Encargo', icon: Layers },
             { id: 'merma', label: 'Control de Merma', icon: TrashVinoIcon },
             { id: 'ganancias', label: 'Ganancias y Reportes', icon: TrendingUp },
             { id: 'menu', label: `Platos (${productos.length})`, icon: ChefHat },
@@ -1385,6 +1594,26 @@ export default function Cocina() {
 
                 <button
                   type="button"
+                  onClick={() => abrirActualizadorCostos('ocr')}
+                  className="btn-secundario"
+                  style={{
+                    fontSize: '0.82rem',
+                    padding: '8px 14px',
+                    borderRadius: '999px',
+                    borderColor: 'var(--golden-orange)',
+                    color: '#92400e',
+                    background: '#fffbeb',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontWeight: 700
+                  }}
+                >
+                  <Camera size={14} color="#b45309" /> Factura (OCR / Manual)
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setMostrarFormInsumo(!mostrarFormInsumo)}
                   className="btn-primario"
                   style={{ fontSize: '0.82rem', padding: '8px 16px' }}
@@ -1393,6 +1622,269 @@ export default function Cocina() {
                 </button>
               </div>
             </div>
+
+            {/* PANEL INTELIGENTE DE ACTUALIZACIÓN DE COSTOS (OPCIÓN A: OCR FACTURA / OPCIÓN B: TABLA MANUAL) */}
+            {mostrarActualizadorCostos && (
+              <div style={{
+                background: '#fdfbf7',
+                border: '1.5px solid var(--golden-orange)',
+                borderRadius: '16px',
+                padding: '18px',
+                marginBottom: '20px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                  <div>
+                    <h4 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileSpreadsheet size={18} color="var(--dark-amaranth)" /> Actualización Inteligente de Costos ante Inflación
+                    </h4>
+                    <small style={{ color: '#6b7280' }}>
+                      Impacta automáticamente el costo por porción en el módulo BOM.
+                    </small>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setModoCostos('ocr')}
+                      style={{
+                        background: modoCostos === 'ocr' ? 'var(--dark-amaranth)' : '#ffffff',
+                        color: modoCostos === 'ocr' ? '#ffffff' : '#374151',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '999px',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <Camera size={13} /> Opción A: Foto Factura (IA OCR)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoCostos('manual')}
+                      style={{
+                        background: modoCostos === 'manual' ? 'var(--dark-amaranth)' : '#ffffff',
+                        color: modoCostos === 'manual' ? '#ffffff' : '#374151',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '999px',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <FileSpreadsheet size={13} /> Opción B: Tabla Manual Rápida
+                    </button>
+                  </div>
+                </div>
+
+                {modoCostos === 'ocr' && (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px dashed #d1d5db' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--dark-amaranth)', display: 'block', marginBottom: '6px' }}>
+                          Subir Foto de Factura o Ticket de Proveedor
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProcesarFotoFactura}
+                          style={{ fontSize: '0.8rem', width: '100%' }}
+                        />
+                        {ocrLoading && <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: 'var(--dark-amaranth)', fontWeight: 700 }}>Extrayendo y filtrando productos...</p>}
+                      </div>
+
+                      <div style={{ background: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151', display: 'block', marginBottom: '4px' }}>
+                          O pegar líneas del ticket (Nombre | Cant | Precio Unit.)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={ocrTextoRespaldo}
+                          onChange={e => setOcrTextoRespaldo(e.target.value)}
+                          placeholder="Ej: Carne Molida | 10 | 6.50&#10;Desodorante | 1 | 4.50"
+                          style={{ width: '100%', fontSize: '0.78rem', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db', resize: 'vertical' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleProcesarTextoFactura}
+                          className="btn-secundario"
+                          style={{ marginTop: '6px', padding: '4px 10px', fontSize: '0.76rem' }}
+                        >
+                          Analizar con Filtro Inteligente
+                        </button>
+                      </div>
+                    </div>
+
+                    {ocrPreview && (
+                      <div style={{ background: '#ffffff', borderRadius: '12px', padding: '14px', border: '1px solid #e5e7eb' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                          <strong style={{ color: '#065f46', fontSize: '0.86rem' }}>
+                            Insumos Mapeados al Inventario ({ocrPreview.actualizables.length})
+                          </strong>
+                          <span style={{ fontSize: '0.74rem', color: '#6b7280' }}>
+                            Gastos ajenos ignorados automáticamente: {ocrPreview.ignorados.length}
+                          </span>
+                        </div>
+
+                        {ocrPreview.actualizables.length > 0 && (
+                          <div className="tabla-container" style={{ marginBottom: '12px' }}>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Insumo Inventario</th>
+                                  <th>Concepto Factura</th>
+                                  <th>Costo Ant.</th>
+                                  <th>Nuevo Costo Unit. ($)</th>
+                                  <th>Cant. Comprada</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ocrPreview.actualizables.map((row, idx) => (
+                                  <tr key={row.insumoId}>
+                                    <td><strong>{row.insumoNombre}</strong> ({row.unit})</td>
+                                    <td style={{ fontSize: '0.78rem', color: '#6b7280' }}>{row.conceptoFactura}</td>
+                                    <td>{formatUsd(row.costoAnterior)}</td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        step="0.0001"
+                                        value={row.nuevoCostoUnitario}
+                                        onChange={e => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          setOcrPreview(prev => {
+                                            const copy = [...prev.actualizables];
+                                            copy[idx] = { ...copy[idx], nuevoCostoUnitario: val };
+                                            return { ...prev, actualizables: copy };
+                                          });
+                                        }}
+                                        style={{ width: '90px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={row.cantidadComprada}
+                                        onChange={e => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          setOcrPreview(prev => {
+                                            const copy = [...prev.actualizables];
+                                            copy[idx] = { ...copy[idx], cantidadComprada: val };
+                                            return { ...prev, actualizables: copy };
+                                          });
+                                        }}
+                                        style={{ width: '75px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                      />
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {ocrPreview.ignorados.length > 0 && (
+                          <div style={{ background: '#fef2f2', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px', fontSize: '0.76rem', color: '#991b1b' }}>
+                            <strong>Filtro Inteligente (Ignorados automáticamente):</strong>
+                            <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                              {ocrPreview.ignorados.map((ig, i) => (
+                                <li key={i}>{ig.concepto} ({formatUsd(ig.precioUnitario)}) — {ig.motivo}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            disabled={guardandoCostos || ocrPreview.actualizables.length === 0}
+                            onClick={() => handleAplicarCostosOCR(true)}
+                            className="btn-primario"
+                            style={{ fontSize: '0.82rem', padding: '8px 16px' }}
+                          >
+                            {guardandoCostos ? 'Aplicando...' : 'Aplicar Costos y Sumar Stock'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={guardandoCostos || ocrPreview.actualizables.length === 0}
+                            onClick={() => handleAplicarCostosOCR(false)}
+                            className="btn-secundario"
+                            style={{ fontSize: '0.82rem', padding: '8px 16px' }}
+                          >
+                            Solo Actualizar Precios Unitarios
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {modoCostos === 'manual' && (
+                  <form onSubmit={handleGuardarCostosManuales}>
+                    <div className="tabla-container" style={{ background: '#ffffff', borderRadius: '12px', marginBottom: '12px' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Insumo</th>
+                            <th>Stock Actual</th>
+                            <th>Costo Unitario ($)</th>
+                            <th>Sumar Compra (Opcional)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {insumos.map(ins => {
+                            const ed = manualCostEdits[ins.id] || { unitCost: ins.unit_cost || 0, addQty: '' };
+                            return (
+                              <tr key={ins.id}>
+                                <td><strong>{ins.name}</strong> ({ins.unit})</td>
+                                <td>{ins.quantity} {ins.unit}</td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    step="0.0001"
+                                    min="0"
+                                    value={ed.unitCost}
+                                    onChange={e => setManualCostEdits(prev => ({
+                                      ...prev,
+                                      [ins.id]: { ...ed, unitCost: e.target.value }
+                                    }))}
+                                    style={{ width: '100px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="+0"
+                                    value={ed.addQty}
+                                    onChange={e => setManualCostEdits(prev => ({
+                                      ...prev,
+                                      [ins.id]: { ...ed, addQty: e.target.value }
+                                    }))}
+                                    style={{ width: '85px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button type="submit" disabled={guardandoCostos} className="btn-primario" style={{ fontSize: '0.84rem', padding: '9px 18px' }}>
+                      {guardandoCostos ? 'Guardando...' : 'Guardar Costos e Impactar BOM'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
 
             {/* FORMULARIO AGREGAR NUEVO INGREDIENTE */}
             {mostrarFormInsumo && (
@@ -1444,9 +1936,20 @@ export default function Cocina() {
 
                       <div className="shopping-card-info">
                         <h4 className="shopping-card-name">{ins.name}</h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                           <span className="shopping-card-qty">
                             {cant} {ins.unit}
+                          </span>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: '#fdfbf7',
+                            color: 'var(--crimson-violet)',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            Costo: {formatUsd(ins.unit_cost || 0)}/{ins.unit}
                           </span>
                           <span style={{
                             fontSize: '0.7rem',
@@ -1500,6 +2003,256 @@ export default function Cocina() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ==============================================================================
+            2B. TRAZABILIDAD DE RECETAS (BOM - BILL OF MATERIALS) INDEPENDIENTE
+           ============================================================================== */}
+        {tab === 'bom' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Scale size={20} color="var(--dark-amaranth)" /> Trazabilidad de Recetas (BOM) y Costos por Porción
+                  </h3>
+                  <small style={{ color: '#6b7280' }}>
+                    Asocia ingredientes exactos a cada plato para calcular costo de producción y margen neto (descontando 3% comisión cocina).
+                  </small>
+                </div>
+
+                <select
+                  value={bomSelectedProductId || (productos[0]?.id ?? '')}
+                  onChange={e => setBomSelectedProductId(e.target.value)}
+                  className="form-input-figma"
+                  style={{ margin: 0, minWidth: '240px', fontWeight: 700 }}
+                >
+                  {productos.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — PVP {formatUsd(p.price)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(() => {
+                const platoActivo = productos.find(p => p.id === (bomSelectedProductId || productos[0]?.id));
+                if (!platoActivo) return <p style={{ color: '#6b7280' }}>No hay platos registrados en el menú.</p>;
+                const recsPlato = recetas.filter(r => r.product_id === platoActivo.id);
+                const bom = calcularCostoYMargenPlato(platoActivo, recsPlato, insumos);
+
+                return (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px', marginBottom: '18px' }}>
+                      <div className="kpi-stat-card">
+                        <div className="kpi-stat-title">Precio de Venta (PVP)</div>
+                        <div className="kpi-stat-value">{formatUsd(bom.precioVenta)}</div>
+                      </div>
+                      <div className="kpi-stat-card">
+                        <div className="kpi-stat-title">Costo Producción (BOM)</div>
+                        <div className="kpi-stat-value" style={{ color: 'var(--crimson-violet)' }}>{formatUsd(bom.costoProduccion)}</div>
+                      </div>
+                      <div className="kpi-stat-card">
+                        <div className="kpi-stat-title">Comisión Cocina (3%)</div>
+                        <div className="kpi-stat-value" style={{ color: '#b45309' }}>-{formatUsd(bom.comisionCocina)}</div>
+                      </div>
+                      <div className="kpi-stat-card">
+                        <div className="kpi-stat-title">Margen Neto / Porción</div>
+                        <div className="kpi-stat-value" style={{ color: bom.gananciaNeta >= 0 ? '#059669' : '#dc2626' }}>
+                          {formatUsd(bom.gananciaNeta)} ({bom.margenPct}%)
+                        </div>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleBomAgregarIngrediente} style={{ background: '#fdfbf7', border: '1px dashed #d6cbbe', borderRadius: '14px', padding: '14px', marginBottom: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', alignItems: 'center' }}>
+                        <select
+                          value={bomAddIngId || (insumos[0]?.id ?? '')}
+                          onChange={e => setBomAddIngId(e.target.value)}
+                          className="form-input-figma"
+                          style={{ margin: 0 }}
+                        >
+                          {insumos.map(i => (
+                            <option key={i.id} value={i.id}>
+                              {i.name} ({i.unit}) — Costo {formatUsd(i.unit_cost || 0)}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="Cantidad por porción"
+                          value={bomAddQty}
+                          onChange={e => setBomAddQty(e.target.value)}
+                          className="form-input-figma"
+                          style={{ margin: 0 }}
+                          required
+                        />
+                        <button type="submit" className="btn-primario" style={{ padding: '9px 16px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Plus size={14} /> Asociar a Receta
+                        </button>
+                      </div>
+                    </form>
+
+                    {bom.detalleIngredientes.length === 0 ? (
+                      <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Este plato aún no tiene ingredientes asociados en su BOM.</p>
+                    ) : (
+                      <div className="tabla-container">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Ingrediente</th>
+                              <th>Cantidad / Porción</th>
+                              <th>Costo Unitario</th>
+                              <th>Costo en Plato</th>
+                              <th>Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recsPlato.map(r => {
+                              const ins = insumos.find(i => i.id === r.inventory_item_id);
+                              if (!ins) return null;
+                              const sub = parseFloat(r.quantity_required || 0) * parseFloat(ins.unit_cost || 0);
+                              return (
+                                <tr key={r.id}>
+                                  <td><strong>{ins.name}</strong></td>
+                                  <td>{r.quantity_required} {ins.unit}</td>
+                                  <td>{formatUsd(ins.unit_cost || 0)}</td>
+                                  <td><strong style={{ color: 'var(--dark-amaranth)' }}>{formatUsd(sub)}</strong></td>
+                                  <td>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBomEliminarIngrediente(r.id)}
+                                      style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '8px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                      <TrashVinoIcon size={13} /> Quitar
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* ==============================================================================
+            2C. DUALIDAD DE PRODUCCIÓN: STOCK (LOTES ANTICIPADOS) VS POR ENCARGO
+           ============================================================================== */}
+        {tab === 'produccion' && (
+          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={20} color="var(--dark-amaranth)" /> Dualidad de Producción: Modo Stock vs. Por Encargo
+              </h3>
+              <small style={{ color: '#6b7280' }}>
+                Elige por plato si se produce por adelantado en lotes (descuenta insumos al crear el lote y cada venta descuenta solo del stock listo) o bajo pedido (descuenta ingredientes al confirmarse la orden).
+              </small>
+            </div>
+
+            <div className="tabla-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plato</th>
+                    <th>Modelo Operativo</th>
+                    <th>Stock Listo / Lote</th>
+                    <th>Producir Lote Anticipado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productos.map(p => {
+                    const esStock = p.production_mode === 'stock';
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>{p.name}</strong><br />
+                          <small style={{ color: '#6b7280' }}>{formatUsd(p.price)}</small>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleCambiarModoProduccion(p, 'stock')}
+                              style={{
+                                background: esStock ? 'var(--dark-amaranth)' : '#f3f4f6',
+                                color: esStock ? '#ffffff' : '#374151',
+                                border: 'none',
+                                borderRadius: '999px',
+                                padding: '5px 12px',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Modo Stock (Lotes)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCambiarModoProduccion(p, 'on_demand')}
+                              style={{
+                                background: !esStock ? 'var(--crimson-violet)' : '#f3f4f6',
+                                color: !esStock ? '#ffffff' : '#374151',
+                                border: 'none',
+                                borderRadius: '999px',
+                                padding: '5px 12px',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Por Encargo (Bajo Pedido)
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          {esStock ? (
+                            <span style={{ background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: '999px', fontWeight: 800, fontSize: '0.8rem' }}>
+                              {parseInt(p.ready_stock || 0, 10)} porciones listas
+                            </span>
+                          ) : (
+                            <span style={{ color: '#6b7280', fontSize: '0.78rem' }}>Según inventario de insumos</span>
+                          )}
+                        </td>
+                        <td>
+                          {esStock ? (
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Cant."
+                                value={loteCantidades[p.id] || ''}
+                                onChange={e => setLoteCantidades(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                style={{ width: '75px', padding: '5px 8px', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                              />
+                              <button
+                                type="button"
+                                disabled={produciendoLoteId === p.id}
+                                onClick={() => handleRegistrarLoteStock(p)}
+                                className="btn-primario"
+                                style={{ padding: '6px 12px', fontSize: '0.76rem', background: 'var(--golden-orange)', color: '#fff' }}
+                              >
+                                {produciendoLoteId === p.id ? 'Procesando...' : '+ Producir Lote'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#9ca3af', fontSize: '0.76rem' }}>Activa Modo Stock para lotes</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1646,25 +2399,25 @@ export default function Cocina() {
               <div className="kpi-stat-card">
                 <div className="kpi-stat-title">Ganancias Hoy</div>
                 <div className="kpi-stat-value">{formatUsd(gananciaDia)}</div>
-                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (90%): {formatUsd(gananciaDia * 0.9)}</small>
+                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (97%): {formatUsd(gananciaDia * 0.97)}</small>
               </div>
 
               <div className="kpi-stat-card">
                 <div className="kpi-stat-title">Esta Semana</div>
                 <div className="kpi-stat-value">{formatUsd(gananciaSemana)}</div>
-                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (90%): {formatUsd(gananciaSemana * 0.9)}</small>
+                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (97%): {formatUsd(gananciaSemana * 0.97)}</small>
               </div>
 
               <div className="kpi-stat-card">
                 <div className="kpi-stat-title">Este Mes</div>
                 <div className="kpi-stat-value">{formatUsd(gananciaMes)}</div>
-                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (90%): {formatUsd(gananciaMes * 0.9)}</small>
+                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (97%): {formatUsd(gananciaMes * 0.97)}</small>
               </div>
 
               <div className="kpi-stat-card">
                 <div className="kpi-stat-title">Este Año</div>
                 <div className="kpi-stat-value">{formatUsd(gananciaAnio)}</div>
-                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (90%): {formatUsd(gananciaAnio * 0.9)}</small>
+                <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.75rem' }}>Neto (97%): {formatUsd(gananciaAnio * 0.97)}</small>
               </div>
             </div>
 
@@ -1747,7 +2500,7 @@ export default function Cocina() {
                     {cierrePendiente ? 'Liquidación actual bloqueada por corte previo en curso.' : '¿Deseas cerrar caja y transferir tus ingresos disponibles?'}
                   </span>
                   <small style={{ color: '#6b7280', fontSize: '0.74rem' }}>
-                    {cierrePendiente ? 'Estado: Esperando confirmación bancaria del administrador.' : 'Se aplicará la comisión estándar del 10% y el neto irá a tu cuenta bancaria.'}
+                    {cierrePendiente ? 'Estado: Esperando confirmación bancaria del administrador.' : 'Se aplicará la comisión estándar del 3% para cocina y el neto (97%) irá a tu cuenta bancaria.'}
                   </small>
                 </div>
                 <button
@@ -1780,6 +2533,114 @@ export default function Cocina() {
               </div>
 
             </div>
+
+            {/* ANALÍTICA AVANZADA: TICKET PROMEDIO, VENTA CRUZADA, PLATOS ESTRELLA Y BAJA ROTACIÓN */}
+            {(() => {
+              const { platosEstrella, platosBajaRotacion } = calcularAnaliticaPlatos(comandasEntregadas, productos, recetas, insumos);
+              const ticketData = calcularTicketPromedioYCrossSelling(comandasEntregadas, productos);
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '20px' }}>
+                  {/* 1. TICKET PROMEDIO Y VENTA CRUZADA */}
+                  <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, color: 'var(--dark-amaranth)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <DollarSign size={18} color="var(--golden-orange)" /> Ticket Promedio y Venta Cruzada (Cross-Selling)
+                        </h4>
+                        <small style={{ color: '#6b7280' }}>
+                          Métrica en tiempo real del gasto promedio por orden y oportunidades para elevarlo.
+                        </small>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ background: '#fdfbf7', border: '1px solid #fde68a', borderRadius: '12px', padding: '8px 14px' }}>
+                          <small style={{ color: '#6b7280', display: 'block', fontSize: '0.72rem' }}>Ticket Promedio Actual</small>
+                          <strong style={{ color: 'var(--dark-amaranth)', fontSize: '1.15rem' }}>{formatUsd(ticketData.ticketPromedio)}</strong>
+                          <span style={{ fontSize: '0.72rem', color: '#6b7280', marginLeft: '6px' }}>({ticketData.promedioItems} ítems/orden)</span>
+                        </div>
+                        <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px', padding: '8px 14px' }}>
+                          <small style={{ color: '#065f46', display: 'block', fontSize: '0.72rem' }}>Meta con Venta Cruzada (+20%)</small>
+                          <strong style={{ color: '#059669', fontSize: '1.15rem' }}>{formatUsd(ticketData.potencialTicket)}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                      {ticketData.sugerencias.map(sug => (
+                        <div key={sug.categoria} style={{ background: '#f9fafb', borderRadius: '12px', padding: '12px', border: '1px solid #e5e7eb' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <strong style={{ color: 'var(--crimson-violet)', fontSize: '0.88rem' }}>{sug.categoria}</strong>
+                            <span style={{ fontSize: '0.7rem', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: '999px', fontWeight: 700 }}>
+                              {sug.objetivo}
+                            </span>
+                          </div>
+                          <p style={{ margin: '0 0 6px 0', fontSize: '0.78rem', color: '#4b5563' }}>{sug.recomendacion}</p>
+                          {sug.productosDisponibles.length > 0 && (
+                            <small style={{ color: '#059669', fontWeight: 700, fontSize: '0.72rem' }}>
+                              Activos: {sug.productosDisponibles.join(' • ')}
+                            </small>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. PLATOS ESTRELLA Y BAJA ROTACIÓN */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                    <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '18px' }}>
+                      <h4 style={{ margin: '0 0 12px 0', color: 'var(--dark-amaranth)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Award size={18} color="var(--golden-orange)" /> Platos Estrella (Mayor Volumen y Margen)
+                      </h4>
+                      {platosEstrella.length === 0 ? (
+                        <p style={{ color: '#6b7280', fontSize: '0.84rem' }}>Aún no hay ventas entregadas para clasificar platos estrella.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {platosEstrella.map((pl, idx) => (
+                            <div key={pl.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fdfbf7', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                              <div>
+                                <strong style={{ color: '#1f2937', fontSize: '0.86rem' }}>#{idx + 1} {pl.name}</strong>
+                                <div style={{ fontSize: '0.74rem', color: '#6b7280' }}>
+                                  {pl.unidadesVendidas} vendidos • Margen BOM {pl.margenPct}%
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <strong style={{ color: '#059669', fontSize: '0.9rem' }}>{formatUsd(pl.ingresosBrutos)}</strong>
+                                <div style={{ fontSize: '0.7rem', color: '#6b7280' }}>Neto: {formatUsd(pl.gananciaNetaEstimada)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '18px', padding: '18px' }}>
+                      <h4 style={{ margin: '0 0 12px 0', color: 'var(--crimson-violet)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ArrowDownRight size={18} color="#dc2626" /> Platos de Baja Rotación
+                      </h4>
+                      {platosBajaRotacion.length === 0 ? (
+                        <p style={{ color: '#6b7280', fontSize: '0.84rem' }}>No hay platos registrados en el menú.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {platosBajaRotacion.map(pl => (
+                            <div key={pl.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fecaca' }}>
+                              <div>
+                                <strong style={{ color: '#1f2937', fontSize: '0.86rem' }}>{pl.name}</strong>
+                                <div style={{ fontSize: '0.74rem', color: '#991b1b' }}>
+                                  {pl.unidadesVendidas} vendidos • PVP {formatUsd(pl.price)}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', background: '#ffffff', padding: '3px 8px', borderRadius: '999px', border: '1px solid #fca5a5' }}>
+                                Baja rotación
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
         )}

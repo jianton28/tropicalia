@@ -9,6 +9,7 @@ import { getProductImageUrl } from '../services/imageService';
 import MapAddressPicker from '../components/common/MapAddressPicker';
 import SecurityVerification from '../components/common/SecurityVerification';
 import { securityService } from '../services/securityService';
+import { calcularComisionesOrden } from '../services/paymentService';
 import {
   Bike,
   ShoppingBag,
@@ -287,11 +288,20 @@ export default function Checkout() {
     }
   }, [cart, businessId, navigate, user, orderCompleted]);
 
-  // Cálculos financieros
+  // Cálculos financieros con estructura de comisiones 3% cocina / 2% delivery / 1% usuario
   const subtotalComida = cart.reduce((acc, el) => acc + (parseFloat(el.price) * (el.quantity || 1)), 0);
   const costoDelivery = modalidad === 'delivery' ? fleteUsd : 0.00;
   const propinaMotorizado = modalidad === 'delivery' ? propina : 0.00;
-  const totalUsd = subtotalComida + costoDelivery + propinaMotorizado;
+  const {
+    comisionCocina,
+    comisionDelivery,
+    comisionUsuario: tarifaUsuario
+  } = calcularComisionesOrden({
+    subtotalFood: subtotalComida,
+    deliveryFee: costoDelivery,
+    driverTip: propinaMotorizado
+  });
+  const totalUsd = parseFloat((subtotalComida + costoDelivery + propinaMotorizado + tarifaUsuario).toFixed(2));
   const totalBs = toBs(totalUsd, tasaBCV);
 
   function handleCapturarGPS() {
@@ -421,6 +431,10 @@ export default function Checkout() {
         payment_receipt_url: urlComprobante,
         items: cart,
         subtotal_food: subtotalComida,
+        service_fee: tarifaUsuario,
+        user_fee: tarifaUsuario,
+        kitchen_commission: comisionCocina,
+        delivery_commission: comisionDelivery,
         delivery_fee: costoDelivery,
         driver_tip: propinaMotorizado,
         total: totalUsd,
@@ -1090,6 +1104,10 @@ export default function Checkout() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontWeight: 700 }}>
             <span>Subtotal</span>
             <span>{formatUsd(subtotalComida)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontWeight: 700 }}>
+            <span>Tarifa de servicio (1%)</span>
+            <span>{formatUsd(tarifaUsuario)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: propinaMotorizado > 0 ? '8px' : '0', fontWeight: 700 }}>
             <span>

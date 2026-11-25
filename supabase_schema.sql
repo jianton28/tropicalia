@@ -58,9 +58,11 @@ CREATE TABLE IF NOT EXISTS public.products (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Si la tabla 'products' ya existía sin la columna 'stock':
+-- Si la tabla 'products' ya existía sin la columna 'stock' ni dualidad de producción:
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stock INTEGER DEFAULT 50;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS production_mode TEXT DEFAULT 'on_demand';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS ready_stock INTEGER DEFAULT 0;
 
 -- 4. TABLA: inventory_items (Insumos de Cocina)
 CREATE TABLE IF NOT EXISTS public.inventory_items (
@@ -70,8 +72,13 @@ CREATE TABLE IF NOT EXISTS public.inventory_items (
     quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     unit TEXT NOT NULL DEFAULT 'unidades',
     min_threshold NUMERIC(12, 2) DEFAULT 5.00,
+    unit_cost NUMERIC(12, 4) DEFAULT 0.0000,
+    last_cost_updated_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.inventory_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(12, 4) DEFAULT 0.0000;
+ALTER TABLE public.inventory_items ADD COLUMN IF NOT EXISTS last_cost_updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 5. TABLA: product_recipes (Recetas de Platos -> Insumos)
 CREATE TABLE IF NOT EXISTS public.product_recipes (
@@ -767,6 +774,8 @@ DECLARE
     v_wallet RECORD;
     v_es_efectivo BOOLEAN;
     v_monto_total NUMERIC;
+    v_flete_base NUMERIC;
+    v_comision_delivery NUMERIC;
     v_flete_ganado NUMERIC;
     v_subtotal_food NUMERIC;
     v_nueva_deuda NUMERIC;
@@ -799,40 +808,39 @@ BEGIN
 
     v_es_efectivo := v_order.payment_method IN ('efectivo', 'efectivo_bs');
     v_monto_total := COALESCE(v_order.total, 0);
-    v_flete_ganado := COALESCE(v_order.delivery_fee, 0) + COALESCE(v_order.driver_tip, 0);
-    v_subtotal_food := COALESCE(v_order.subtotal_food, GREATEST(0, v_monto_total - v_flete_ganado));
+    v_flete_base := COALESCE(v_order.delivery_fee, 0);
+    v_comision_delivery := ROUND(v_flete_base * 0.02, 2);
+    v_flete_ganado := GREATEST(0, ROUND((v_flete_base - v_comision_delivery) + COALESCE(v_order.driver_tip, 0), 2));
+    v_subtotal_food := COALESCE(v_order.subtotal_food, GREATEST(0, v_monto_total - v_flete_base - COALESCE(v_order.driver_tip, 0)));
 
     v_nueva_deuda := COALESCE(v_wallet.cash_debt, 0);
     v_nuevo_saldo := COALESCE(v_wallet.prepaid_balance, 0);
     v_is_blocked := COALESCE(v_wallet.is_blocked, FALSE);
 
-    -- 3. Transacción atómica según método de pago
+    -- 3. Transacción atómica según método de pago (Comisión Delivery 2%)
     IF v_es_efectivo THEN
-        -- DESCUENTO AUTOMÁTICO DE FLETE GANADO EN EFECTIVO:
-        -- El repartidor retiene en mano su ganancia de flete ($1.75). La deuda que rinde a caja
-        -- aumenta únicamente por el neto de la comida ($7.75 - $1.75 = $6.00), evitando doble cobro.
+        -- El repartidor retiene en mano su flete neto (flete - 2% plataforma + propina).
+        -- La deuda a rendir en caja incluye el neto de la comida + el 2% de comisión de delivery.
         v_nueva_deuda := ROUND(v_nueva_deuda + GREATEST(0, v_monto_total - v_flete_ganado), 2);
-        -- Bloquear si supera o iguala el techo de $25
         v_is_blocked := v_nueva_deuda >= v_techo_deuda;
-        -- v_nuevo_saldo permanece intacto (el flete ya fue retenido en físico)
 
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
-        VALUES (p_driver_id, p_order_id, GREATEST(0, v_monto_total - v_flete_ganado), 'cash_debt', 'Cobro neto de comida a entregar en caja');
+        VALUES (p_driver_id, p_order_id, GREATEST(0, v_monto_total - v_flete_ganado), 'cash_debt', 'Cobro neto a entregar en caja (incluye 2% comisión delivery)');
 
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
-        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_offset', 'Flete retenido en efectivo por el repartidor');
+        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_offset', 'Flete neto (98% + propina) retenido en efectivo por el repartidor');
     ELSE
-        -- Métodos digitales: Acreditar ganancia de flete
+        -- Métodos digitales: Acreditar ganancia neta de flete (descontando 2% plataforma)
         v_nuevo_saldo := ROUND(v_nuevo_saldo + v_flete_ganado, 2);
 
         INSERT INTO public.delivery_transactions (driver_id, order_id, amount, type, notes)
-        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_credit', 'Flete acreditado por pedido digital');
+        VALUES (p_driver_id, p_order_id, v_flete_ganado, 'delivery_fee_credit', 'Flete neto acreditado por pedido digital (-2% comisión plataforma)');
     END IF;
 
-    -- Asentar venta neta (90%) en el balance acumulado del restaurante (efectivo o digital)
+    -- Asentar venta neta (97% tras 3% comisión cocina) en el balance acumulado del restaurante
     IF v_order.business_id IS NOT NULL AND v_subtotal_food > 0 THEN
         UPDATE public.businesses
-        SET balance = COALESCE(balance, 0) + ROUND(v_subtotal_food * 0.90, 2),
+        SET balance = COALESCE(balance, 0) + ROUND(v_subtotal_food * 0.97, 2),
             total_sales = COALESCE(total_sales, 0) + v_subtotal_food
         WHERE id = v_order.business_id;
     END IF;

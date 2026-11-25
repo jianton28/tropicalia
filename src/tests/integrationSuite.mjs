@@ -503,10 +503,12 @@ function createSupabaseRlsSimulator(options = { rpcEnabled: true }) {
 
       const esEfectivo = ['efectivo', 'efectivo_bs'].includes(order.payment_method);
       const montoTotal = Number(order.total ?? 0);
-      const fleteGanado = Number(order.delivery_fee ?? 0) + Number(order.driver_tip ?? 0);
+      const fleteBase = Number(order.delivery_fee ?? 0);
+      const comisionDelivery = Number((fleteBase * 0.02).toFixed(2));
+      const fleteGanado = Math.max(0, Number(((fleteBase - comisionDelivery) + Number(order.driver_tip ?? 0)).toFixed(2)));
       const subtotalFood = order.subtotal_food != null
         ? Number(order.subtotal_food)
-        : Math.max(0, montoTotal - fleteGanado);
+        : Math.max(0, montoTotal - fleteBase - Number(order.driver_tip ?? 0));
 
       if (esEfectivo) {
         const neto = Math.max(0, Number((montoTotal - fleteGanado).toFixed(2)));
@@ -545,7 +547,7 @@ function createSupabaseRlsSimulator(options = { rpcEnabled: true }) {
       if (order.business_id && subtotalFood > 0) {
         const biz = db.businesses.find(b => b.id === order.business_id);
         if (biz) {
-          biz.balance = Number((Number(biz.balance || 0) + subtotalFood * 0.90).toFixed(2));
+          biz.balance = Number((Number(biz.balance || 0) + subtotalFood * 0.97).toFixed(2));
           biz.total_sales = Number((Number(biz.total_sales || 0) + subtotalFood).toFixed(2));
         }
       }
@@ -952,14 +954,14 @@ assert(
   resEfectivoRpc.success === true &&
   resEfectivoRpc.exito === true &&
   resEfectivoRpc.esEfectivo === true &&
-  approxEqual(resEfectivoRpc.fleteGanado, 1.75),
-  'procesarBalanceCompletado retorna contrato unificado (success, exito, esEfectivo, fleteGanado=1.75)'
+  approxEqual(resEfectivoRpc.fleteGanado, 1.71),
+  'procesarBalanceCompletado retorna contrato unificado (success, exito, esEfectivo, fleteGanado=1.71 tras 2% comisión)'
 );
 
 const { data: walletTrasCash } = await sb.from('delivery_wallets').select('*').eq('driver_id', USERS.driver1.id).single();
 assert(
-  approxEqual(walletTrasCash.cash_debt, 6.00),
-  `Cálculo exacto efectivo: Total $7.75 - Flete $1.75 => Deuda neta en calle = $${walletTrasCash.cash_debt.toFixed(2)} ($6.00 esperado)`
+  approxEqual(walletTrasCash.cash_debt, 6.04),
+  `Cálculo exacto efectivo (2% com. delivery): Total $7.75 - Flete neto $1.71 => Deuda en calle = $${walletTrasCash.cash_debt.toFixed(2)} ($6.04 esperado)`
 );
 assert(
   approxEqual(walletTrasCash.prepaid_balance, 0.00),
@@ -968,9 +970,9 @@ assert(
 
 const { data: txsDriver1 } = await sb.from('delivery_transactions').select('*').eq('driver_id', USERS.driver1.id);
 assert(
-  txsDriver1.some(t => t.type === 'cash_debt' && approxEqual(t.amount, 6.00)) &&
-  txsDriver1.some(t => t.type === 'delivery_fee_offset' && approxEqual(t.amount, 1.75)),
-  'Auditoría delivery_transactions registra cash_debt ($6.00) y delivery_fee_offset ($1.75)'
+  txsDriver1.some(t => t.type === 'cash_debt' && approxEqual(t.amount, 6.04)) &&
+  txsDriver1.some(t => t.type === 'delivery_fee_offset' && approxEqual(t.amount, 1.71)),
+  'Auditoría delivery_transactions registra cash_debt ($6.04) y delivery_fee_offset ($1.71)'
 );
 
 // ==============================================================================
@@ -997,15 +999,15 @@ const resDigital = await procesarBalanceCompletado({
   sb
 });
 assert(
-  resDigital.esEfectivo === false && resDigital.esPagoMovil === true && approxEqual(resDigital.wallet.prepaid_balance, 2.50),
-  `Entrega digital ($2.50 flete) acredita saldo a favor sin alterar cash_debt ($6.00) -> saldo $${resDigital.wallet.prepaid_balance.toFixed(2)}`
+  resDigital.esEfectivo === false && resDigital.esPagoMovil === true && approxEqual(resDigital.wallet.prepaid_balance, 2.45),
+  `Entrega digital ($2.50 flete - 2% com.) acredita saldo a favor sin alterar cash_debt ($6.04) -> saldo $${resDigital.wallet.prepaid_balance.toFixed(2)}`
 );
 
-// 4.2 Verificación de balance de restaurante tras 2 órdenes ($6 + $10 = $16 comida * 90% = $14.40) y SIN cash_closure prematuro
+// 4.2 Verificación de balance de restaurante tras 2 órdenes ($6 + $10 = $16 comida * 97% = $15.52) y SIN cash_closure prematuro
 const bizBurgerAfter2 = sb.db.businesses.find(b => b.id === BIZ_BURGER);
 assert(
-  approxEqual(bizBurgerAfter2.balance, 14.40),
-  `Balance neto del restaurante = $14.40 (90% de $16.00 comida, excluyendo fletes)`
+  approxEqual(bizBurgerAfter2.balance, 15.52),
+  `Balance neto del restaurante = $15.52 (97% de $16.00 comida tras 3% comisión, excluyendo fletes)`
 );
 sb.asUser(USERS.ownerA);
 const { data: cierresAntesSolicitud } = await sb.from('cash_closures').select('*').eq('business_id', BIZ_BURGER);
@@ -1127,24 +1129,24 @@ sb.db.orders.push(ordTecho);
 
 const resTecho = await procesarBalanceCompletado({ orden: ordTecho, driverId: USERS.driver1.id, sb });
 assert(
-  approxEqual(resTecho.wallet.cash_debt, 29.00) && resTecho.wallet.is_blocked === true,
-  `Deuda acumulada supera techo ($6.00 + $23.00 = $29.00 >= $25.00) => is_blocked = true`
+  approxEqual(resTecho.wallet.cash_debt, 29.08) && resTecho.wallet.is_blocked === true,
+  `Deuda acumulada supera techo ($6.04 + $23.04 = $29.08 >= $25.00) => is_blocked = true`
 );
 
 const blkCash = validarAceptacionCarrera({ orden: { payment_method: 'efectivo', total: 8 }, wallet: resTecho.wallet });
 const blkDigital = validarAceptacionCarrera({ orden: { payment_method: 'pago_movil', total: 8 }, wallet: resTecho.wallet });
 assert(blkCash.permitido === false && blkDigital.permitido === true, 'Repartidor bloqueado NO puede aceptar efectivo pero SÍ carreras digitales');
 
-// 5.2 Driver 1 amortiza deuda con sus $2.50 de saldo digital (vía RPC Zero-Trust)
-const resAmort = await amortizarDeudaConSaldo({ driverId: USERS.driver1.id, montoAbono: 2.50, sb });
+// 5.2 Driver 1 amortiza deuda con sus $2.45 de saldo digital (vía RPC Zero-Trust)
+const resAmort = await amortizarDeudaConSaldo({ driverId: USERS.driver1.id, montoAbono: 2.45, sb });
 assert(
-  approxEqual(resAmort.abonoReal, 2.50) &&
+  approxEqual(resAmort.abonoReal, 2.45) &&
   approxEqual(resAmort.wallet.prepaid_balance, 0.00) &&
-  approxEqual(resAmort.wallet.cash_debt, 26.50),
-  'amortizarDeudaConSaldo reduce cash_debt ($29 -> $26.50) y debita prepaid_balance ($2.50 -> $0.00) bajo RLS'
+  approxEqual(resAmort.wallet.cash_debt, 26.63),
+  'amortizarDeudaConSaldo reduce cash_debt ($29.08 -> $26.63) y debita prepaid_balance ($2.45 -> $0.00) bajo RLS'
 );
 
-// Simular ganancia digital nueva para Driver 1 (+$8.00 flete) y solicitar Retiro Pago Móvil ($5.00)
+// Simular ganancia digital nueva para Driver 1 (+$7.84 flete neto tras 2%) y solicitar Retiro Pago Móvil ($5.00)
 const ordDigitalExtra = {
   id: crypto.randomUUID(),
   business_id: BIZ_BURGER,
@@ -1171,8 +1173,8 @@ const resRetiro = await solicitarRetiroDriver({
 assert(
   resRetiro.success === true &&
   resRetiro.withdrawal.status === 'pending' &&
-  approxEqual(resRetiro.wallet.prepaid_balance, 3.00),
-  'solicitarRetiroDriver descuenta $5.00 del saldo ($8.00 -> $3.00) y registra driver_withdrawals (pending) bajo RLS'
+  approxEqual(resRetiro.wallet.prepaid_balance, 2.84),
+  'solicitarRetiroDriver descuenta $5.00 del saldo ($7.84 -> $2.84) y registra driver_withdrawals (pending) bajo RLS'
 );
 
 // Solicitud 2 de $2.00 para probar rechazo + candado optimista anti doble-reintegro en Admin
@@ -1212,17 +1214,17 @@ const primerRechazo = await simularRechazoOptimista(resRetiro2.withdrawal);
 const segundoRechazo = await simularRechazoOptimista(resRetiro2.withdrawal);
 const walletTrasRechazo = sb.db.delivery_wallets.find(w => w.driver_id === USERS.driver1.id);
 assert(
-  primerRechazo === true && segundoRechazo === false && approxEqual(walletTrasRechazo.prepaid_balance, 3.00),
+  primerRechazo === true && segundoRechazo === false && approxEqual(walletTrasRechazo.prepaid_balance, 2.84),
   'Admin rechaza retiro reintegrando $2.00 una sola vez (doble clic bloqueado por candado status = pending)'
 );
 
-// Admin recibe efectivo en caja física ($26.50) => deuda en $0.00 e is_blocked = false
-const resCajaAdmin = await recibirEfectivoEnCajaAdmin({ driverId: USERS.driver1.id, montoRecibido: 26.50, sb });
+// Admin recibe efectivo en caja física ($26.63) => deuda en $0.00 e is_blocked = false
+const resCajaAdmin = await recibirEfectivoEnCajaAdmin({ driverId: USERS.driver1.id, montoRecibido: 26.63, sb });
 assert(
   resCajaAdmin.success === true &&
   approxEqual(resCajaAdmin.nuevaDeuda, 0.00) &&
   resCajaAdmin.wallet.is_blocked === false,
-  'recibirEfectivoEnCajaAdmin liquida deuda física ($26.50 -> $0.00) y desbloquea automáticamente al repartidor'
+  'recibirEfectivoEnCajaAdmin liquida deuda física ($26.63 -> $0.00) y desbloquea automáticamente al repartidor'
 );
 
 // 5.3 Validar path CLIENT_FALLBACK (simulando host sin RPC migrada usando contexto admin/sistema) + flete $0

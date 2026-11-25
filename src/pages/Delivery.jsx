@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd } from '../services/bcvService';
-import { abrirNotificacionWhatsApp, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
+import { abrirNotificacionWhatsApp, abrirNotificacionWhatsAppSiCorresponde, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
 import { 
   validarAceptacionCarrera, 
   procesarBalanceCompletado, 
@@ -277,8 +277,8 @@ export default function Delivery() {
       }
       if (nuevoPaso === 'on_the_way') {
         showToast('Paquete recibido. En ruta hacia el cliente.');
-        // Notificación automática al cliente de pedido en camino
-        abrirNotificacionWhatsApp(ordenActualizada, 'on_the_way', ordenActualizada.businesses);
+        // Notificación única consolidada al cliente al salir en ruta
+        abrirNotificacionWhatsAppSiCorresponde(ordenActualizada, 'on_the_way', ordenActualizada.businesses);
       }
     }
   }
@@ -387,13 +387,13 @@ export default function Delivery() {
       });
 
       if (resBalance.esEfectivo) {
-        showToast('¡Entrega completada! Efectivo retenido registrado en deuda en calle.');
+        showToast('Entrega completada. Efectivo neto registrado en deuda en calle (2% comisión aplicada).');
       } else {
-        showToast(`¡Entrega completada! Flete (${formatUsd(resBalance.fleteGanado)}) acreditado a tu balance.`);
+        showToast(`Entrega completada. Flete neto (${formatUsd(resBalance.fleteGanado)}) acreditado tras 2% de comisión.`);
       }
 
-      // Notificación automática al cliente de pedido entregado
-      abrirNotificacionWhatsApp(pedidoActivo, 'delivered', pedidoActivo.businesses);
+      // Notificación consolidada: no enviar otro WhatsApp al finalizar entrega (ya fue notificado en ruta)
+      abrirNotificacionWhatsAppSiCorresponde(pedidoActivo, 'delivered', pedidoActivo.businesses);
 
       setMostrarModal(false);
       setCodigoEntrega('');
@@ -755,7 +755,7 @@ export default function Delivery() {
               <Bike size={14} /> CARRERA EN CURSO
             </span>
             <strong style={{ color: 'var(--golden-orange)', fontSize: '1.15rem' }}>
-              Flete Ganancia: {formatUsd(pedidoActivo.delivery_fee || 2.50)}
+              Flete Neto (tras 2% com.): {formatUsd(Math.max(0, (parseFloat(pedidoActivo.delivery_fee || 2.50) * 0.98) + parseFloat(pedidoActivo.driver_tip || 0)))}
             </strong>
           </div>
 
@@ -892,8 +892,9 @@ export default function Delivery() {
             {pedidosDisponibles.map(ord => {
               const esEfectivo = ord.payment_method === 'efectivo';
               const flete = parseFloat(ord.delivery_fee || 2.50);
+              const comision2 = parseFloat((flete * 0.02).toFixed(2));
               const propina = parseFloat(ord.driver_tip || 0);
-              const ganancia = flete + propina;
+              const ganancia = parseFloat((flete - comision2 + propina).toFixed(2));
 
               return (
                 <div

@@ -7,8 +7,42 @@ import { supabase } from '../lib/supabase.js';
  */
 
 export const TECHO_DEUDA_EFECTIVO = 25.00;
-export const COMISION_PLATAFORMA_PCT = 0.10;
+export const COMISION_COCINA_PCT = 0.03;   // 3% para la cocina por cada venta
+export const COMISION_DELIVERY_PCT = 0.02; // 2% para el delivery por cada entrega
+export const COMISION_USUARIO_PCT = 0.01;  // 1% para el usuario por cada compra
+export const COMISION_PLATAFORMA_PCT = COMISION_COCINA_PCT; // Alias de compatibilidad (3% cocina)
 export const FLETE_BASE_DEFAULT = 2.50;
+
+/**
+ * Calcula el desglose transparente de las comisiones 3% / 2% / 1% sobre una orden.
+ * @param {Object} params
+ * @param {number|string} params.subtotalFood - Subtotal de platos
+ * @param {number|string} [params.deliveryFee=0] - Tarifa de envío base
+ * @param {number|string} [params.driverTip=0] - Propina voluntaria (100% del repartidor)
+ */
+export function calcularComisionesOrden({ subtotalFood = 0, deliveryFee = 0, driverTip = 0 } = {}) {
+  const subtotal = parseOptionalAmount(subtotalFood, 0);
+  const flete = parseOptionalAmount(deliveryFee, 0);
+  const propina = parseOptionalAmount(driverTip, 0);
+
+  const comisionCocina = parseFloat((subtotal * COMISION_COCINA_PCT).toFixed(2));
+  const netoCocina = parseFloat((subtotal - comisionCocina).toFixed(2));
+
+  const comisionDelivery = parseFloat((flete * COMISION_DELIVERY_PCT).toFixed(2));
+  const netoDelivery = parseFloat(Math.max(0, (flete - comisionDelivery) + propina).toFixed(2));
+
+  const comisionUsuario = parseFloat((subtotal * COMISION_USUARIO_PCT).toFixed(2));
+  const totalComisionesPlataforma = parseFloat((comisionCocina + comisionDelivery + comisionUsuario).toFixed(2));
+
+  return {
+    comisionCocina,
+    netoCocina,
+    comisionDelivery,
+    netoDelivery,
+    comisionUsuario,
+    totalComisionesPlataforma
+  };
+}
 
 function parseOptionalAmount(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
@@ -131,7 +165,8 @@ export async function procesarBalanceCompletado({ orden, driverId, sb = supabase
     orden.delivery_type === 'delivery' ? FLETE_BASE_DEFAULT : 0
   );
   const propina = parseOptionalAmount(orden.driver_tip, 0);
-  const fleteGanado = parseFloat((fleteBase + propina).toFixed(2));
+  const comisionDelivery = parseFloat((fleteBase * COMISION_DELIVERY_PCT).toFixed(2));
+  const fleteGanado = parseFloat(Math.max(0, (fleteBase - comisionDelivery) + propina).toFixed(2));
   const montoEfectivoTotal = esEfectivo ? calcularMontoTotalEfectivo(orden) : 0;
   const montoNetoDeuda = esEfectivo ? calcularNetoDeudaEfectivo(montoEfectivoTotal, fleteGanado) : 0;
 
@@ -159,6 +194,7 @@ export async function procesarBalanceCompletado({ orden, driverId, sb = supabase
           esEfectivo,
           esPagoMovil,
           fleteGanado,
+          comisionDelivery,
           montoNetoDeuda,
           wallet: walletObj,
           walletActualizada: walletObj,
@@ -327,6 +363,7 @@ export async function procesarBalanceCompletado({ orden, driverId, sb = supabase
     esEfectivo,
     esPagoMovil,
     fleteGanado,
+    comisionDelivery,
     montoNetoDeuda,
     tipo: esEfectivo ? 'efectivo' : 'digital',
     wallet: walletActualizada,

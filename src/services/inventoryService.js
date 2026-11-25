@@ -22,13 +22,15 @@ export async function revertirStockDeOrden(order, sb = supabase) {
       .map(i => i.product_id || i.id)
       .filter(Boolean);
 
-    // 2. Consultar recetas vinculadas a estos productos
+    // 2. Consultar productos (para distinguir Modo Stock vs Por Encargo) y recetas
+    let productosMap = new Map();
     let recetas = [];
     if (productIds.length > 0) {
-      const { data: recData } = await sb
-        .from('product_recipes')
-        .select('*')
-        .in('product_id', productIds);
+      const [{ data: prodData }, { data: recData }] = await Promise.all([
+        sb.from('products').select('id, production_mode, ready_stock').in('id', productIds),
+        sb.from('product_recipes').select('*').in('product_id', productIds)
+      ]);
+      productosMap = new Map((prodData || []).map(p => [p.id, p]));
       recetas = recData || [];
     }
 
@@ -47,6 +49,17 @@ export async function revertirStockDeOrden(order, sb = supabase) {
     for (const item of items) {
       const prodId = item.product_id || item.id;
       const cantOrdenada = parseInt(item.quantity || 1, 10);
+      const prodInfo = productosMap.get(prodId);
+
+      // Si el plato es Modo Stock (Lote Anticipado), devolver al stock listo sin alterar ingredientes
+      if (prodInfo?.production_mode === 'stock') {
+        const nuevoReadyStock = parseInt(prodInfo.ready_stock || 0, 10) + cantOrdenada;
+        await sb.from('products').update({ ready_stock: nuevoReadyStock }).eq('id', prodId);
+        prodInfo.ready_stock = nuevoReadyStock;
+        revertedCount += cantOrdenada;
+        continue;
+      }
+
       const recsDelPlato = recetas.filter(r => r.product_id === prodId);
 
       if (recsDelPlato.length > 0) {
@@ -126,12 +139,14 @@ export async function descontarStockDeOrden(order, sb = supabase) {
     const businessId = order.business_id;
 
     const productIds = items.map(i => i.product_id || i.id).filter(Boolean);
+    let productosMap = new Map();
     let recetas = [];
     if (productIds.length > 0) {
-      const { data: recData } = await sb
-        .from('product_recipes')
-        .select('*')
-        .in('product_id', productIds);
+      const [{ data: prodData }, { data: recData }] = await Promise.all([
+        sb.from('products').select('id, production_mode, ready_stock').in('id', productIds),
+        sb.from('product_recipes').select('*').in('product_id', productIds)
+      ]);
+      productosMap = new Map((prodData || []).map(p => [p.id, p]));
       recetas = recData || [];
     }
 
@@ -146,6 +161,18 @@ export async function descontarStockDeOrden(order, sb = supabase) {
     for (const item of items) {
       const prodId = item.product_id || item.id;
       const cant = parseInt(item.quantity || 1, 10);
+      const prodInfo = productosMap.get(prodId);
+
+      // Dualidad de Producción:
+      // Si el plato está configurado en Modo Stock (Lotes Anticipados), solo descontamos de ready_stock
+      // sin volver a descontar los ingredientes del inventario general.
+      if (prodInfo?.production_mode === 'stock') {
+        const nuevoReadyStock = Math.max(0, parseInt(prodInfo.ready_stock || 0, 10) - cant);
+        await sb.from('products').update({ ready_stock: nuevoReadyStock }).eq('id', prodId);
+        prodInfo.ready_stock = nuevoReadyStock;
+        continue;
+      }
+
       const recs = recetas.filter(r => r.product_id === prodId);
 
       if (recs.length > 0) {

@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { formatUsd, fetchTasaBCV, toBs, formatBs } from '../services/bcvService';
 import { cancelarOrdenConReversion } from '../services/inventoryService';
-import { abrirNotificacionWhatsApp, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
+import { abrirNotificacionWhatsApp, abrirNotificacionWhatsAppSiCorresponde, NUMERO_ORIGEN_NEGOCIO } from '../services/whatsappService';
 import { 
   procesarBalanceCompletado, 
   recibirEfectivoEnCajaAdmin, 
   TECHO_DEUDA_EFECTIVO,
-  calcularNetoDeudaEfectivo
+  calcularNetoDeudaEfectivo,
+  calcularComisionesOrden
 } from '../services/paymentService';
 import {
   Flame,
@@ -221,11 +222,7 @@ export default function Admin() {
       .eq('id', ordenId);
 
     if (!error) {
-      const ord = pagos.find(p => p.id === ordenId) || ordenes.find(o => o.id === ordenId);
-      if (ord) {
-        abrirNotificacionWhatsApp({ ...ord, status: 'pending' }, 'cooking', ord.businesses);
-      }
-      showToast('Pago verificado y aprobado. Notificación generada y orden enviada a cocina.');
+      showToast('Pago verificado y aprobado. Orden enviada a cocina.');
       recargarTodoAdmin();
     }
   }
@@ -269,10 +266,7 @@ export default function Admin() {
         await procesarBalanceCompletado({ orden: ord, driverId: ord.driver_id });
       }
 
-      // Notificación automática al cliente
-      if (ord) {
-        abrirNotificacionWhatsApp(ord, 'delivered', ord.businesses);
-      }
+      abrirNotificacionWhatsAppSiCorresponde(ord, 'delivered', ord?.businesses);
 
       showToast('Orden cerrada exitosamente con estado Entregada.');
       recargarTodoAdmin();
@@ -553,6 +547,28 @@ export default function Admin() {
           <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><TrendingUp size={13} color="#10b981" /> Ventas Entregadas</small>
           <h3 style={{ color: '#34d399' }}>{formatUsd(totalVentasEntregadas)}</h3>
         </div>
+        {(() => {
+          const ordenesEntregadas = ordenes.filter(o => o.status === 'delivered');
+          const comTot = ordenesEntregadas.reduce((acc, o) => {
+            const sub = parseFloat(o.subtotal_food ?? o.total ?? 0);
+            const fee = parseFloat(o.delivery_fee || 0);
+            const c = calcularComisionesOrden({ subtotalFood: sub, deliveryFee: fee });
+            acc.cocina += c.comisionCocina;
+            acc.delivery += c.comisionDelivery;
+            acc.usuario += c.comisionUsuario;
+            acc.total += c.totalComisionesPlataforma;
+            return acc;
+          }, { cocina: 0, delivery: 0, usuario: 0, total: 0 });
+          return (
+            <div className="kpi-card" style={{ borderLeft: '4px solid var(--golden-orange)' }}>
+              <small style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><DollarSign size={13} color="var(--golden-orange)" /> Comisiones (3% / 2% / 1%)</small>
+              <h3 style={{ color: 'var(--golden-orange)' }}>{formatUsd(comTot.total)}</h3>
+              <small style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.75)', display: 'block', marginTop: '2px' }}>
+                Cocina 3%: {formatUsd(comTot.cocina)} • Delivery 2%: {formatUsd(comTot.delivery)} • Usuario 1%: {formatUsd(comTot.usuario)}
+              </small>
+            </div>
+          );
+        })()}
       </div>
 
       {/* PESTAÑAS ADMINISTRATIVAS */}
@@ -840,7 +856,7 @@ export default function Admin() {
                     <th>Fecha</th>
                     <th>Restaurante</th>
                     <th>Ventas Brutas</th>
-                    <th>Comisión App (10%)</th>
+                    <th>Comisión Cocina (3%)</th>
                     <th>Neto a Transferir</th>
                     <th>Estado</th>
                     <th>Acción</th>

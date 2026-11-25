@@ -3,15 +3,28 @@ import {
   NUMERO_ORIGEN_INTERNACIONAL,
   formatearTelefonoVE,
   generarMensajeEstado,
-  generarEnlaceWhatsApp
+  generarEnlaceWhatsApp,
+  debeNotificarAutomaticamente
 } from '../services/whatsappService.js';
 
 import {
   TECHO_DEUDA_EFECTIVO,
+  COMISION_COCINA_PCT,
+  COMISION_DELIVERY_PCT,
+  COMISION_USUARIO_PCT,
+  calcularComisionesOrden,
   calcularMontoTotalEfectivo,
   validarAceptacionCarrera,
   calcularNetoDeudaEfectivo
 } from '../services/paymentService.js';
+
+import {
+  calcularCostoYMargenPlato,
+  filtrarYMapearFactura,
+  extraerLineasDesdeTextoFactura,
+  calcularAnaliticaPlatos,
+  calcularTicketPromedioYCrossSelling
+} from '../services/kitchenAnalyticsService.js';
 
 import { toBs, formatUsd, formatBs } from '../services/bcvService.js';
 import { semanticSearchService, normalizarTexto } from '../services/semanticSearchService.js';
@@ -325,6 +338,60 @@ assert(!ESTADOS_PENDIENTES_CIERRE.includes('settled'), 'settled no bloquea nuevo
 // 8.3 Verificación de activos de marca (Mascota oficial logo.png)
 import fs from 'fs';
 assert(fs.existsSync('src/assets/logo.png'), 'El logo oficial con la mascota existe en src/assets/logo.png');
+
+console.log('\n=== TEST 9: WHATSAPP SIMPLIFICADO & ESTRUCTURA COMISIONES 3% / 2% / 1% ===');
+assert(debeNotificarAutomaticamente('cooking', 'delivery') === false, 'WhatsApp NO dispara spam en cooking (delivery)');
+assert(debeNotificarAutomaticamente('ready', 'delivery') === false, 'WhatsApp NO dispara spam en ready (delivery)');
+assert(debeNotificarAutomaticamente('on_the_way', 'delivery') === true, 'WhatsApp SÍ notifica hito único on_the_way (delivery)');
+assert(debeNotificarAutomaticamente('delivered', 'delivery') === false, 'WhatsApp NO dispara spam al entregar (delivery)');
+assert(debeNotificarAutomaticamente('ready', 'pickup') === true, 'WhatsApp SÍ notifica hito único ready (pickup)');
+assert(debeNotificarAutomaticamente('cancelled', 'delivery') === true, 'WhatsApp notifica cancelación');
+
+assert(COMISION_COCINA_PCT === 0.03, 'Comisión cocina es 3%');
+assert(COMISION_DELIVERY_PCT === 0.02, 'Comisión delivery es 2%');
+assert(COMISION_USUARIO_PCT === 0.01, 'Comisión usuario es 1%');
+
+const comTest = calcularComisionesOrden({ subtotalFood: 100, deliveryFee: 10, driverTip: 2 });
+assert(comTest.comisionCocina === 3.00 && comTest.netoCocina === 97.00, '3% cocina sobre $100 = $3.00 (neto $97.00)');
+assert(comTest.comisionDelivery === 0.20 && comTest.netoDelivery === 11.80, '2% delivery sobre $10 = $0.20 (neto $9.80 + $2 propina = $11.80)');
+assert(comTest.comisionUsuario === 1.00, '1% usuario sobre $100 = $1.00');
+
+console.log('\n=== TEST 10: BOM, OCR FILTRO INTELIGENTE, PLATOS ESTRELLA Y TICKET PROMEDIO ===');
+const insumosMock = [
+  { id: 'i1', name: 'Harina de Trigo', unit: 'kg', unit_cost: 1.50 },
+  { id: 'i2', name: 'Carne Molida', unit: 'kg', unit_cost: 6.00 }
+];
+const prodMock = { id: 'p1', name: 'Burger Especial', price: 10.00, category: 'Hamburguesas' };
+const recsMock = [
+  { product_id: 'p1', inventory_item_id: 'i1', quantity_required: 0.2 },
+  { product_id: 'p1', inventory_item_id: 'i2', quantity_required: 0.25 }
+];
+const bomRes = calcularCostoYMargenPlato(prodMock, recsMock, insumosMock);
+assert(bomRes.costoProduccion === 1.80, 'Costo BOM calculado correctamente ($0.30 harina + $1.50 carne = $1.80)');
+assert(bomRes.comisionCocina === 0.30, 'Comisión cocina 3% sobre $10 = $0.30');
+assert(bomRes.gananciaNeta === 7.90, 'Ganancia neta por porción = $7.90');
+
+const lineasFactura = extraerLineasDesdeTextoFactura('Harina de Trigo | 10 | 1.80\nDesodorante Rexona | 1 | 4.50\nShampoo Pantene | 1 | 6.00');
+const { actualizables, ignorados } = filtrarYMapearFactura(lineasFactura, insumosMock);
+assert(actualizables.length === 1 && actualizables[0].insumoId === 'i1', 'Filtro inteligente mapea Harina de Trigo al inventario activo');
+assert(ignorados.length === 2, 'Filtro inteligente ignora automáticamente desodorante y shampoo ajenos al inventario');
+
+const menuAnalitica = [
+  prodMock,
+  { id: 'p2', name: 'Refresco Cola', price: 2.00, category: 'Bebidas' },
+  { id: 'p3', name: 'Sopa Lenta', price: 6.00, category: 'Sopas' }
+];
+const ordenesAnalitica = [
+  { subtotal_food: 12.00, items: [{ product_id: 'p1', name: 'Burger Especial', price: 10.00, quantity: 1 }, { product_id: 'p2', name: 'Refresco Cola', price: 2.00, quantity: 1 }] },
+  { subtotal_food: 10.00, items: [{ product_id: 'p1', name: 'Burger Especial', price: 10.00, quantity: 1 }] }
+];
+const { platosEstrella, platosBajaRotacion } = calcularAnaliticaPlatos(ordenesAnalitica, menuAnalitica, recsMock, insumosMock);
+assert(platosEstrella[0].id === 'p1' && platosEstrella[0].unidadesVendidas === 2, 'Detecta plato estrella por volumen');
+assert(platosBajaRotacion[0].id === 'p3' && platosBajaRotacion[0].unidadesVendidas === 0, 'Detecta plato de baja rotación (0 ventas)');
+
+const ticketInfo = calcularTicketPromedioYCrossSelling(ordenesAnalitica, menuAnalitica);
+assert(ticketInfo.ticketPromedio === 11.00, 'Ticket promedio calculado en $11.00');
+assert(ticketInfo.sugerencias.length === 3, 'Genera sugerencias de venta cruzada (Bebidas, Extras, Postres)');
 
 console.log(`\n========================================`);
 console.log(`RESULTADOS: ${passed} pasadas, ${failed} fallidas`);

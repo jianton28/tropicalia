@@ -1,11 +1,16 @@
 /**
- * Servicio Avanzado de Notificaciones por WhatsApp (wa.me) para Tropicalia CRB
- * Enlaces profundos preformateados directos sin intermediarios pagos ni APIs de terceros.
+ * Servicio Simplificado de Notificaciones por WhatsApp (wa.me) para Tropicalia CRB
+ * Consolidado al mínimo indispensable para evitar saturar al cliente con múltiples
+ * mensajes consecutivos por una misma orden.
  */
 
 // Teléfono oficial de atención y soporte del negocio Tropicalia CRB
 export const NUMERO_ORIGEN_NEGOCIO = '04141352503';
 export const NUMERO_ORIGEN_INTERNACIONAL = '584141352503';
+
+// Registro en memoria de notificaciones automáticas ya disparadas en la sesión
+// para prevenir envíos duplicados o consecutivos sobre una misma orden/estado.
+const notificacionesDisparadas = new Set();
 
 /**
  * Normaliza cualquier número de teléfono venezolano al formato internacional E.164 (58XXXXXXXXXX)
@@ -17,10 +22,8 @@ export function formatearTelefonoVE(phone) {
   let clean = phone.toString().replace(/\D/g, '');
 
   if (clean.startsWith('0')) {
-    // 04141234567 -> 584141234567
     clean = '58' + clean.slice(1);
   } else if (!clean.startsWith('58') && clean.length === 10) {
-    // 4141234567 -> 584141234567
     clean = '58' + clean;
   }
   return clean;
@@ -34,13 +37,32 @@ function fmtUsd(amount) {
 }
 
 /**
- * Genera el cuerpo del mensaje de WhatsApp codificado según el estado del pedido,
- * incluyendo el número de contacto de Tropicalia y el resumen detallado del pedido.
- * 
+ * Determina si una transición de estado debe disparar notificación automática por WhatsApp.
+ * Regla de consolidación (máximo 1 aviso operativo indispensable por orden + cancelación):
+ * - Delivery: solo al salir 'on_the_way' (incluye código seguro y rastreo) o 'cancelled'.
+ * - Pickup: solo al estar 'ready' en barra (incluye código de retiro) o 'cancelled'.
+ * - Estados intermedios ('pending', 'cooking', 'ready' en delivery, 'delivered') se ven en vivo en /tracking.
+ *
+ * @param {string} nuevoEstado
+ * @param {string} [deliveryType='delivery']
+ * @returns {boolean}
+ */
+export function debeNotificarAutomaticamente(nuevoEstado, deliveryType = 'delivery') {
+  if (!nuevoEstado) return false;
+  if (nuevoEstado === 'cancelled') return true;
+  if (deliveryType === 'pickup') {
+    return nuevoEstado === 'ready' || nuevoEstado === 'ready_for_pickup';
+  }
+  return nuevoEstado === 'on_the_way' || nuevoEstado === 'out_for_delivery';
+}
+
+/**
+ * Genera el cuerpo del mensaje de WhatsApp limpio, directo y sin ruido visual.
+ *
  * @param {Object} orden - Objeto de la orden/comanda
  * @param {string} nuevoEstado - 'cooking', 'ready', 'on_the_way', 'delivered', 'cancelled', etc.
  * @param {Object} [negocio] - Objeto con datos del local/restaurante
- * @returns {string} Mensaje redactado con formato para WhatsApp (*negritas*, emojis, saltos)
+ * @returns {string} Mensaje redactado de forma clara y directa
  */
 export function generarMensajeEstado(orden, nuevoEstado, negocio) {
   if (!orden) return '';
@@ -51,127 +73,70 @@ export function generarMensajeEstado(orden, nuevoEstado, negocio) {
   const esPickup = orden.delivery_type === 'pickup';
   const codigoSeguro = orden.delivery_code || ordenIdCorta.slice(0, 4);
 
-  // Lista de productos con formato
   const itemsList = Array.isArray(orden.items) && orden.items.length > 0
     ? orden.items.map(i => {
         const cant = i.quantity || 1;
-        const precioUnit = i.price ? ` (${fmtUsd(i.price)})` : '';
-        return `  • *${cant}x* ${i.name}${precioUnit}`;
+        return `- ${cant}x ${i.name}`;
       }).join('\n')
-    : '  • Pedido del menú Tropicalia';
+    : '- Pedido del menú Tropicalia';
 
-  const subtotal = orden.subtotal_food ? fmtUsd(orden.subtotal_food) : null;
-  const flete = !esPickup && orden.delivery_fee ? fmtUsd(orden.delivery_fee) : null;
-  const propina = orden.driver_tip ? fmtUsd(orden.driver_tip) : null;
   const totalUsd = fmtUsd(orden.total);
-  const totalBs = orden.total_bs ? `Bs. ${parseFloat(orden.total_bs).toFixed(2)}` : null;
-  const metodoPago = (orden.payment_method || 'Digital').toUpperCase().replace(/_/g, ' ');
-
-  // Encabezado oficial de marca y número de contacto
-  const cabecera = 
-    `🌴 *TROPICALIA CRB* 🌴\n` +
-    `_Cocina Gourmet & Delivery Express_\n` +
-    `📞 *Contacto del Negocio:* 0414-1352503 (+58 414 135 2503)\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `¡Hola, *${nombreCliente}*! 👋\n` +
-    `Tu comanda *#ORD-${ordenIdCorta}* en *${nombreLocal}*:\n\n`;
-
-  // Resumen financiero y de productos
-  const desgloseFinanciero = 
-    `\n📦 *Resumen del Pedido:*\n` +
-    `${itemsList}\n\n` +
-    (subtotal ? `💵 Subtotal Comida: *${subtotal}*\n` : '') +
-    (flete ? `🛵 Costo Delivery: *${flete}*\n` : '') +
-    (propina ? `🎁 Propina Repartidor: *${propina}*\n` : '') +
-    `💰 *TOTAL:* *${totalUsd}*` + (totalBs ? ` (~${totalBs})\n` : '\n') +
-    `💳 *Método de Pago:* ${metodoPago}\n` +
-    `🛵 *Modalidad:* ${esPickup ? '🥡 Retiro en Barra (Pickup)' : '🛵 Delivery a Domicilio'}\n` +
-    (!esPickup && orden.delivery_address ? `📍 *Dirección:* ${orden.delivery_address}\n` : '');
-
-  // Pie con enlace de rastreo y soporte directo
   const trackingUrl = typeof window !== 'undefined' && window.location?.origin
     ? `${window.location.origin}/tracking?order_id=${orden.id}`
-    : `https://tropicalia.lat/tracking?order_id=${orden.id}`;
+    : `https://tropicalia-rho.vercel.app/tracking?order_id=${orden.id}`;
 
-  const pie = 
-    `\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `🔎 *Rastrea tu pedido en vivo aquí:*\n` +
-    `${trackingUrl}\n\n` +
-    `💬 *¿Dudas o requerimientos adicionales?*\n` +
-    `Escríbenos directamente a WhatsApp: https://wa.me/${NUMERO_ORIGEN_INTERNACIONAL}\n` +
-    `_¡Gracias por preferir Tropicalia CRB!_ 🌺`;
-
-  // Mensaje central dependiente del estado
-  let estadoMensaje = '';
+  let estadoTitulo = '';
+  let detalleEstado = '';
 
   switch (nuevoEstado) {
     case 'cooking':
     case 'in_kitchen':
-      estadoMensaje =
-        `👨‍🍳🔥 *ESTADO: EN PREPARACIÓN*\n` +
-        `¡Tu orden acaba de ingresar a nuestros fogones! Nuestro equipo culinario está preparando tus platos con los más altos estándares de calidad.\n` +
-        desgloseFinanciero +
-        (esPickup
-          ? `📍 *Aviso de Retiro:* Puedes ir acercándote al local; te avisaremos apenas salga de la barra.`
-          : `🛵 *Aviso de Delivery:* Te notificaremos en cuanto el repartidor retire la bolsa sellada.`);
+      estadoTitulo = 'EN PREPARACIÓN';
+      detalleEstado = `Tu pedido en ${nombreLocal} está siendo preparado.`;
       break;
 
     case 'ready':
     case 'ready_for_pickup':
       if (esPickup) {
-        estadoMensaje =
-          `🥡🎉 *ESTADO: ¡LISTO EN LA BARRA!*\n` +
-          `¡Tu comida está caliente y recién empacada esperándote en *${nombreLocal}*!\n\n` +
-          `🔑 *Código de Retiro en Barra:* *${codigoSeguro}*\n` +
-          `Presenta tu nombre o este código en el mostrador para entregarte tu pedido de inmediato.\n` +
-          desgloseFinanciero;
+        estadoTitulo = 'LISTO PARA RETIRAR EN BARRA';
+        detalleEstado = `Tu pedido en ${nombreLocal} está listo.\nCódigo de retiro: *${codigoSeguro}*`;
       } else {
-        estadoMensaje =
-          `📦🛵 *ESTADO: EMPACADO Y SELLADO*\n` +
-          `Tu orden ha salido de la cocina y se encuentra empacada con precinto térmico de seguridad.\n\n` +
-          `🔑 *Tu Código Seguro de Entrega es:* *${codigoSeguro}*\n` +
-          `_(Díctalo al motorizado únicamente al recibir tu paquete sellado en tus manos)_.\n` +
-          desgloseFinanciero;
+        estadoTitulo = 'EMPACADO Y LISTO PARA DESPACHO';
+        detalleEstado = `Tu pedido ya salió de cocina y espera al repartidor.\nCódigo seguro de entrega: *${codigoSeguro}*`;
       }
       break;
 
     case 'on_the_way':
     case 'out_for_delivery':
-      estadoMensaje =
-        `🚀🛵 *ESTADO: EN RUTA HACIA TU DIRECCIÓN*\n` +
-        `¡El repartidor ya tiene tu comida y va en camino a tu destino!\n\n` +
-        `🔑 *Código de Recepción:* *${codigoSeguro}*\n` +
-        `Por favor ten a la mano tu código para dictarlo al momento de la entrega.\n` +
-        desgloseFinanciero;
+      estadoTitulo = 'EN CAMINO A TU DIRECCIÓN';
+      detalleEstado = `El repartidor ya salió con tu pedido.\nCódigo seguro de entrega: *${codigoSeguro}*`;
       break;
 
     case 'delivered':
-      estadoMensaje =
-        `✅🎉 *ESTADO: ¡PEDIDO ENTREGADO!*\n` +
-        `Confirmamos que tu pedido ha sido entregado exitosamente.\n\n` +
-        `¡Esperamos que disfrutes de tu comida! Si tienes algún comentario sobre la calidad o el servicio, no dudes en escribirnos.\n` +
-        `_¡Buen provecho!_ ✨\n` +
-        desgloseFinanciero;
+      estadoTitulo = 'PEDIDO ENTREGADO';
+      detalleEstado = 'Confirmamos la entrega de tu pedido. Gracias por preferirnos.';
       break;
 
     case 'cancelled':
-      estadoMensaje =
-        `⚠️❌ *ESTADO: COMANDA CANCELADA*\n` +
-        `Te confirmamos que la orden *#ORD-${ordenIdCorta}* ha sido cancelada.\n\n` +
-        `Si realizaste un pago digital previo (Pago Móvil, Binance, etc.), nuestro equipo administrativo se encuentra a tu disposición para conciliar la devolución o crédito inmediato.\n` +
-        `📞 *Línea Directa de Soporte:* 0414-1352503\n` +
-        desgloseFinanciero;
+      estadoTitulo = 'PEDIDO CANCELADO';
+      detalleEstado = `La orden #ORD-${ordenIdCorta} fue cancelada. Si realizaste pago digital, contáctanos para gestionar el reintegro.`;
       break;
 
     default:
-      estadoMensaje =
-        `ℹ️ *ACTUALIZACIÓN DE ESTADO: ${(nuevoEstado || '').toUpperCase()}*\n` +
-        `Tu comanda ha registrado una actualización en el sistema.\n` +
-        desgloseFinanciero;
+      estadoTitulo = (nuevoEstado || 'ACTUALIZACIÓN').toUpperCase();
+      detalleEstado = 'Tu pedido presenta una actualización en el sistema.';
       break;
   }
 
-  return cabecera + estadoMensaje + pie;
+  return (
+    `*TROPICALIA CRB* | Orden #ORD-${ordenIdCorta}\n` +
+    `Hola *${nombreCliente}*, estado: *${estadoTitulo}*\n\n` +
+    `${detalleEstado}\n\n` +
+    `*Detalle:*\n${itemsList}\n` +
+    `*Total:* ${totalUsd}\n\n` +
+    `Rastreo en vivo: ${trackingUrl}\n` +
+    `Soporte: 0414-1352503`
+  );
 }
 
 /**
@@ -221,7 +186,6 @@ export function abrirNotificacionWhatsApp(orden, nuevoEstado, negocio, autoOpen 
     }
   }
 
-  // Notificar al contexto de la app para componentes que deseen mostrar toast interactivo
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('tropicalia:whatsapp_notificado', {
       detail: { ordenId: orden.id, url, nuevoEstado, telefonoCliente: orden.customer_phone }
@@ -229,4 +193,30 @@ export function abrirNotificacionWhatsApp(orden, nuevoEstado, negocio, autoOpen 
   }
 
   return { success: true, url, texto };
+}
+
+/**
+ * Envía la notificación automática únicamente si corresponde al hito indispensable
+ * de la modalidad (1 mensaje clave por orden) y no ha sido enviada previamente.
+ *
+ * @param {Object} orden
+ * @param {string} nuevoEstado
+ * @param {Object} [negocio]
+ * @returns {Object} { skipped?: boolean, success: boolean, url: string|null }
+ */
+export function abrirNotificacionWhatsAppSiCorresponde(orden, nuevoEstado, negocio) {
+  if (!orden) return { success: false, skipped: true, url: null };
+  const deliveryType = orden.delivery_type || 'delivery';
+
+  if (!debeNotificarAutomaticamente(nuevoEstado, deliveryType)) {
+    return { success: true, skipped: true, url: null };
+  }
+
+  const dedupKey = `${orden.id}:${nuevoEstado}`;
+  if (notificacionesDisparadas.has(dedupKey)) {
+    return { success: true, skipped: true, url: null };
+  }
+
+  notificacionesDisparadas.add(dedupKey);
+  return abrirNotificacionWhatsApp(orden, nuevoEstado, negocio, true);
 }
